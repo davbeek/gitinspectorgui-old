@@ -1,0 +1,92 @@
+{
+    "editor.detectIndentation": false,
+    //
+    // Controls how the editor should render whitespace characters.
+    //  - none
+    //  - boundary: Render whitespace characters except for single spaces between words.
+    //  - selection: Render whitespace characters only on selected text.
+    //  - trailing: Render only trailing whitespace characters.
+    //  - all
+    "editor.formatOnSave": true,
+    "editor.renderWhitespace": "boundary",
+    "editor.rulers": [
+        88,
+    ],
+    "[restructuredtext]": {
+        "editor.tabSize": 2,
+        "editor.rulers": [
+            80,
+            88
+        ],
+    },
+    //
+    "esbonio.server.enabled": true,
+    // "esbonio.server.logLevel": "debug",
+    // "esbonio.server.logLevel": "error",
+    "esbonio.server.logLevel": "info",
+    "esbonio.sphinx.buildCommand": [
+        "sphinx-build",
+        "-M",
+        "html",
+        ".",
+        "_build"
+    ],
+    //
+    "evenBetterToml.semanticTokens": false,
+    //
+    "files.associations": {
+        "*.inc": "restructuredtext"
+    },
+    "files.eol": "\n",
+    "files.insertFinalNewline": true,
+    "files.trimFinalNewlines": true,
+    "files.trimTrailingWhitespace": true,
+    //
+    "github.copilot.editor.enableCodeActions": false,
+    //
+    "isort.args": [
+        "--profile",
+        "black"
+    ],
+    "[python]": {
+        "editor.defaultFormatter": "ms-python.black-formatter",
+        "editor.formatOnSave": true,
+        "editor.rulers": [
+            88
+        ],
+        //
+        // required for isort, see setting "isort.args"
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+        },
+    },
+    //
+    "python.analysis.indexing": true,
+    "python.analysis.typeCheckingMode": "basic",
+    "python.analysis.autoImportCompletions": true,
+    "python.analysis.autoFormatStrings": true,
+    "python.analysis.completeFunctionParens": true,
+    "python.analysis.inlayHints.callArgumentNames": "off",
+    // "python.analysis.inlayHints.callArgumentNames": "partial",
+    "python.analysis.inlayHints.variableTypes": false,
+    //
+    // Pylance, None, Jedi (Jedi DOES NOT WORK)
+    "python.languageServer": "Pylance",
+    "python.testing.pytestEnabled": true,
+    "python.terminal.activateEnvInCurrentTerminal": false,
+    "python.terminal.activateEnvironment": false,
+    //
+    // Error: basic info and errors
+    // Warning: = Error + warnings
+    // Information: = Warning + execution times and return info etc (Default)
+    // Trace: = Information + ?????
+    "python.analysis.logLevel": "Information",
+    //
+    "rewrap.autoWrap.enabled": true,
+    // Puts a single space between comment character "//" and comment text
+    "rewrap.reformat": true,
+    //
+    "terminal.integrated.persistentSessionReviveProcess": "never",
+    //
+    "workbench.editor.editorActionsLocation": "titleBar",
+}

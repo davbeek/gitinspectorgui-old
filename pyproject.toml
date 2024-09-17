@@ -1,0 +1,61 @@
+# Note: flake8 cannot use pyproject.toml for settings
+
+[tool.poetry]
+name = "gitinspectorgui"
+version = "0.3.4"
+description = "Install with all dependencies: pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ gitinspectorgui"
+authors = ["Bert van Beek, Jingjing Wang <d.a.v.beek@tue.nl>"]
+license = "MIT"
+readme = "README.md"
+# homepage = ""
+# repository = ""
+keywords = ["git", "repository", "analyzer", "analysis", "statistics", "vcs"]
+classifiers = [
+    # "Development Status :: 1 - Planning",
+    # "Development Status :: 2 - Pre-Alpha",
+    # "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
+    # "Development Status :: 5 - Production/Stable",
+    # "Development Status :: 6 - Mature",
+    "Intended Audience :: Education",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: English",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows :: Windows 10",
+    "Operating System :: Microsoft :: Windows :: Windows 11",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3.12",
+]
+include = []
+packages = [{ include = "gigui", from = "src" }]
+
+
+[tool.poetry.dependencies]
+bs4 = "*"
+colorlog = "*"
+gitpython = ">=3.1.30"
+jinja2 = "*"
+jsonschema = "*"
+platformdirs = "*"
+python = ">=3.12.4,<3.13"
+pysimplegui-4-foss = "^4.60.4.1"
+pywebview = "^5.2"
+xlsxwriter = "*"
+
+[tool.poetry.group.dev.dependencies]
+black = ">=22.3"
+flake8 = "*"
+isort = "*"
+pipdeptree = "*"
+pre-commit = "*"
+pyinstaller = "*"
+pytest = ">=7.1"
+pytest-order = "*"
+
+[tool.poetry.group.docs.dependencies]
+sphinx = "^7"
+sphinx_rtd_theme = ">=1.2"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

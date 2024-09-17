@@ -1,0 +1,33 @@
+build
+debian
+deb_dist
+app
+node_modules
+*.egg-info
+*.pyc
+*.tgz
+
+.DS_Store
+*.xls
+*.xlsx
+.pre-commit-config.yaml
+dist
+
+.vscode/launch.json
+.zshrc
+gitinspect.txt
+gitinspect.xlsx
+xx.py
+
+# Config files from PyCharm via IntelliJ
+.idea/
+
+# html files created by esbonio or sphinx
+_build/
+
+# Profile data for the Python code visualizer
+.prof
+
+# macOS and Windows paths for user dependant setting
+app-setup-target-dir.txt
+app-dmg-target-dir.txt

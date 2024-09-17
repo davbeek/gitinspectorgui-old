@@ -1,0 +1,4 @@
+# We need this setting to make sure that Poetry doesn't create a new virtualenv
+# Without this setting, poetry install will install the dependencies in a new virtualenv
+# created and managed by poetry instead of conda.[virtualenvs]
+create = false

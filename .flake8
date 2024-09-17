@@ -1,0 +1,15 @@
+# Note that flake8 does not support pyproject.tom and therefore needs its own
+# config file.
+
+[flake8]
+exclude = xx.py
+max-line-length = 1000
+
+extend-ignore =
+    # E203: whitespace before ':'
+    E203,
+    # E251: unexpected spaces around keyword / parameter equals
+    E251,
+    # E202: whitespace before ')'
+    E202,
+    # F841: local variable is assigned to but never used

@@ -1,0 +1,30 @@
+Dir 1-repos
+1-thread 240 (151) -> 33
+
+10 25 91
+10 50 92
+10 10 114.4
+20 50 Too many open files
+20 40 89.4
+20 30 89.7
+30 30 Too many open files
+
+Remove Calc commit/blames print, Start repo
+05 10 104.7
+05 20 105.1
+10 20 89.0
+10 40 88.1
+20 40 90.5
+20 20 88.7
+
+Subdir grading
+1-thread 66.1 (65.2) -> 19.2
+10 20 48.3
+
+Dir x2023
+1-thread 20.1
+10 20 13.6
+5 10 13.5
+2 10 12.5
+1 10 15.0
+3 15 12.3
