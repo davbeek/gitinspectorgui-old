@@ -136,7 +136,7 @@ class HTMLTable:
                     )
                 table_row += f"<td class='comment_col'>{row[-1]}</td>\n"
             else:
-                row[7] = str(row[7]).replace(" ", "&nbsp;")
+                row[7] = str(row[7]).replace(" ", "&nbsp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
                 for i, data in enumerate(row):
                     head = header[i]
                     new_data = self.empty_to_nbsp(data) if head == "Code" else data  # type: ignore
