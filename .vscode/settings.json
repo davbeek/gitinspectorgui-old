@@ -19,6 +19,13 @@
             88
         ],
     },
+    "[markdown]": {
+        "editor.tabSize": 2,
+        "editor.rulers": [
+            80,
+            88
+        ],
+    },
     //
     "esbonio.server.enabled": true,
     // "esbonio.server.logLevel": "debug",
