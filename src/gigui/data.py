@@ -279,6 +279,17 @@ class Person:
 
 
 class Persons:
+    """
+    The data-base with known persons.
+
+    It stores found email addresses and user names of users in the analyzed
+    repositories and tries to merge the information if they seem to point
+    to the same person. A person can have several user names and/or several
+    email addresses.
+
+    ae2person -- Dictionary of author names and email addresses to a Person.
+    """
+
     def __init__(self):
         self.ae2person: dict[Author | Email, Person] = {}
         self.ae2person["*"] = Person("*", "*")
@@ -288,6 +299,7 @@ class Persons:
     def add_person(self, author: Author | None, email: Email | None) -> "Person":
         author = self.define(author)
         email = self.define(email)
+
         if author == "Unknown":
             if email != "Unknown":
                 logger.warning(
@@ -305,10 +317,11 @@ class Persons:
             return person
         else:
             # Both author and email are known
-            if author in self.ae2person:
-                p_author = self.ae2person[author]
-                if email in self.ae2person:
-                    p_email = self.ae2person[email]
+            p_author = self.ae2person.get(author)
+            p_email = self.ae2person.get(email)
+
+            if p_author is not None:
+                if p_email is not None:
                     if p_author == p_email:
                         return p_author  # existing person
                     else:
@@ -319,8 +332,7 @@ class Persons:
                     self.ae2person[email] = p_author
                     return p_author
             else:
-                if email in self.ae2person:
-                    p_email = self.ae2person[email]
+                if p_email is not None:
                     p_email.merge(Person(author, email))
                     self.ae2person[author] = p_email
                     return p_email
@@ -331,10 +343,9 @@ class Persons:
                     return person
 
     def __repr__(self):
-        s = ""
-        for key in self.ae2person:
-            s += f"{key}:\n{repr(self.ae2person[key])}\n"
-        return s
+        return "\n".join(
+            f"{key}:\n{repr(person)}" for key, person in self.ae2person.items()
+        )
 
     def __str__(self):
         s = ""
