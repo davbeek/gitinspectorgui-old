@@ -64,5 +64,5 @@ info in the CLI. Note that the program name is GitinspectorGUI in PyPI, but the
 name of the actually installed Python package is the abbreviated form `gigui`.
 
 ## Documentation
-Extensive online documentation can be found at the (GitinspectorGUI Read the
-Docs website)[https://gitinspectorgui.readthedocs.io/en/latest/index.html].
+Extensive online documentation can be found at the [GitinspectorGUI Read the
+Docs website](https://gitinspectorgui.readthedocs.io/en/latest/index.html).
