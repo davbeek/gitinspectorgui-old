@@ -123,22 +123,22 @@ class Settings(Args):
         return args
 
     def log(self):
-        dict = asdict(self)
-        for key, value in dict.items():
+        settings_dict = asdict(self)
+        for key, value in settings_dict.items():
             key = key.replace("_", "-")
             log(f"{key:21}: {value}")
 
     @classmethod
     def create_from_settings_dict(
-        cls, set_dict: dict[str, str | int | bool | list[str]]
+        cls, settings_dict: dict[str, str | int | bool | list[str]]
     ) -> "Settings":
         settings_schema = SettingsFile.SETTINGS_SCHEMA["properties"]
         settings = cls()
         for key in settings_schema:
-            if key == Keys.extensions and set_dict[key] == DEFAULT_EXTENSIONS:
+            if key == Keys.extensions and settings_dict[key] == DEFAULT_EXTENSIONS:
                 setattr(settings, key, "")
             else:
-                setattr(settings, key, set_dict[key])
+                setattr(settings, key, settings_dict[key])
         return settings
 
     @classmethod
@@ -285,7 +285,7 @@ class Keys(KeysArgs):
     about: str = "about"
     exit: str = "exit"
     # IO configuration
-    browse_input_fstr: str = "browse_iput_fstr"
+    browse_input_fstr: str = "browse_input_fstr"
     outfile_path: str = "outfile_path"
     prefix: str = "prefix"
     postfix: str = "postfix"

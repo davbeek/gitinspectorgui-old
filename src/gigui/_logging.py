@@ -11,7 +11,7 @@ gui_window: sg.Window | None = None
 # Root logger should not have a name, so that all loggers with names are automatically
 # children of the root logger.
 # Do not use the root logger for logging, only use a named (child) logger instead.
-rootlogger = logging.getLogger()
+root_logger = logging.getLogger()
 
 
 # For GUI logger
@@ -49,24 +49,24 @@ def add_cli_handler():
         style="%",
     )
     cli_handler.setFormatter(cli_formatter)
-    rootlogger.addHandler(cli_handler)
+    root_logger.addHandler(cli_handler)
 
 
 def add_gui_handler():
     gui_handler = GUIOutputHandler()
     gui_handler.setFormatter(logging.Formatter(FORMAT))
-    rootlogger.addHandler(gui_handler)
+    root_logger.addHandler(gui_handler)
 
 
 def set_logging_level_from_verbosity(verbosity: int):
     match verbosity:
         case 0:
-            rootlogger.setLevel(logging.WARNING)  # verbosity == 0
+            root_logger.setLevel(logging.WARNING)  # verbosity == 0
         case 1:
-            rootlogger.setLevel(logging.INFO)  # verbosity == 1
+            root_logger.setLevel(logging.INFO)  # verbosity == 1
         case _:
-            rootlogger.setLevel(logging.DEBUG)  # verbosity >= 2
+            root_logger.setLevel(logging.DEBUG)  # verbosity >= 2
 
 
 def get_logging_level_name() -> str:
-    return logging.getLevelName(rootlogger.level)
+    return logging.getLevelName(root_logger.level)

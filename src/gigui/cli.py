@@ -191,7 +191,7 @@ def main():
         "-F",
         "--format",
         action="append",
-        # argeparse adds each occurrence of the option to the list, therefore default is
+        # argparse adds each occurrence of the option to the list, therefore default is
         # []
         choices=AVAILABLE_FORMATS,
         help=help.format,
