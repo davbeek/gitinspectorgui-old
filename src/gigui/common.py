@@ -1,6 +1,5 @@
 import argparse
 import logging
-import sys
 from math import isnan
 from pathlib import Path
 
@@ -20,28 +19,12 @@ gui = False
 # Set to the value of the GUI window at the start of gui.psg.rungui
 gui_window: sg.Window | None = None
 
-file = None
 
-log_dots = False
-
-
-def log(arg, text_color=None, dot=False, end="\n"):
-    global log_dots
-    if dot:
-        end = ""
-        if not log_dots:
-            log_dots = True
-    else:  # not logging a dot
-        if log_dots:  # was logging dots
-            arg = "\n" + arg
-            log_dots = False
+def log(arg, text_color=None, end="\n"):
     if gui:
         gui_window.write_event_value("log", (arg, end, text_color))  # type: ignore
     else:
-        if file == sys.stderr:
-            logger.error(arg)
-        else:
-            print(arg, end=end)
+        print(arg, end=end)
 
 
 def open_webview(html_code: str, repo_name: str):
