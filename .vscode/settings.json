@@ -28,9 +28,9 @@
     },
     //
     "esbonio.server.enabled": true,
-    // "esbonio.server.logLevel": "debug",
-    // "esbonio.server.logLevel": "error",
-    "esbonio.server.logLevel": "info",
+    // "esbonio.logging.level": "debug",
+    // "esbonio.logging.level": "error",
+    "esbonio.logging.level": "info",
     "esbonio.sphinx.buildCommand": [
         "sphinx-build",
         "-M",
