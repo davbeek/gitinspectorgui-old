@@ -80,8 +80,8 @@ class Sheet:
         self.maxrow = max(self.maxrow, row)
         self.maxcol = max(self.maxcol, col)
 
-    def write(self, data, format: ExcelFormat | None = None):
-        self.worksheet.write(self.row, self.col, data, format)
+    def write(self, data, excel_format: ExcelFormat | None = None):
+        self.worksheet.write(self.row, self.col, data, excel_format)
         self.update_max(self.row, self.col)
         self.inc_col()
 
@@ -95,10 +95,10 @@ class Sheet:
         self.update_max(self.row, self.col)
         self.inc_col()
 
-    def write_row(self, datalist: list, format: ExcelFormat | None = None):
+    def write_row(self, datalist: list, excel_format: ExcelFormat | None = None):
         datalist = [data for data in datalist if data is not None]
         if datalist:
-            self.worksheet.write_row(self.row, self.col, datalist, format)
+            self.worksheet.write_row(self.row, self.col, datalist, excel_format)
             newcol = self.col + len(datalist) - 1
             self.update_max(self.row, newcol)
             self.set_pos(self.row, newcol + 1)

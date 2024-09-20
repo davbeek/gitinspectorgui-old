@@ -90,9 +90,6 @@ class GIRepo:
         self.fstr2author2fstat: dict[FileStr, dict[Author, FileStat]] = {}
         self.fstr2fstat: dict[FileStr, FileStat] = {}
 
-        # List of blame authors, so no filtering, ordered by highest blame line count.
-        self.blame_authors: list[Author]
-
         # Class BlameManager is defined further below. Its single instance
         # blame_mangager is defined in function calculate_stats.
         # I could not get forward type hinting to work for self.blame_manager.
@@ -170,6 +167,9 @@ class GIRepo:
             self.fstr2blames: dict[FileStr, list[Blame]] = {}
             self._set_fstr2blames(thread_executor)
 
+            # List of blame authors, so no filtering, ordered by highest blame line count.
+            self.blame_authors: list[Author]
+
         def process_blames(
             self, author2fstr2fstat: dict[Author, dict[FileStr, FileStat]]
         ):
@@ -207,7 +207,7 @@ class GIRepo:
 
         def out_blames(self) -> dict[FileStr, tuple[list[Row], list[bool]]]:
             fstr2rows_iscomments: dict[FileStr, tuple[list[Row], list[bool]]] = {}
-            for fstr in self.fstr2blames.keys():
+            for fstr in self.fstr2blames:
                 rows, iscomments = self._out_blames_fstr(fstr)
                 if rows:
                     fstr2rows_iscomments[fstr] = rows, iscomments
@@ -473,7 +473,7 @@ class GIRepo:
                 self.fstr2lines[blob.path] = lines  # type: ignore
                 self.fstr2lines["*"] += lines
 
-    def get_since_until_args(self, keyword: bool = False) -> list[str]:
+    def get_since_until_args(self) -> list[str]:
         since = self.args.since
         until = self.args.until
         if since and until:
@@ -610,7 +610,7 @@ class GIRepo:
                 and author == commits[-1].author
             ):
                 commits[-1].date_sum += int(timestamp) * insertions
-                commits[-1].commits |= set([sha_short])
+                commits[-1].commits |= {sha_short}
                 commits[-1].insertions += insertions
                 commits[-1].deletions += deletions
             else:
@@ -620,7 +620,7 @@ class GIRepo:
                     fstr=fstr,
                     insertions=insertions,
                     deletions=deletions,
-                    commits=set([sha_short]),
+                    commits={sha_short},
                 )
                 commits.append(commit)
         return commits
@@ -714,7 +714,7 @@ class GIRepo:
         if list(target.keys()) == ["*"]:
             return False
 
-        source = target
+        source = self.author2fstr2fstat
 
         # Set lines in self.author2fstr2fstat
         self.blame_manager.process_blames(self.author2fstr2fstat)
@@ -722,16 +722,16 @@ class GIRepo:
         # Calculate self.fstr2fstat
         target = self.fstr2fstat
         fstrs = set()
-        for author in source:
+        for author, fstr2fstat in source.items():
             if author == "*":
                 target["*"] = source["*"]["*"]
             else:
-                for fstr in source[author]:
+                for fstr, fstat in fstr2fstat.items():
                     if fstr != "*":
                         fstrs.add(fstr)
                         if fstr not in target:
                             target[fstr] = FileStat(fstr)
-                        target[fstr].stat.add(source[author][fstr].stat)
+                        target[fstr].stat.add(fstat.stat)
         for fstr in fstrs:
             for mcommit in self.fstr2mcommits[fstr]:
                 # Order of names must correspond to the order of the commits
@@ -740,35 +740,36 @@ class GIRepo:
         if list(target.keys()) == ["*"]:
             return False
 
-        # Calculate self.fstr2author2fstat
+        # source = self.author2fstr2fstat
+        # Calculate target = self.fstr2author2fstat
         target = self.fstr2author2fstat
-        for author in source:
+        for author, fstr2fstat in source.items():
             if author == "*":
                 target["*"] = source["*"]
                 continue
-            for fstr in source[author]:
+            for fstr, fstat in fstr2fstat.items():
                 if fstr == "*":
                     continue
                 if fstr not in target:
                     target[fstr] = {}
                     target[fstr]["*"] = FileStat(fstr)
-                fstat = source[author][fstr]
                 target[fstr][author] = fstat
                 target[fstr]["*"].stat.add(fstat.stat)
                 target[fstr]["*"].names = self.fstr2fstat[fstr].names
 
+        # source = self.author2fstr2fstat
         # Calculate self.author2pstat
         target = self.author2pstat
-        for author in source:
+        for author, fstr2fstat in source.items():
             if author == "*":
                 target["*"] = PersonStat(Person("*", "*"))
                 target["*"].stat = source["*"]["*"].stat
                 continue
             target[author] = PersonStat(self.get_person(author))
-            for fstr in source[author]:
+            for fstr, fstat in fstr2fstat.items():
                 if fstr == "*":
                     continue
-                target[author].stat.add(source[author][fstr].stat)
+                target[author].stat.add(fstat.stat)
 
         PFStat = TypeVar("PFStat", PersonStat, FileStat)
         AuFi = TypeVar("AuFi", Author, FileStr)
@@ -791,14 +792,10 @@ class GIRepo:
 
         calculate_percentages(self.fstr2fstat, total_insertions, total_lines)
         calculate_percentages(self.author2pstat, total_insertions, total_lines)
-        for author in self.author2fstr2fstat:
-            calculate_percentages(
-                self.author2fstr2fstat[author], total_insertions, total_lines
-            )
-        for fstr in self.fstr2author2fstat:
-            calculate_percentages(
-                self.fstr2author2fstat[fstr], total_insertions, total_lines
-            )
+        for author, fstr2fstat in self.author2fstr2fstat.items():
+            calculate_percentages(fstr2fstat, total_insertions, total_lines)
+        for fstr, author2fstat in self.fstr2author2fstat.items():
+            calculate_percentages(author2fstat, total_insertions, total_lines)
 
         self.gitrepo.close()
         return True
@@ -840,31 +837,31 @@ class GIRepo:
         a2p: dict[Author, PersonStat] = self.author2pstat
         rows: list[Row] = []
         row: Row
-        id: int = 0
+        id_val: int = 0
         for author in self.out_authors_included():
             person = self.get_person(author)
-            row = [id, person.authors_str, person.emails_str]
+            row = [id_val, person.authors_str, person.emails_str]
             row.extend(
                 self.out_stat_values(
                     a2p[author].stat, self.args.scaled_percentages, len(a2p)
                 )
             )
             rows.append(row)
-            id += 1
+            id_val += 1
         return rows
 
     def out_files_stats(self) -> list[Row]:
         f2f: dict[FileStr, FileStat] = self.fstr2fstat
         rows: list[Row] = []
         row: Row
-        id: int = 0
+        id_val: int = 0
         fstrs = f2f.keys()
         fstrs = sorted(fstrs, key=lambda x: f2f[x].stat.line_count, reverse=True)
         for fstr in fstrs:
-            row = [id, f2f[fstr].relative_names_str(self.subfolder)]
+            row = [id_val, f2f[fstr].relative_names_str(self.subfolder)]
             row.extend(self.out_stat_values(f2f[fstr].stat))
             rows.append(row)
-            id += 1
+            id_val += 1
         return rows
 
     def out_blames(self) -> dict[FileStr, tuple[list[Row], list[bool]]]:
@@ -874,7 +871,7 @@ class GIRepo:
         a2f2f: dict[Author, dict[FileStr, FileStat]] = self.author2fstr2fstat
         row: Row
         rows: list[Row] = []
-        id: int = 0
+        id_val: int = 0
         for author in self.out_authors_included():
             person = self.get_person(author)
             fstrs = a2f2f[author].keys()
@@ -885,7 +882,7 @@ class GIRepo:
                 row = []
                 row.extend(
                     [
-                        id,
+                        id_val,
                         person.authors_str,
                         a2f2f[author][fstr].relative_names_str(self.subfolder),
                     ]
@@ -893,14 +890,14 @@ class GIRepo:
                 stat = a2f2f[author][fstr].stat
                 row.extend(self.out_stat_values(stat))
                 rows.append(row)
-            id += 1
+            id_val += 1
         return rows
 
     def out_files_authors_stats(self) -> list[Row]:
         f2a2f: dict[FileStr, dict[Author, FileStat]] = self.fstr2author2fstat
         row: Row
         rows: list[Row] = []
-        id: int = 0
+        id_val: int = 0
         fstrs = f2a2f.keys()
         fstrs = sorted(
             fstrs, key=lambda x: self.fstr2fstat[x].stat.line_count, reverse=True
@@ -908,13 +905,17 @@ class GIRepo:
         for fstr in fstrs:
             authors = f2a2f[fstr].keys()
             authors = sorted(
-                authors, key=lambda x: f2a2f[fstr][x].stat.line_count, reverse=True
+                authors,
+                key=lambda x: f2a2f[fstr][  # pylint: disable=cell-var-from-loop
+                    x
+                ].stat.line_count,
+                reverse=True,
             )
             for author in authors:
                 row = []
                 row.extend(
                     [
-                        id,
+                        id_val,
                         f2a2f[fstr][author].relative_names_str(self.subfolder),
                         self.get_person(author).authors_str,
                     ]
@@ -922,7 +923,7 @@ class GIRepo:
                 stat = f2a2f[fstr][author].stat
                 row.extend(self.out_stat_values(stat))
                 rows.append(row)
-            id += 1
+            id_val += 1
         return rows
 
     @classmethod
@@ -999,8 +1000,8 @@ def get_repos(pathlike: PathLike, depth: int) -> list[list[GIRepo]]:
             other_dirs: list[Path] = [dir for dir in subdirs if not is_git_repo(dir)]
             other_dirs = sorted(other_dirs)
             repo_lists = [repos] if repos else []
-            for dir in other_dirs:
-                repo_lists.extend(get_repos(dir, depth - 1))
+            for other_dir in other_dirs:
+                repo_lists.extend(get_repos(other_dir, depth - 1))
             return repo_lists
     else:
         log(f"Path {pathlike} is not a directory")

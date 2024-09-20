@@ -3,6 +3,7 @@ import logging
 from argparse import Namespace
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
+from typing import Any
 
 import jsonschema
 import platformdirs
@@ -85,7 +86,7 @@ class Settings(Args):
 
     def create_settings_file(self, settings_path: Path):
         settings_dict = asdict(self)
-        with open(settings_path, "w") as f:
+        with open(settings_path, "w", encoding="utf-8") as f:
             d = json.dumps(settings_dict, indent=4, sort_keys=True)
             f.write(d)
 
@@ -108,7 +109,7 @@ class Settings(Args):
         settings_file_path = Path(pathlike)
         settings_dict = asdict(self)
         jsonschema.validate(settings_dict, SettingsFile.SETTINGS_SCHEMA)
-        with open(settings_file_path, "w") as f:
+        with open(settings_file_path, "w", encoding="utf-8") as f:
             d = json.dumps(settings_dict, indent=4, sort_keys=True)
             f.write(d)
         SettingsFile.set_location(settings_file_path)
@@ -143,12 +144,12 @@ class Settings(Args):
 
     @classmethod
     def from_values_dict(cls, values: dict[str, str | int | bool]) -> "Settings":
-        settings_schema = SettingsFile.SETTINGS_SCHEMA["properties"]
+        settings_schema: dict[str, Any] = SettingsFile.SETTINGS_SCHEMA["properties"]
         settings = cls()
 
-        for key in settings_schema:
+        for key, value in settings_schema.items():
             if key in values:
-                if settings_schema[key]["type"] == "array":
+                if value["type"] == "array":
                     setattr(settings, key, str_split_comma(values[key]))  # type: ignore
                 else:
                     setattr(settings, key, values[key])
@@ -255,10 +256,13 @@ class KeysArgs:
     ex_revisions: str = "ex_revisions"
     ex_messages: str = "ex_messages"
 
-    def __post_init(self):
-        fldnames_args = [fld.name for fld in fields(Args)]
-        fldnames_keys = [fld.name for fld in fields(self.__class__)]
-        assert fldnames_args == fldnames_keys
+    def __post_init__(self):
+        fldnames_args = {fld.name for fld in fields(Args)}
+        fldnames_keys = {fld.name for fld in fields(KeysArgs)}
+        assert fldnames_args == fldnames_keys, (
+            f"Args - KeysArgs: {fldnames_args - fldnames_keys}\n"
+            f"KeysArgs - Args: {fldnames_keys - fldnames_args}"
+        )
 
 
 @dataclass
@@ -321,7 +325,7 @@ class SettingsFile:
         "settings_location": INITIAL_SETTINGS_PATH.as_posix(),
     }
 
-    SETTINGS_SCHEMA: dict = {
+    SETTINGS_SCHEMA: dict[str, Any] = {
         "type": "object",
         "properties": {
             "col_percent": {"type": "integer"},  # Not used in CLI
@@ -370,14 +374,14 @@ class SettingsFile:
     def create_location_file_for(cls, location_settings: dict[str, str]) -> Path:
         jsonschema.validate(location_settings, cls.SETTINGS_LOCATION_SCHEMA)
         d = json.dumps(location_settings, indent=4)
-        with open(cls.SETTINGS_LOCATION_PATH, "w") as f:
+        with open(cls.SETTINGS_LOCATION_PATH, "w", encoding="utf-8") as f:
             f.write(d)
         return Path(location_settings["settings_location"])
 
     @classmethod
     def get_location(cls) -> Path:
         try:
-            with open(cls.SETTINGS_LOCATION_PATH, "r") as f:
+            with open(cls.SETTINGS_LOCATION_PATH, "r", encoding="utf-8") as f:
                 s = f.read()
             settings_location_dict = json.loads(s)
             jsonschema.validate(settings_location_dict, cls.SETTINGS_LOCATION_SCHEMA)
@@ -394,7 +398,7 @@ class SettingsFile:
     def show(cls):
         path = cls.get_location()
         log(f"Settings file location: {path}")
-        settings, error = cls.load()
+        settings, _ = cls.load()
         if not common.gui:
             settings.log()
 
@@ -408,7 +412,7 @@ class SettingsFile:
             path = Path(file)
             if path.suffix != ".json":
                 raise ValueError(f"File {str(path)} does not have a .json extension")
-            with open(file, "r") as f:
+            with open(file, "r", encoding="utf-8") as f:
                 s = f.read()
                 settings_dict = json.loads(s)
                 jsonschema.validate(settings_dict, cls.SETTINGS_SCHEMA)

@@ -5,7 +5,7 @@ from pathlib import Path
 import PySimpleGUI as sg
 
 from gigui._logging import add_gui_handler
-from gigui.args_settings_keys import AUTO, VIEWER_CHOICES, Keys, Settings, SettingsFile
+from gigui.args_settings_keys import AUTO, VIEWER_CHOICES, Keys, SettingsFile
 from gigui.constants import (
     ENABLED_COLOR,
     INIT_COL_PERCENT,
@@ -104,9 +104,9 @@ def checkbox(
     )
 
 
-def spinbox(key: str, range: list[int], pad=None) -> sg.Spin:
+def spinbox(key: str, spin_range: list[int], pad=None) -> sg.Spin:
     return sg.Spin(
-        range,
+        spin_range,
         initial_value=1,
         k=key,
         enable_events=True,
@@ -171,7 +171,7 @@ def popup(title, message):
     sg.popup(title, message, keep_on_top=True, text_color="black")
 
 
-def make_window(args: Settings) -> sg.Window:
+def make_window() -> sg.Window:
     # Cannot use logging here, as there is not yet any new window to log to and the
     # window in common and _logging still points to the old window after a "Reset
     # settings file" command has been given.

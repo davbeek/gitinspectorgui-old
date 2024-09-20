@@ -8,6 +8,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from multiprocessing import Process
 from pathlib import Path
+from typing import Any
 
 import PySimpleGUI as sg
 
@@ -110,8 +111,8 @@ def execute(
         return
 
     args = Args()
-    settings_schema = SettingsFile.SETTINGS_SCHEMA["properties"]
-    for key in settings_schema:
+    settings_schema: dict[str, Any] = SettingsFile.SETTINGS_SCHEMA["properties"]
+    for key, value in settings_schema.items():
         if key not in {
             keys.profile,
             keys.fix,
@@ -122,7 +123,7 @@ def execute(
             keys.multi_thread,
             keys.multi_core,
         }:
-            if settings_schema[key]["type"] == "array":
+            if value["type"] == "array":
                 setattr(args, key, str_split_comma(values[key]))  # type: ignore
             else:
                 setattr(args, key, values[key])
@@ -239,9 +240,9 @@ def rungui_inner(settings: Settings) -> bool:
             update_column_height(config_column, window_height, window_height)
 
     def help_window():
-        def help_text(str):
+        def help_text(string):
             return sg.Text(
-                str, text_color="black", background_color="white", pad=(0, 0)
+                string, text_color="black", background_color="white", pad=(0, 0)
             )
 
         def hyperlink_text(url):
@@ -275,7 +276,7 @@ def rungui_inner(settings: Settings) -> bool:
         assert window is not None
 
         while True:
-            event, values = window.read()  # type: ignore
+            event, _ = window.read()  # type: ignore
             if event == sg.WINDOW_CLOSED:
                 break
             elif event.startswith("URL "):
@@ -284,17 +285,17 @@ def rungui_inner(settings: Settings) -> bool:
 
         window.close()
 
-    def popup_custom(title, message, input=None):
+    def popup_custom(title, message, user_input=None):
         layout = [[sg.Text(message, text_color="black", background_color="white")]]
-        if input:
+        if user_input:
             layout += [
-                [sg.Text(input, text_color="black", background_color="white")],
+                [sg.Text(user_input, text_color="black", background_color="white")],
                 [sg.OK()],
             ]
         else:
             layout += [[sg.OK(), sg.Cancel()]]
         window = sg.Window(title, layout, keep_on_top=True)
-        event, values = window.read()  # type: ignore
+        event, _ = window.read()  # type: ignore
         window.close()
         return None if event != "OK" else event
 
@@ -354,7 +355,7 @@ def rungui_inner(settings: Settings) -> bool:
         sg.set_options(font=("Any", 12))
 
     window: sg.Window
-    window = make_window(settings)
+    window = make_window()
     common.gui_window = window
     _logging.gui_window = window
 
@@ -392,7 +393,13 @@ def rungui_inner(settings: Settings) -> bool:
                 update_col_percent(window, last_window_height, values[event])  # type: ignore
 
             case keys.execute:
-                execute(window, values, state.input_paths, state.input_valid, state.outfile_base)  # type: ignore
+                execute(
+                    window,
+                    values,
+                    state.input_paths,
+                    state.input_valid,
+                    state.outfile_base,
+                )
 
             case keys.clear:
                 window[keys.multiline].update(value="")  # type: ignore
@@ -414,7 +421,7 @@ def rungui_inner(settings: Settings) -> bool:
             case keys.load:
                 settings_file = values[keys.load]
                 settings_folder = str(Path(settings_file).parent)
-                new_settings, error = SettingsFile.load_from(settings_file)
+                new_settings, _ = SettingsFile.load_from(settings_file)
                 SettingsFile.set_location(settings_file)
                 window[keys.load].InitialFolder = settings_folder  # type: ignore
                 window_state_from_settings(window, new_settings)
@@ -423,7 +430,8 @@ def rungui_inner(settings: Settings) -> bool:
             case keys.reset:
                 res = popup_custom(
                     "Clear settings file",
-                    "This will cause all settings to be reset to their default values. Are you sure?",
+                    "This will cause all settings to be reset to their default values. "
+                    "Are you sure?",
                 )
                 if res == "OK":
                     SettingsFile.reset()
@@ -522,8 +530,8 @@ def rungui_inner(settings: Settings) -> bool:
 
 
 if __name__ == "__main__":
-    settings: Settings
+    current_settings: Settings
     error: str
-    settings, error = SettingsFile.load()
+    current_settings, error = SettingsFile.load()
     multiprocessing.freeze_support()
-    rungui(settings)
+    rungui(current_settings)

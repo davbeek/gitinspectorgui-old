@@ -74,7 +74,9 @@ class HTMLTable:
     def add_header(self, headers: list[str]) -> str:
         table_header = "<tr class=bg-th-green>\n"
         for col in headers:
-            table_header += f"<th class='{header_class_dict[col]}'>{"" if col == "Empty" else col}</th>\n"
+            header_class = header_class_dict[col]
+            header_content = "" if col == "Empty" else col
+            table_header += f"<th class='{header_class}'>{header_content}</th>\n"
         table_header += "</tr>\n"
         return table_header
 
@@ -136,7 +138,13 @@ class HTMLTable:
                     )
                 table_row += f"<td class='comment_col'>{row[-1]}</td>\n"
             else:
-                row[7] = str(row[7]).replace(" ", "&nbsp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+                row[7] = (
+                    str(row[7])
+                    .replace(" ", "&nbsp;")
+                    .replace("<", "&lt;")
+                    .replace(">", "&gt;")
+                    .replace('"', "&quot;")
+                )
                 for i, data in enumerate(row):
                     head = header[i]
                     new_data = self.empty_to_nbsp(data) if head == "Code" else data  # type: ignore

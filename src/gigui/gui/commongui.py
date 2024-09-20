@@ -10,8 +10,8 @@ def resource_path(relative_path=None):
     try:
         # PyInstaller creates a temp folder and stores path in _MEIPASS
         # noinspection PyProtectedMember
-        base_path = sys._MEIPASS  # type: ignore
-    except Exception:
+        base_path = sys._MEIPASS  # type: ignore  # pylint: disable=E1101,W0212
+    except AttributeError:
         base_path = Path(__file__).parent
 
     if relative_path is None:
@@ -29,13 +29,13 @@ def invalid_input(element: sg.Element):
     element.update(background_color="#FD9292")
 
 
-def paths_valid(paths: list[Path], input: sg.Input, colored: bool = True):
+def paths_valid(paths: list[Path], sg_input: sg.Input, colored: bool = True):
     if all(path_exists_case_sensitive(path) for path in paths):
-        input.update(background_color="#FFFFFF")
+        sg_input.update(background_color="#FFFFFF")
         return True
     else:
         if colored:
-            invalid_input(input)
+            invalid_input(sg_input)
         return False
 
 

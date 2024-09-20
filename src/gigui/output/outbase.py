@@ -150,8 +150,8 @@ def string2truncated(orgs: list[str], max_length: int) -> dict[str, str]:
     assert len(extra) == 0
     assert len(missing) == 0
 
-    for org in org2trunc:
-        assert len(org2trunc[org]) <= max_length
+    for trunc in org2trunc.values():
+        assert len(trunc) <= max_length
 
     # # Visually check that numbering has been done correctly
     # numbered = {trunc for trunc in org2trunc.values() if trunc[-1].isdigit()}
