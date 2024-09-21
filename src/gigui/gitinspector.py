@@ -1,6 +1,6 @@
 import logging
-import os
 import platform
+import subprocess
 import time
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from cProfile import Profile
@@ -26,36 +26,46 @@ logger = logging.getLogger(__name__)
 
 
 def openfiles(fstrs: list[str]):
+    """
+    Ask the OS to open the given html filenames.
+
+    :param fstrs: The file paths to open.
+    """
     if fstrs:
-        files = " ".join([f'"{fstr}"' for fstr in fstrs])
         match platform.system():
             case "Darwin":
-                os.system(f"open {files}")  # add quotes to handle spaces in path
+                subprocess.run(["open"] + fstrs, check=True)
             case "Linux":
-                os.system(f"xdg-open {files}")
+                subprocess.run(["xdg-open"] + fstrs, check=True)
             case "Windows":
-                if len(fstrs) == 1:
-                    # The start command treats the first set of double quotes as the
-                    # title for the new command prompt window that is opened. If your
-                    # file path contains spaces and you don't provide an empty set of
-                    # quotes, start will mistakenly treat the part of the file path up
-                    # to the first space as the title, and the rest as the command to
-                    # execute or file to open, which will likely result in an error.
-                    os.system(f'start "" {fstrs[0]}')
-                else:
+                if len(fstrs) != 1:
                     raise RuntimeError(
                         "Illegal attempt to open multiple html files at once on Windows."
                     )
+
+                # First argument "" is the title for the new command prompt window.
+                subprocess.run(["start", "", fstrs[0]], check=True)
+
             case _:
                 raise RuntimeError(f"Unknown platform {platform.system()}")
 
 
-def out_html(repo: GIRepo, outfilestr: str, blame_skip: bool) -> str:
+def out_html(
+    repo: GIRepo,
+    outfilestr: str,  # Path to write the result file.
+    blame_skip: bool,
+) -> str:  # HTML code
+    """
+    Generate an HTML file with analysis result of the provided repository.
+    """
+
+    # Load the template file.
     module_parent = Path(__file__).resolve().parent
     html_path = module_parent / "output/files/template.html"
     with open(html_path, "r") as f:
         html_template = f.read()
 
+    # Construct the file in memory and add the authors and files to it.
     htmltable = HTMLTable(outfilestr)
     authors_html = htmltable.add_authors_table(repo.out_authors_stats())
     authors_files_html = htmltable.add_authors_files_table(
@@ -72,16 +82,21 @@ def out_html(repo: GIRepo, outfilestr: str, blame_skip: bool) -> str:
     html = html.replace("__FILES_AUTHORS__", files_authors_html)
     html = html.replace("__FILES__", files_html)
 
+    # Add blame output if not skipped.
     if not blame_skip:
         blames_htmls = htmltable.add_blame_tables(repo.out_blames(), repo.subfolder)
         html_modifier = HTMLModifier(html)
         html = html_modifier.add_blame_tables_to_html(blames_htmls)
 
+    # Convert the table to text and return it.
     soup = BeautifulSoup(html, "html.parser")
     return soup.prettify(formatter="html")
 
 
 def log_endtime(start_time: float):
+    """
+    Output a log entry to the log of the currently amount of passed time since 'start_time'.
+    """
     end_time = time.time()
     log(f"Done in {end_time - start_time:.1f} s")
 
@@ -89,89 +104,113 @@ def log_endtime(start_time: float):
 def write_repo_output(
     args: Args,
     repo: GIRepo,
-    len_repos: int,
+    len_repos: int,  # Total number of repositories being analyzed
     outfile_base: str,
     gui_window: sg.Window | None = None,
-) -> tuple[list[FileStr], FileStr, tuple[str, str]]:
+) -> tuple[
+    list[FileStr],  # Files to log
+    FileStr,  # File to open
+    tuple[str, str],  # (HTML code, name of repository), empty if no webview generated.
+]:
+    """
+    Generate result file(s) for the analysis of the given repository.
 
+    :return: Files that should be logged, files that should be opened, and
+            the (viewed HTML file text and name of repository) pair.
+            The latter is empty if viewing is not requested.
+    """
+
+    # Setup logging.
     def logfile(fname: FileStr):
-        nonlocal files_to_log
         if args.multi_core:
-            if not files_to_log:
-                files_to_log = [fname]
-            else:
-                files_to_log.append(fname)
-        else:  # single-core
-            log(fname, end=" ")
+            # Logging is postponed in multi-core.
+            files_to_log.append(fname)
+        else:
+            # Single core.
+            log(fname, end=" ")  # Append space as more filenames may be logged.
 
-    # For not args.multi_core, log the filename and end with a space, because more formats may
-    # be selected by the "-F" option, these output files are printed on the same line
-    # separated by a space. At the end of all outputs, a newline is printed by log("")
-
-    # For multi-core, logging is not be done immediately, but all output files are saved
-    # in the (non-local) output string filestr.
     files_to_log: list[FileStr] = []
     file_to_open: FileStr = ""
     webview_htmlcode_name: tuple[str, str] = "", ""
+
     formats = args.format
-    if repo.authors_included and len(formats):
-        base_name = Path(outfile_base).name
-        if args.fix == Keys.prefix:
-            outfile_name = repo.name + "-" + base_name
-        elif args.fix == Keys.postfix:
-            outfile_name = base_name + "-" + repo.name
-        else:
-            outfile_name = base_name
-        repo_parent = Path(repo.gitrepo.working_dir).parent
-        outfile = repo_parent / outfile_name
-        outfilestr = str(outfile)
-        if "excel" in formats:
-            logfile(f"{outfile_name}.xlsx")
-            if args.dry_run == 0:
-                book = Book(outfilestr)
-                book.add_authors_sheet(repo.out_authors_stats())
-                book.add_authors_files_sheet(repo.out_authors_files_stats())
-                book.add_files_authors_sheet(repo.out_files_authors_stats())
-                book.add_files_sheet(repo.out_files_stats())
-                if not args.blame_skip:
-                    book.add_blame_sheets(repo.out_blames(), repo.subfolder)
-                book.close()
-        if "html" in formats or (
-            formats == ["auto"]
-            and (len_repos > 1 or len_repos == 1 and args.viewer == NONE)
-        ):
-            logfile(f"{outfile_name}.html")
-            if args.dry_run == 0:
+
+    if not repo.authors_included or not formats:
+        return files_to_log, file_to_open, ("", "")
+
+    base_name = Path(outfile_base).name
+    if args.fix == Keys.prefix:
+        outfile_name = repo.name + "-" + base_name
+    elif args.fix == Keys.postfix:
+        outfile_name = base_name + "-" + repo.name
+    else:
+        outfile_name = base_name
+
+    repo_parent = Path(repo.gitrepo.working_dir).parent
+    outfile = repo_parent / outfile_name
+    outfilestr = str(outfile)
+
+    # Write the excel file if requested.
+    if "excel" in formats:
+        logfile(f"{outfile_name}.xlsx")
+        if args.dry_run == 0:
+            book = Book(outfilestr)
+            book.add_authors_sheet(repo.out_authors_stats())
+            book.add_authors_files_sheet(repo.out_authors_files_stats())
+            book.add_files_authors_sheet(repo.out_files_authors_stats())
+            book.add_files_sheet(repo.out_files_stats())
+            if not args.blame_skip:
+                book.add_blame_sheets(repo.out_blames(), repo.subfolder)
+            book.close()
+
+    # Write the HTML file if requested.
+    if "html" in formats or (
+        formats == ["auto"]
+        and (len_repos > 1 or len_repos == 1 and args.viewer == NONE)
+    ):
+        logfile(f"{outfile_name}.html")
+        if args.dry_run == 0:
+            html_code = out_html(repo, outfilestr, args.blame_skip)
+            with open(outfilestr + ".html", "w") as f:
+                f.write(html_code)
+
+    # All formats done, end the log line in the single core case.
+    if not args.multi_core:
+        log("")
+
+    # If the result files should not be opened, we're done.
+    if len(formats) > 1 or args.profile or args.viewer == NONE:
+        return [], "", ("", "")
+
+    # In dry-run, there is nothing to show.
+    if args.dry_run != 0:
+        return [], "", ("", "")
+
+    # Open the file(s) for the user.
+    format = formats[0]
+    if len_repos == 1:
+        match format:
+            case "html":
+                file_to_open = outfilestr + ".html"
+            case "excel":
+                file_to_open = outfilestr + ".xlsx"
+            case "auto":
                 html_code = out_html(repo, outfilestr, args.blame_skip)
-                with open(outfilestr + ".html", "w") as f:
-                    f.write(html_code)
-        if not args.multi_core:
-            log("")
-        assert len(formats) > 0
-        if len(formats) == 1 and not args.profile and not args.viewer == NONE:
-            format = formats[0]
-            if len_repos == 1 and args.dry_run == 0:
-                match format:
-                    case "html":
-                        file_to_open = outfilestr + ".html"
-                    case "excel":
-                        file_to_open = outfilestr + ".xlsx"
-                    case "auto":
-                        html_code = out_html(repo, outfilestr, args.blame_skip)
-                        if gui_window:
-                            gui_window.write_event_value(
-                                Keys.open_webview, (html_code, repo.name)
-                            )
-                        else:
-                            webview_htmlcode_name = html_code, repo.name
-            else:  # multiple repos
-                if (
-                    len_repos <= MAX_BROWSER_TABS
-                    and (format == "auto" or format == "html")
-                    and args.viewer == AUTO
-                    and args.dry_run == 0
-                ):
-                    file_to_open = outfilestr + ".html"
+                if gui_window:
+                    gui_window.write_event_value(
+                        Keys.open_webview, (html_code, repo.name)
+                    )
+                else:
+                    webview_htmlcode_name = html_code, repo.name
+
+    else:  # multiple repos
+        if (
+            len_repos <= MAX_BROWSER_TABS
+            and (format == "auto" or format == "html")
+            and args.viewer == AUTO
+        ):
+            file_to_open = outfilestr + ".html"
+
     return files_to_log, file_to_open, webview_htmlcode_name
 
 
