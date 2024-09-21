@@ -1,5 +1,4 @@
 import logging
-import os
 import platform
 import subprocess
 import time
@@ -35,31 +34,31 @@ def openfiles(fstrs: list[str]):
     if fstrs:
         match platform.system():
             case "Darwin":
-                subprocess.run(["open"] + fstrs)
+                subprocess.run(["open"] + fstrs, check=True)
             case "Linux":
-                subprocess.run(["xdg-open"] + fstrs)
+                subprocess.run(["xdg-open"] + fstrs, check=True)
             case "Windows":
                 if len(fstrs) != 1:
                     raise RuntimeError(
                         "Illegal attempt to open multiple html files at once on Windows."
                     )
 
-                # First argument is the title for the new command prompt window.
-                subprocess.run(["start", ""] + fstrs[0])
+                # First argument "" is the title for the new command prompt window.
+                subprocess.run(["start", "", fstrs[0]], check=True)
 
             case _:
                 raise RuntimeError(f"Unknown platform {platform.system()}")
 
 
-def out_html(repo: GIRepo, outfilestr: str, blame_skip: bool) -> str:
+def out_html(
+    repo: GIRepo,
+    outfilestr: str,  # Path to write the result file.
+    blame_skip: bool,
+) -> str:  # HTML code
     """
-    Generate a HTML file with analysis result of the provided repository.
+    Generate an HTML file with analysis result of the provided repository.
+    """
 
-    :param repo: Repository to analyze.
-    :param outfilestr: Path to write the result file.
-    :param blame_skip: If clear, include the blame output, else skip writing it.
-    :return: The generated HTML file.
-    """
     # Load the template file.
     module_parent = Path(__file__).resolve().parent
     html_path = module_parent / "output/files/template.html"
@@ -97,8 +96,6 @@ def out_html(repo: GIRepo, outfilestr: str, blame_skip: bool) -> str:
 def log_endtime(start_time: float):
     """
     Output a log entry to the log of the currently amount of passed time since 'start_time'.
-
-    :param start_time: Start time to compare against.
     """
     end_time = time.time()
     log(f"Done in {end_time - start_time:.1f} s")
@@ -107,41 +104,39 @@ def log_endtime(start_time: float):
 def write_repo_output(
     args: Args,
     repo: GIRepo,
-    len_repos: int,
+    len_repos: int,  # Total number of repositories being analyzed
     outfile_base: str,
     gui_window: sg.Window | None = None,
-) -> tuple[list[FileStr], FileStr, tuple[str, str]]:
+) -> tuple[
+    list[FileStr],  # Files to log
+    FileStr,  # File to open
+    tuple[str, str],  # (HTML code, name of repository), empty if no webview generated.
+]:
     """
     Generate result file(s) for the analysis of the given repository.
 
-    :param args: Option settings of the program.
-    :param repo: The repository to use for creating the files.
-    :param len_repos: Number of repositories.
-    :param outfile_base: Base directory path for the created file.
-    :param gui_window: Handle to the GUI if not None.
-    :return: Files that should be logged, files that should be opened, and 
+    :return: Files that should be logged, files that should be opened, and
             the (viewed HTML file text and name of repository) pair.
             The latter is empty if viewing is not requested.
     """
 
     # Setup logging.
-    files_to_log: list[FileStr] = []
-    if args.multi_core:
-        # Logging is postponed in multi-core.
-        def logfile(fname: FileStr):
+    def logfile(fname: FileStr):
+        if args.multi_core:
+            # Logging is postponed in multi-core.
             files_to_log.append(fname)
-    else:
-        # Single core.
-        def logfile(fname: FileStr):
-            log(fname, end=" ") # Append space as more filenames may be logged.
+        else:
+            # Single core.
+            log(fname, end=" ")  # Append space as more filenames may be logged.
 
-
+    files_to_log: list[FileStr] = []
     file_to_open: FileStr = ""
     webview_htmlcode_name: tuple[str, str] = "", ""
+
     formats = args.format
 
     if not repo.authors_included or not formats:
-        return files_to_log, file_to_open, webview_htmlcode_name
+        return files_to_log, file_to_open, ("", "")
 
     base_name = Path(outfile_base).name
     if args.fix == Keys.prefix:
@@ -185,11 +180,11 @@ def write_repo_output(
 
     # If the result files should not be opened, we're done.
     if len(formats) > 1 or args.profile or args.viewer == NONE:
-        return files_to_log, file_to_open, webview_htmlcode_name
+        return [], "", ("", "")
 
     # In dry-run, there is nothing to show.
     if args.dry_run != 0:
-        return files_to_log, file_to_open, webview_htmlcode_name
+        return [], "", ("", "")
 
     # Open the file(s) for the user.
     format = formats[0]
