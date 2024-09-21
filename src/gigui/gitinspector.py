@@ -136,7 +136,7 @@ def write_repo_output(
     formats = args.format
 
     if not repo.authors_included or not formats:
-        return files_to_log, file_to_open, ("", "")
+        return [], "", ("", "")
 
     base_name = Path(outfile_base).name
     if args.fix == Keys.prefix:

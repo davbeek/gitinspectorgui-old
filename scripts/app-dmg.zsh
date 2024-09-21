@@ -13,28 +13,36 @@ PLATFORM=$(uname -m)
 TARGET_DIR_FILE=$ROOT_DIR/scripts/app-dmg-target-dir.txt
 DMG_FILE=GitinspectorGUI.dmg
 
+# Read the version from the version.txt file
 VERSION="$(<$ROOT_DIR/src/gigui/version.txt)"
 
+# Define the name of the .dmg file based on the platform and add version number
+if [ "$PLATFORM" = "x86_64" ]; then
+    DMG_PLATFORM_FILE="GitinspectorGUI-Intel-$VERSION.dmg"
+else
+    DMG_PLATFORM_FILE="GitinspectorGUI-AppleSilicon-$VERSION.dmg"
+fi
+
 cd $ROOT_DIR/app && {
-    if [ -e $TARGET_DIR_FILE ]; then
-        APP_TARGET_DIR="$(<$TARGET_DIR_FILE)/"
-    else
-        APP_TARGET_DIR=""
-    fi
+    # Read the target directory from the file
+    APP_TARGET_DIR="$(<$TARGET_DIR_FILE)"
 
     # Use (e) flag to expand environment variables in APP_TARGET_DIR
     APP_TARGET_DIR="${(e)APP_TARGET_DIR}"
 
     # Create the .dmg file using hdiutil
-    hdiutil create -volname "GitinspectorGUI" -srcfolder "GitinspectorGUI.app" -ov -format UDZO "$DMG_FILE"
+    hdiutil create -volname "GitinspectorGUI" -srcfolder "GitinspectorGUI.app" \
+        -ov -format UDZO "$DMG_PLATFORM_FILE"
 
-    if [ "$PLATFORM" = "x86_64" ]; then
-        TARGET="${APP_TARGET_DIR}GitinspectorGUI-Intel-$VERSION.dmg"
-    else
-        TARGET="${APP_TARGET_DIR}GitinspectorGUI-AppleSilicon-$VERSION.dmg"
+    if [ -e "$TARGET_DIR_FILE" ]; then
+        if [ -d "$APP_TARGET_DIR" ]; then
+            cp $DMG_PLATFORM_FILE "$APP_TARGET_DIR"
+            echo Copied dmg to: "$APP_TARGET_DIR"
+        else
+            echo "Error: The target directory $APP_TARGET_DIR does not exist."
+            exit 1
+        fi
     fi
-    mv GitinspectorGUI.dmg "$TARGET"
-    echo Moved dmg to: "$TARGET"
 } || {
     # No error message needed, because cd will output an error message when it fails
     exit 1
