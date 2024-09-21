@@ -229,7 +229,7 @@ def make_window() -> sg.Window:
                 ),
                 spinbox(
                     keys.depth,
-                    [i for i in range(0, 10, 1)],
+                    list(range(10)),
                 ),
                 name_input("Output file base", tooltip=tip.outfile_base),
                 input_box(
@@ -304,7 +304,7 @@ def make_window() -> sg.Window:
                             ),
                             spinbox(
                                 keys.verbosity,
-                                [i for i in range(0, 3, 1)],
+                                list(range(3)),
                             ),
                             name_choice(
                                 "Dry run",
@@ -312,7 +312,7 @@ def make_window() -> sg.Window:
                             ),
                             spinbox(
                                 keys.dry_run,
-                                [i for i in range(0, 3, 1)],
+                                list(range(3)),
                             ),
                         ],
                     ],
@@ -332,7 +332,7 @@ def make_window() -> sg.Window:
                 ),
                 spinbox(
                     keys.n_files,
-                    [i for i in range(0, 100, 1)],
+                    list(range(100)),
                 ),
                 name_input(
                     "File pattern",
@@ -432,7 +432,7 @@ def make_window() -> sg.Window:
                 ),
                 spinbox(
                     keys.copy_move,
-                    [i for i in range(0, 5, 1)],
+                    list(range(5)),
                 ),
             ],
         ],
@@ -533,7 +533,7 @@ def make_window() -> sg.Window:
                     [
                         spinbox(
                             keys.col_percent,
-                            [i for i in range(20, 100, 5)],
+                            list(range(20, 100, 5)),
                             pad=((0, 5), None),
                         ),
                         sg.Text(

@@ -279,7 +279,7 @@ def rungui_inner(settings: Settings) -> bool:
             event, _ = window.read()  # type: ignore
             if event == sg.WINDOW_CLOSED:
                 break
-            elif event.startswith("URL "):
+            if event.startswith("URL "):
                 url = event.split(" ")[1]
                 webbrowser.open(url)
 
@@ -507,7 +507,7 @@ def rungui_inner(settings: Settings) -> bool:
                 if values[event] is True:
                     window.Element(keys.auto).Update(value=False)  # type: ignore
                 else:
-                    if sum([values[key] for key in AVAILABLE_FORMATS]) == 0:
+                    if all(values[key] == 0 for key in AVAILABLE_FORMATS):
                         window.Element(keys.auto).Update(value=True)  # type: ignore
 
             case keys.include_files:

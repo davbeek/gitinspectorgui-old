@@ -60,14 +60,14 @@ def valid_datetime_type(arg_datetime_str):
         return arg_datetime_str
     else:
         try:
-            return datetime.datetime.strptime(arg_datetime_str, "%Y-%m-%d").__format__(
+            return datetime.datetime.strptime(arg_datetime_str, "%Y-%m-%d").strftime(
                 "%Y-%m-%d"
             )
-        except ValueError:
-            msg = "Given Datetime ({}) not valid! Expected format, 'YYYY-M-D'!".format(
-                arg_datetime_str
-            )
-            raise ArgumentTypeError(msg)
+        except ValueError as e:
+            raise ArgumentTypeError(
+                f"Given Datetime ({arg_datetime_str}) not valid! "
+                "Expected format: 'YYYY-MM-DD'."
+            ) from e
 
 
 def load_settings():

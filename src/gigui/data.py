@@ -42,7 +42,7 @@ class Stat:
     @property
     def stability(self) -> str:
         return (
-            "{:.1f}".format(min(100, round(100 * self.line_count / self.insertions)))
+            f"{min(100, round(100 * self.line_count / self.insertions)):.1f}"
             if self.insertions and self.line_count
             else ""
         )
@@ -348,11 +348,7 @@ class Persons:
         )
 
     def __str__(self):
-        s = ""
-        for person in self.persons:
-            s += f"{person}\n"
-
-        return s
+        return "\n".join(str(person) for person in self.persons)
 
     def __getitem__(self, key):
         return self.ae2person[key]

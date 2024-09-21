@@ -935,10 +935,7 @@ class GIRepo:
 def is_dir_safe(pathlike: PathLike) -> bool:
 
     try:
-        if os.path.isdir(pathlike):
-            return True
-        else:
-            return False
+        return os.path.isdir(pathlike)
     except PermissionError:
         logger.warning(f"Permission denied for path {str(pathlike)}")
         return False
@@ -974,10 +971,7 @@ def is_git_repo(pathlike: PathLike) -> bool:
         # The default True value of expand_vars leads to confusing warnings from
         # GitPython for many paths from system folders.
         repo = Repo(path, expand_vars=False)
-        if not repo.bare:
-            return True
-        else:
-            return False
+        return not repo.bare
     except (InvalidGitRepositoryError, NoSuchPathError):
         return False
 

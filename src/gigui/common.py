@@ -14,7 +14,7 @@ DEFAULT_WRAP_WIDTH = 88
 logger = logging.getLogger(__name__)
 
 # Set to True at the start of gui.psg.rungui
-gui = False
+gui = False  # pylint: disable=invalid-name
 
 # Set to the value of the GUI window at the start of gui.psg.rungui
 gui_window: sg.Window | None = None
@@ -58,10 +58,10 @@ def get_digit(arg):
             return arg
         else:
             raise ValueError
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as e:
         raise argparse.ArgumentTypeError(
-            f"invalid value '{arg}', use a single digit integer >= 0."
-        )
+            f"Invalid value '{arg}', use a single digit integer >= 0."
+        ) from e
 
 
 def get_pos_number(arg):
@@ -71,10 +71,10 @@ def get_pos_number(arg):
             return arg
         else:
             raise ValueError
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as e:
         raise argparse.ArgumentTypeError(
-            f"invalid value '{arg}', use a positive integer number."
-        )
+            f"Invalid value '{arg}', use a positive integer number."
+        ) from e
 
 
 def str_split_comma(s: str) -> list[str]:
@@ -95,6 +95,6 @@ def get_relative_fstr(fstr: str, subfolder: str):
 def get_version() -> str:
     mydir = Path(__file__).resolve().parent
     version_file = mydir / "version.txt"
-    with open(version_file, "r") as file:
+    with open(version_file, "r", encoding="utf-8") as file:
         version = file.read().strip()
     return version

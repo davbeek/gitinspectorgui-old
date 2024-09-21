@@ -62,7 +62,7 @@ def out_html(
     # Load the template file.
     module_parent = Path(__file__).resolve().parent
     html_path = module_parent / "output/files/template.html"
-    with open(html_path, "r") as f:
+    with open(html_path, "r", encoding="utf-8") as f:
         html_template = f.read()
 
     # Construct the file in memory and add the authors and files to it.
@@ -171,7 +171,7 @@ def write_repo_output(
         logfile(f"{outfile_name}.html")
         if args.dry_run == 0:
             html_code = out_html(repo, outfilestr, args.blame_skip)
-            with open(outfilestr + ".html", "w") as f:
+            with open(outfilestr + ".html", "w", encoding="utf-8") as f:
                 f.write(html_code)
 
     # All formats done, end the log line in the single core case.
@@ -187,9 +187,9 @@ def write_repo_output(
         return [], "", ("", "")
 
     # Open the file(s) for the user.
-    format = formats[0]
+    out_format = formats[0]
     if len_repos == 1:
-        match format:
+        match out_format:
             case "html":
                 file_to_open = outfilestr + ".html"
             case "excel":
@@ -206,7 +206,7 @@ def write_repo_output(
     else:  # multiple repos
         if (
             len_repos <= MAX_BROWSER_TABS
-            and (format == "auto" or format == "html")
+            and out_format in {"auto", "html"}
             and args.viewer == AUTO
         ):
             file_to_open = outfilestr + ".html"
@@ -288,29 +288,30 @@ def process_repos_on_main_thread(
                 log(f"    {repo.name} repository ({count} of {len_repos})")
                 if dryrun == 2:
                     continue
-                else:  # dryrun == 0 or dryrun == 1
-                    stats_found = repo.calculate_stats(thread_executor)
-                    log("        ", end="")
-                    if not stats_found:
-                        log("No statistics matching filters found")
-                    else:  # stats found
-                        if dryrun == 1:
-                            log("")
-                        else:  # dryrun == 0
-                            _, file_to_open, _ = write_repo_output(
-                                repo.args,
-                                repo,
-                                len_repos,
-                                outfile_base,
-                                gui_window,
-                            )
-                            if file_to_open:
-                                if platform.system() == "Windows":
-                                    # Windows cannot open multiple files at once in a
-                                    # browser, so files are opened one by one.
-                                    openfiles([file_to_open])
-                                else:
-                                    files_to_open.append(file_to_open)
+
+                # dryrun == 0 or dryrun == 1
+                stats_found = repo.calculate_stats(thread_executor)
+                log("        ", end="")
+                if not stats_found:
+                    log("No statistics matching filters found")
+                else:  # stats found
+                    if dryrun == 1:
+                        log("")
+                    else:  # dryrun == 0
+                        _, file_to_open, _ = write_repo_output(
+                            repo.args,
+                            repo,
+                            len_repos,
+                            outfile_base,
+                            gui_window,
+                        )
+                        if file_to_open:
+                            if platform.system() == "Windows":
+                                # Windows cannot open multiple files at once in a
+                                # browser, so files are opened one by one.
+                                openfiles([file_to_open])
+                            else:
+                                files_to_open.append(file_to_open)
                 count += 1
         return count, files_to_open
 
