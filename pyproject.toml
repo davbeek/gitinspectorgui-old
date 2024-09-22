@@ -1,14 +1,12 @@
-# Note: flake8 cannot use pyproject.toml for settings
-
 [tool.poetry]
 name = "gitinspectorgui"
 version = "0.3.4"
-description = "Install with all dependencies: pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ gitinspectorgui"
+description = "A CLI and GUI tool for numerical and blame analysis of git repositories."
 authors = ["Bert van Beek, Jingjing Wang <d.a.v.beek@tue.nl>"]
 license = "MIT"
 readme = "README.md"
-# homepage = ""
-# repository = ""
+homepage = "https://gitinspectorgui.readthedocs.io/en/latest/index.html"
+repository = "https://github.com/davbeek/gitinspectorgui"
 keywords = ["git", "repository", "analyzer", "analysis", "statistics", "vcs"]
 classifiers = [
     # "Development Status :: 1 - Planning",
@@ -37,8 +35,8 @@ gitpython = ">=3.1.30"
 jinja2 = "*"
 jsonschema = "*"
 platformdirs = "*"
-python = ">=3.12.4,<3.13"
 pysimplegui-4-foss = "^4.60.4.1"
+python = ">=3.12.4,<3.13"
 pywebview = "^5.2"
 xlsxwriter = "*"
 
@@ -49,12 +47,7 @@ isort = "*"
 pipdeptree = "*"
 pre-commit = "*"
 pyinstaller = "*"
-pytest = ">=7.1"
-pytest-order = "*"
-
-[tool.poetry.group.docs.dependencies]
-sphinx = "^7"
-sphinx_rtd_theme = ">=1.2"
+pylint = "^3.3.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

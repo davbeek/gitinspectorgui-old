@@ -1,3 +1,5 @@
+# pylint: disable=redefined-outer-name
+
 from pathlib import Path
 
 from bump_version import get_version

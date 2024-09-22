@@ -1,3 +1,5 @@
+# pylint: disable=redefined-outer-name
+
 import re
 from pathlib import Path
 
@@ -10,7 +12,7 @@ from pathlib import Path
 def get_version() -> str:
     mydir = Path(__file__).resolve().parent
     version_file = mydir.parent / "src" / "gigui" / "version.txt"
-    with open(version_file, "r") as file:
+    with open(version_file, "r", encoding="utf-8") as file:
         version = file.read().strip()
     return version
 
@@ -21,7 +23,7 @@ def bump_toml_version(version):
     script_dir = Path(__file__).resolve().parent
     toml_path = script_dir.parent / "pyproject.toml"
 
-    with open(toml_path, "r") as file:
+    with open(toml_path, "r", encoding="utf-8") as file:
         content = file.read()
 
     # Regex to match the version line in the [tool.poetry] section
@@ -32,7 +34,7 @@ def bump_toml_version(version):
         flags=re.MULTILINE,
     )
 
-    with open(toml_path, "w") as file:
+    with open(toml_path, "w", encoding="utf-8") as file:
         file.write(content)
 
 
@@ -42,7 +44,7 @@ def bump_inno_version(version):
     script_dir = Path(__file__).resolve().parent
     inno_path = script_dir / "app-setup.iss"
 
-    with open(inno_path, "r") as file:
+    with open(inno_path, "r", encoding="utf-8") as file:
         content = file.read()
 
     # Regex to match the version line in the [tool.poetry] section
@@ -53,7 +55,7 @@ def bump_inno_version(version):
         flags=re.MULTILINE,
     )
 
-    with open(inno_path, "w") as file:
+    with open(inno_path, "w", encoding="utf-8") as file:
         file.write(content)
 
 
