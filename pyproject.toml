@@ -2,20 +2,25 @@
 name = "gitinspectorgui"
 version = "0.3.4"
 description = "A CLI and GUI tool for numerical and blame analysis of git repositories."
-authors = ["Bert van Beek, Jingjing Wang <d.a.v.beek@tue.nl>"]
+authors = ["Bert van Beek <d.a.v.beek@tue.nl>", "Jingjing Wang"]
 license = "MIT"
 readme = "README.md"
 homepage = "https://gitinspectorgui.readthedocs.io/en/latest/index.html"
 repository = "https://github.com/davbeek/gitinspectorgui"
-keywords = ["git", "repository", "analyzer", "analysis", "statistics", "vcs"]
+keywords = [
+    "git",
+    "repository",
+    "repositories",
+    "analyzer",
+    "analysis",
+    "statistics",
+    "blame",
+    "cli",
+    "gui",
+]
 classifiers = [
-    # "Development Status :: 1 - Planning",
-    # "Development Status :: 2 - Pre-Alpha",
-    # "Development Status :: 3 - Alpha",
     "Development Status :: 4 - Beta",
     # "Development Status :: 5 - Production/Stable",
-    # "Development Status :: 6 - Mature",
-    "Intended Audience :: Education",
     "License :: OSI Approved :: MIT License",
     "Natural Language :: English",
     "Operating System :: MacOS",

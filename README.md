@@ -26,9 +26,9 @@ Stand-alone executables for Windows and macOS can be downloaded from the
 [releases page](https://github.com/davbeek/gitinspectorgui/releases).
 
 #### Windows
-Download the setup file, execute it, and follow the on-screen installation
-instructions. The GitinspectorGUI executable will be available under the
-program group GitinspectorGUI.
+Download the gitinspectorgui-setup.exe file, execute it, and follow the
+on-screen installation instructions. The GitinspectorGUI executable will be
+available under the program group GitinspectorGUI.
 
 #### macOS
 

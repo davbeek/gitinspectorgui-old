@@ -437,6 +437,7 @@ disable=raw-checker-failed,
         use-implicit-booleaness-not-comparison-to-string,
         use-implicit-booleaness-not-comparison-to-zero,
         too-many-lines,
+        too-many-instance-attributes, # R0902
         missing-module-docstring, # C0114
         missing-class-docstring, # C0115
         missing-function-docstring, # C0116
