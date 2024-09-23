@@ -1,7 +1,7 @@
 import logging
 import re
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from math import floor
 
 from gigui.common import get_relative_fstr
@@ -159,6 +159,20 @@ class FileStat:
             return " + ".join(names)
         else:
             return fstr + ": " + " + ".join(names)
+
+
+@dataclass
+class RepoStats:
+    author2pstat: dict[Author, PersonStat] = field(default_factory=dict)
+    author2fstr2fstat: dict[Author, dict[FileStr, FileStat]] = field(
+        default_factory=dict
+    )
+    fstr2author2fstat: dict[FileStr, dict[Author, FileStat]] = field(
+        default_factory=dict
+    )
+    # Dict to gather statistics of the files of this repo, defined by --include-n-files
+    # or --include-files:
+    fstr2fstat: dict[FileStr, FileStat] = field(default_factory=dict)
 
 
 class Person:

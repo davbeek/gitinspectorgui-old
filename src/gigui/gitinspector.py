@@ -19,6 +19,7 @@ from gigui.html_modifier import HTMLModifier
 from gigui.output import outbase
 from gigui.output.excel import Book
 from gigui.output.htmltable import HTMLTable
+from gigui.output.outbase import OutStatRows
 from gigui.repo import GIRepo, get_repos, total_len
 from gigui.typedefs import FileStr
 
@@ -66,15 +67,12 @@ def out_html(
         html_template = f.read()
 
     # Construct the file in memory and add the authors and files to it.
-    htmltable = HTMLTable(outfilestr)
-    authors_html = htmltable.add_authors_table(repo.out_authors_stats())
-    authors_files_html = htmltable.add_authors_files_table(
-        repo.out_authors_files_stats()
-    )
-    files_authors_html = htmltable.add_files_authors_table(
-        repo.out_files_authors_stats()
-    )
-    files_html = htmltable.add_files_table(repo.out_files_stats())
+    out_rows = OutStatRows(repo)
+    htmltable = HTMLTable(outfilestr, out_rows, repo.args.subfolder)
+    authors_html = htmltable.add_authors_table()
+    authors_files_html = htmltable.add_authors_files_table()
+    files_authors_html = htmltable.add_files_authors_table()
+    files_html = htmltable.add_files_table()
 
     html = html_template.replace("__TITLE__", f"{repo.name} viewer")
     html = html.replace("__AUTHORS__", authors_html)
@@ -84,7 +82,7 @@ def out_html(
 
     # Add blame output if not skipped.
     if not blame_skip:
-        blames_htmls = htmltable.add_blame_tables(repo.out_blames(), repo.subfolder)
+        blames_htmls = htmltable.add_blame_tables()
         html_modifier = HTMLModifier(html)
         html = html_modifier.add_blame_tables_to_html(blames_htmls)
 
@@ -154,13 +152,14 @@ def write_repo_output(
     if "excel" in formats:
         logfile(f"{outfile_name}.xlsx")
         if args.dry_run == 0:
-            book = Book(outfilestr)
-            book.add_authors_sheet(repo.out_authors_stats())
-            book.add_authors_files_sheet(repo.out_authors_files_stats())
-            book.add_files_authors_sheet(repo.out_files_authors_stats())
-            book.add_files_sheet(repo.out_files_stats())
+            out_rows = OutStatRows(repo)
+            book = Book(outfilestr, out_rows, repo.args.subfolder)
+            book.add_authors_sheet()
+            book.add_authors_files_sheet()
+            book.add_files_authors_sheet()
+            book.add_files_sheet()
             if not args.blame_skip:
-                book.add_blame_sheets(repo.out_blames(), repo.subfolder)
+                book.add_blame_sheets()
             book.close()
 
     # Write the HTML file if requested.
@@ -222,6 +221,7 @@ def init_classes(args: Args):
     Person.ex_email_patterns = args.ex_emails
     outbase.deletions = args.deletions
     outbase.scaled_percentages = args.scaled_percentages
+    outbase.subfolder = args.subfolder
 
 
 def process_repos_on_main_thread(

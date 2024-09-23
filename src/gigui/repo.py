@@ -4,16 +4,16 @@ import os
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import TypeVar
 
 from git import Commit as GitCommit
 from git import InvalidGitRepositoryError, NoSuchPathError, PathLike, Repo
 
 from gigui.args_settings_keys import Args
 from gigui.blame_manager import BlameManager, Commit
-from gigui.common import divide_to_percentage, log, percentage_to_out
-from gigui.data import FileStat, MultiCommit, Person, Persons, PersonStat, Stat
-from gigui.typedefs import Author, FileStr, Rev, Row, SHAlong, SHAshort
+from gigui.common import divide_to_percentage, log
+from gigui.data import FileStat, MultiCommit, Person, Persons, PersonStat, RepoStats
+from gigui.typedefs import Author, FileStr, Rev, SHAlong, SHAshort
 
 logger = logging.getLogger(__name__)
 
@@ -49,16 +49,8 @@ class GIRepo:
         self.fstr2lines: dict[FileStr, int] = {}
 
         self.fstr2mcommits: dict[FileStr, list[MultiCommit]] = {}
-
-        # Dict to gather statistics of the files of this repo, defined by --show_n_files
-        # or --show-files:
-        self.author2pstat: dict[Author, PersonStat] = {}
-        self.author2fstr2fstat: dict[Author, dict[FileStr, FileStat]] = {}
-        self.fstr2author2fstat: dict[FileStr, dict[Author, FileStat]] = {}
-        self.fstr2fstat: dict[FileStr, FileStat] = {}
-
+        self.stats = RepoStats()
         self.blame_manager: BlameManager
-
         self.thread_executor: (
             ThreadPoolExecutor  # To be set by self.set_thread_executor(...)
         )
@@ -95,13 +87,6 @@ class GIRepo:
     @property
     def git(self):
         return self.gitrepo.git
-
-    @property
-    def subfolder(self):
-        subfolder = self.args.subfolder
-        if len(subfolder) and (not subfolder.endswith("/")):
-            subfolder += "/"
-        return subfolder
 
     def get_author(self, author: Author | None) -> Author:
         return self._persons.get_person(author).author
@@ -403,6 +388,7 @@ class GIRepo:
 
     # Return true after successful execution. Return false if no stats have been found.
     def calculate_stats(self, thread_executor: ThreadPoolExecutor) -> bool:
+        stats: RepoStats = self.stats
         self.set_head_commit()
 
         # Set list top level fstrs (based on until par and allowed file extensions)
@@ -431,7 +417,7 @@ class GIRepo:
         # print(f"{"    Calc commit for":22}{self.gitrepo.working_dir}")
         self.set_fstr2commits(thread_executor)
 
-        target = self.author2fstr2fstat
+        target = stats.author2fstr2fstat
 
         # Calculate self.author2fstr2fstat
         target["*"] = {}
@@ -452,13 +438,13 @@ class GIRepo:
         if list(target.keys()) == ["*"]:
             return False
 
-        source = self.author2fstr2fstat
+        source = stats.author2fstr2fstat
 
         # Set lines in self.author2fstr2fstat
-        self.blame_manager.process_blames(self.author2fstr2fstat)
+        self.blame_manager.process_blames(stats.author2fstr2fstat)
 
         # Calculate self.fstr2fstat
-        target = self.fstr2fstat
+        target = stats.fstr2fstat
         fstrs = set()
         for author, fstr2fstat in source.items():
             if author == "*":
@@ -480,7 +466,7 @@ class GIRepo:
 
         # source = self.author2fstr2fstat
         # Calculate target = self.fstr2author2fstat
-        target = self.fstr2author2fstat
+        target = stats.fstr2author2fstat
         for author, fstr2fstat in source.items():
             if author == "*":
                 target["*"] = source["*"]
@@ -493,11 +479,11 @@ class GIRepo:
                     target[fstr]["*"] = FileStat(fstr)
                 target[fstr][author] = fstat
                 target[fstr]["*"].stat.add(fstat.stat)
-                target[fstr]["*"].names = self.fstr2fstat[fstr].names
+                target[fstr]["*"].names = stats.fstr2fstat[fstr].names
 
-        # source = self.author2fstr2fstat
-        # Calculate self.author2pstat
-        target = self.author2pstat
+        # source = stats.author2fstr2fstat
+        # Calculate stats.author2pstat
+        target = stats.author2pstat
         for author, fstr2fstat in source.items():
             if author == "*":
                 target["*"] = PersonStat(Person("*", "*"))
@@ -512,8 +498,8 @@ class GIRepo:
         PFStat = TypeVar("PFStat", PersonStat, FileStat)
         AuFi = TypeVar("AuFi", Author, FileStr)
 
-        total_insertions = self.author2pstat["*"].stat.insertions
-        total_lines = self.author2pstat["*"].stat.line_count
+        total_insertions = stats.author2pstat["*"].stat.insertions
+        total_lines = stats.author2pstat["*"].stat.line_count
 
         # Calculate percentages, af is either an author or fstr
         def calculate_percentages(
@@ -528,141 +514,15 @@ class GIRepo:
                     af2pfstat[af].stat.line_count, total_lines
                 )
 
-        calculate_percentages(self.fstr2fstat, total_insertions, total_lines)
-        calculate_percentages(self.author2pstat, total_insertions, total_lines)
-        for author, fstr2fstat in self.author2fstr2fstat.items():
+        calculate_percentages(stats.fstr2fstat, total_insertions, total_lines)
+        calculate_percentages(stats.author2pstat, total_insertions, total_lines)
+        for author, fstr2fstat in stats.author2fstr2fstat.items():
             calculate_percentages(fstr2fstat, total_insertions, total_lines)
-        for fstr, author2fstat in self.fstr2author2fstat.items():
+        for fstr, author2fstat in stats.fstr2author2fstat.items():
             calculate_percentages(author2fstat, total_insertions, total_lines)
 
         self.gitrepo.close()
         return True
-
-    # Return a sorted list of authors occurring in the stats outputs, so these are
-    # filtered authors.
-    def out_authors_included(self) -> list[Author]:
-        a2p: dict[Author, PersonStat] = self.author2pstat
-        authors = a2p.keys()
-        authors = sorted(authors, key=lambda x: a2p[x].stat.line_count, reverse=True)
-        return authors
-
-    def out_stat_values(
-        self, stat: Stat, scaled_percentages: bool = False, nr_authors: int = 2
-    ) -> list[Any]:
-        return (
-            [
-                percentage_to_out(stat.percent_lines),
-                percentage_to_out(stat.percent_insertions),
-            ]
-            + (
-                [
-                    percentage_to_out(stat.percent_lines * nr_authors),
-                    percentage_to_out(stat.percent_insertions * nr_authors),
-                ]
-                if scaled_percentages
-                else []
-            )
-            + [
-                stat.line_count,
-                stat.insertions,
-                stat.stability,
-                len(stat.commits),
-            ]
-            + ([stat.deletions, stat.age] if self.args.deletions else [stat.age])
-        )
-
-    def out_authors_stats(self) -> list[Row]:
-        a2p: dict[Author, PersonStat] = self.author2pstat
-        rows: list[Row] = []
-        row: Row
-        id_val: int = 0
-        for author in self.out_authors_included():
-            person = self.get_person(author)
-            row = [id_val, person.authors_str, person.emails_str]
-            row.extend(
-                self.out_stat_values(
-                    a2p[author].stat, self.args.scaled_percentages, len(a2p)
-                )
-            )
-            rows.append(row)
-            id_val += 1
-        return rows
-
-    def out_files_stats(self) -> list[Row]:
-        f2f: dict[FileStr, FileStat] = self.fstr2fstat
-        rows: list[Row] = []
-        row: Row
-        id_val: int = 0
-        fstrs = f2f.keys()
-        fstrs = sorted(fstrs, key=lambda x: f2f[x].stat.line_count, reverse=True)
-        for fstr in fstrs:
-            row = [id_val, f2f[fstr].relative_names_str(self.subfolder)]
-            row.extend(self.out_stat_values(f2f[fstr].stat))
-            rows.append(row)
-            id_val += 1
-        return rows
-
-    def out_blames(self) -> dict[FileStr, tuple[list[Row], list[bool]]]:
-        return self.blame_manager.out_blames()  # type: ignore
-
-    def out_authors_files_stats(self) -> list[Row]:
-        a2f2f: dict[Author, dict[FileStr, FileStat]] = self.author2fstr2fstat
-        row: Row
-        rows: list[Row] = []
-        id_val: int = 0
-        for author in self.out_authors_included():
-            person = self.get_person(author)
-            fstrs = a2f2f[author].keys()
-            fstrs = sorted(
-                fstrs, key=lambda x: self.fstr2fstat[x].stat.line_count, reverse=True
-            )
-            for fstr in fstrs:
-                row = []
-                row.extend(
-                    [
-                        id_val,
-                        person.authors_str,
-                        a2f2f[author][fstr].relative_names_str(self.subfolder),
-                    ]
-                )
-                stat = a2f2f[author][fstr].stat
-                row.extend(self.out_stat_values(stat))
-                rows.append(row)
-            id_val += 1
-        return rows
-
-    def out_files_authors_stats(self) -> list[Row]:
-        f2a2f: dict[FileStr, dict[Author, FileStat]] = self.fstr2author2fstat
-        row: Row
-        rows: list[Row] = []
-        id_val: int = 0
-        fstrs = f2a2f.keys()
-        fstrs = sorted(
-            fstrs, key=lambda x: self.fstr2fstat[x].stat.line_count, reverse=True
-        )
-        for fstr in fstrs:
-            authors = f2a2f[fstr].keys()
-            authors = sorted(
-                authors,
-                key=lambda x: f2a2f[fstr][  # pylint: disable=cell-var-from-loop
-                    x
-                ].stat.line_count,
-                reverse=True,
-            )
-            for author in authors:
-                row = []
-                row.extend(
-                    [
-                        id_val,
-                        f2a2f[fstr][author].relative_names_str(self.subfolder),
-                        self.get_person(author).authors_str,
-                    ]
-                )
-                stat = f2a2f[fstr][author].stat
-                row.extend(self.out_stat_values(stat))
-                rows.append(row)
-            id_val += 1
-        return rows
 
     @classmethod
     def set_args(cls, args: Args):

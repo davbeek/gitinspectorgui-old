@@ -1,5 +1,6 @@
 from gigui.common import get_relative_fstr
 from gigui.output.outbase import (
+    OutStatRows,
     header_authors,
     header_authors_files,
     header_blames,
@@ -47,8 +48,10 @@ bg_row_colors: list[str] = ["bg-rowlightgreen", "bg-white"]
 
 
 class HTMLTable:
-    def __init__(self, name: str):
+    def __init__(self, name: str, out_rows: OutStatRows, subfolder: str) -> None:
+        self.out_rows: OutStatRows = out_rows
         self.outfile: str = name
+        self.subfolder: str = subfolder
 
     def add_conditional_styles_table(
         self, header: list[str], rows: list[Row], bg_colors: list[str]
@@ -93,28 +96,32 @@ class HTMLTable:
     def empty_to_nbsp(self, s: str) -> str:
         return s if s.strip() else "&nbsp;"
 
-    def add_authors_table(self, rows: list[Row]) -> str:
+    def add_authors_table(self) -> str:
+        rows: list[Row] = self.out_rows.out_authors_stats()
         return self.add_conditional_styles_table(
             self.insert_str_at(header_authors(), "Empty", 2),
             self.insert_empties_at(rows, 2),
             bg_author_colros,
         )
 
-    def add_authors_files_table(self, rows: list[Row]) -> str:
+    def add_authors_files_table(self) -> str:
+        rows: list[Row] = self.out_rows.out_authors_files_stats()
         return self.add_conditional_styles_table(
             self.insert_str_at(header_authors_files(), "Empty", 2),
             self.insert_empties_at(rows, 2),
             bg_author_colros,
         )
 
-    def add_files_authors_table(self, rows: list[Row]) -> str:
+    def add_files_authors_table(self) -> str:
+        rows: list[Row] = self.out_rows.out_files_authors_stats()
         return self.add_conditional_styles_table(
             self.insert_str_at(header_files_authors(), "Empty", 2),
             self.insert_empties_at(rows, 2),
             bg_author_colros,
         )
 
-    def add_files_table(self, rows: list[Row]) -> str:
+    def add_files_table(self) -> str:
+        rows: list[Row] = self.out_rows.out_files_stats()
         return self.add_conditional_styles_table(header_files(), rows, bg_row_colors)
 
     def add_blame_table(self, rows_iscomments: tuple[list[Row], list[bool]]) -> str:
@@ -162,12 +169,13 @@ class HTMLTable:
 
     def add_blame_tables(
         self,
-        fstr2rows_iscomments: dict[FileStr, tuple[list[Row], list[bool]]],
-        subfolder: str,
     ) -> list[tuple[FileStr, HTML]]:
+        fstr2rows_iscomments: dict[FileStr, tuple[list[Row], list[bool]]]
+        fstr2rows_iscomments = self.out_rows.out_blames()
         blame_html_tables: list[tuple[str, str]] = []
         relative_fstrs = [
-            get_relative_fstr(fstr, subfolder) for fstr in fstr2rows_iscomments.keys()
+            get_relative_fstr(fstr, self.subfolder)
+            for fstr in fstr2rows_iscomments.keys()
         ]
         relativefstr2truncated = string2truncated(relative_fstrs, 31)
 

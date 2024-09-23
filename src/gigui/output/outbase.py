@@ -1,7 +1,14 @@
 from collections import Counter
+from math import isnan
+from typing import Any
+
+from gigui.data import FileStat, PersonStat, Stat
+from gigui.repo import GIRepo
+from gigui.typedefs import Author, FileStr, Row
 
 deletions: bool = False
 scaled_percentages: bool = False
+subfolder: str = ""
 
 
 def header_stat() -> list[str]:
@@ -59,6 +66,142 @@ def header_blames() -> list[str]:
         "Line",
         "Code",
     ]
+
+
+def percentage_to_out(percentage: float) -> int | str:
+    if isnan(percentage):
+        return ""
+    else:
+        return round(percentage)
+
+
+class OutStatRows:
+    def __init__(self, repo: GIRepo):
+        self.repo = repo
+
+    # Return a sorted list of authors occurring in the stats outputs, so these are
+    # filtered authors.
+    def out_authors_included(self) -> list[Author]:
+        a2p: dict[Author, PersonStat] = self.repo.stats.author2pstat
+        authors = a2p.keys()
+        authors = sorted(authors, key=lambda x: a2p[x].stat.line_count, reverse=True)
+        return authors
+
+    def out_stat_values(self, stat: Stat, nr_authors: int = 2) -> list[Any]:
+        return (
+            [
+                percentage_to_out(stat.percent_lines),
+                percentage_to_out(stat.percent_insertions),
+            ]
+            + (
+                [
+                    percentage_to_out(stat.percent_lines * nr_authors),
+                    percentage_to_out(stat.percent_insertions * nr_authors),
+                ]
+                if scaled_percentages
+                else []
+            )
+            + [
+                stat.line_count,
+                stat.insertions,
+                stat.stability,
+                len(stat.commits),
+            ]
+            + ([stat.deletions, stat.age] if self.repo.args.deletions else [stat.age])
+        )
+
+    def out_authors_stats(self) -> list[Row]:
+        a2p: dict[Author, PersonStat] = self.repo.stats.author2pstat
+        rows: list[Row] = []
+        row: Row
+        id_val: int = 0
+        for author in self.out_authors_included():
+            person = self.repo.get_person(author)
+            row = [id_val, person.authors_str, person.emails_str]
+            row.extend(self.out_stat_values(a2p[author].stat, len(a2p)))
+            rows.append(row)
+            id_val += 1
+        return rows
+
+    def out_files_stats(self) -> list[Row]:
+        f2f: dict[FileStr, FileStat] = self.repo.stats.fstr2fstat
+        rows: list[Row] = []
+        row: Row
+        id_val: int = 0
+        fstrs = f2f.keys()
+        fstrs = sorted(fstrs, key=lambda x: f2f[x].stat.line_count, reverse=True)
+        for fstr in fstrs:
+            row = [id_val, f2f[fstr].relative_names_str(subfolder)]
+            row.extend(self.out_stat_values(f2f[fstr].stat))
+            rows.append(row)
+            id_val += 1
+        return rows
+
+    def out_blames(self) -> dict[FileStr, tuple[list[Row], list[bool]]]:
+        return self.repo.blame_manager.out_blames()  # type: ignore
+
+    def out_authors_files_stats(self) -> list[Row]:
+        a2f2f: dict[Author, dict[FileStr, FileStat]] = self.repo.stats.author2fstr2fstat
+        row: Row
+        rows: list[Row] = []
+        id_val: int = 0
+        for author in self.out_authors_included():
+            person = self.repo.get_person(author)
+            fstrs = a2f2f[author].keys()
+            fstrs = sorted(
+                fstrs,
+                key=lambda x: self.repo.stats.fstr2fstat[x].stat.line_count,
+                reverse=True,
+            )
+            for fstr in fstrs:
+                row = []
+                row.extend(
+                    [
+                        id_val,
+                        person.authors_str,
+                        a2f2f[author][fstr].relative_names_str(subfolder),
+                    ]
+                )
+                stat = a2f2f[author][fstr].stat
+                row.extend(self.out_stat_values(stat))
+                rows.append(row)
+            id_val += 1
+        return rows
+
+    def out_files_authors_stats(self) -> list[Row]:
+        f2a2f: dict[FileStr, dict[Author, FileStat]] = self.repo.stats.fstr2author2fstat
+        row: Row
+        rows: list[Row] = []
+        id_val: int = 0
+        fstrs = f2a2f.keys()
+        fstrs = sorted(
+            fstrs,
+            key=lambda x: self.repo.stats.fstr2fstat[x].stat.line_count,
+            reverse=True,
+        )
+        for fstr in fstrs:
+            authors = f2a2f[fstr].keys()
+            authors = sorted(
+                authors,
+                key=lambda x: f2a2f[fstr][  # pylint: disable=cell-var-from-loop
+                    x
+                ].stat.line_count,
+                reverse=True,
+            )
+            for author in authors:
+                row = []
+                row.extend(
+                    [
+                        id_val,
+                        f2a2f[fstr][author].relative_names_str(subfolder),
+                        self.repo.get_person(author).authors_str,
+                    ]
+                )
+                stat = f2a2f[fstr][author].stat
+                row.extend(self.out_stat_values(stat))
+                rows.append(row)
+            id_val += 1
+        return rows
 
 
 def string2truncated(orgs: list[str], max_length: int) -> dict[str, str]:

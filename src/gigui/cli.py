@@ -91,8 +91,10 @@ class InvalidOptionError(ValueError):
         self.msg = msg
 
 
-# def check_args(args:):
-#     pass
+def process_subfolder(subfolder):
+    if len(subfolder) and (not subfolder.endswith("/")):
+        subfolder += "/"
+    return subfolder
 
 
 def main():
@@ -255,7 +257,9 @@ def main():
         dest="include_files",
         help=help.include_files,
     )
-    group_inc_exclusions.add_argument("--subfolder", help=help.subfolder)
+    group_inc_exclusions.add_argument(
+        "--subfolder", type=process_subfolder, help=help.subfolder
+    )
     group_inc_exclusions.add_argument(
         "--since", type=valid_datetime_type, help=help.since
     )

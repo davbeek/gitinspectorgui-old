@@ -8,6 +8,7 @@ from xlsxwriter.worksheet import Worksheet
 
 from gigui.common import get_relative_fstr
 from gigui.output.outbase import (
+    OutStatRows,
     header_authors,
     header_authors_files,
     header_blames,
@@ -349,8 +350,10 @@ class BlameSheet(TableSheet):
 
 
 class Book:
-    def __init__(self, name: str):
+    def __init__(self, name: str, out_rows: OutStatRows, subfolder: str):
         self.name: str = name
+        self.out_rows: OutStatRows = out_rows
+        self.subfolder = subfolder
 
         self.outfile: str = self.name + ".xlsx"
         self.workbook = Workbook(self.name + ".xlsx")
@@ -407,7 +410,8 @@ class Book:
         excel_format = self.workbook.add_format(formatspec)
         self.formats[format_name] = excel_format
 
-    def add_authors_sheet(self, rows: list[Row]):
+    def add_authors_sheet(self):
+        rows: list[Row] = self.out_rows.out_authors_stats()
         AuthorsSheet(
             rows,
             self.workbook.add_chart({"type": "pie"}),  # type: ignore
@@ -416,7 +420,8 @@ class Book:
             self,
         )
 
-    def add_authors_files_sheet(self, rows: list[Row]):
+    def add_authors_files_sheet(self):
+        rows: list[Row] = self.out_rows.out_authors_files_stats()
         AuthorsFilesSheet(
             rows,
             header_authors_files(),
@@ -424,7 +429,8 @@ class Book:
             self,
         )
 
-    def add_files_authors_sheet(self, rows: list[Row]):
+    def add_files_authors_sheet(self):
+        rows: list[Row] = self.out_rows.out_files_authors_stats()
         FilesAuthorsSheet(
             rows,
             header_files_authors(),
@@ -432,7 +438,8 @@ class Book:
             self,
         )
 
-    def add_files_sheet(self, rows: list[Row]):
+    def add_files_sheet(self):
+        rows: list[Row] = self.out_rows.out_files_stats()
         FilesSheet(
             rows,
             header_files(),
@@ -456,11 +463,12 @@ class Book:
 
     def add_blame_sheets(
         self,
-        fstr2rows_iscomments: dict[FileStr, tuple[list[Row], list[bool]]],
-        subfolder: str,
     ):
+        fstr2rows_iscomments: dict[FileStr, tuple[list[Row], list[bool]]]
+        fstr2rows_iscomments = self.out_rows.out_blames()
         relative_fstrs = [
-            get_relative_fstr(fstr, subfolder) for fstr in fstr2rows_iscomments.keys()
+            get_relative_fstr(fstr, self.subfolder)
+            for fstr in fstr2rows_iscomments.keys()
         ]
         relativefstr2truncated = string2truncated(relative_fstrs, 31)
         for fstr, relfstr in zip(fstr2rows_iscomments.keys(), relative_fstrs):

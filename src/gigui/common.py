@@ -1,6 +1,5 @@
 import argparse
 import logging
-from math import isnan
 from pathlib import Path
 
 import PySimpleGUI as sg
@@ -42,13 +41,6 @@ def divide_to_percentage(dividend: int, divisor: int) -> float:
         return round(dividend / divisor * 100)
     else:
         return float("NaN")
-
-
-def percentage_to_out(percentage: float) -> int | str:
-    if isnan(percentage):
-        return ""
-    else:
-        return round(percentage)
 
 
 def get_digit(arg):
