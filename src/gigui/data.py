@@ -292,7 +292,7 @@ class Person:
                 return email_list[0]  # assume self.emails cannot be empty
 
 
-class Persons:
+class PersonsDB:
     """
     The data-base with known persons.
 
@@ -367,6 +367,27 @@ class Persons:
     def __getitem__(self, key):
         return self.ae2person[key]
 
+    @property
+    def persons(self) -> list["Person"]:
+        persons = self.ae2person.values()
+        persons_set = set(persons)
+        return sorted(persons_set, key=lambda x: x.author)
+
+    @property
+    def filtered_persons(self) -> list["Person"]:
+        persons_set_filtered = {
+            person for person in self.persons if not person.filter_matched
+        }
+        return sorted(persons_set_filtered, key=lambda x: x.author)
+
+    @property
+    def authors_included(self) -> list[Author]:
+        return [person.author for person in self.persons if not person.filter_matched]
+
+    @property
+    def authors_excluded(self) -> list[Author]:
+        return [person.author for person in self.persons if person.filter_matched]
+
     def define(self, ae: Author | Email | None) -> Author | Email:
         return "Unknown" if ae is None or ae == "" else ae
 
@@ -389,18 +410,14 @@ class Persons:
         else:
             return person.author
 
-    @property
-    def persons(self) -> list["Person"]:
-        persons = self.ae2person.values()
-        persons_set = set(persons)
-        return sorted(persons_set, key=lambda x: x.author)
-
-    @property
-    def filtered_persons(self) -> list["Person"]:
-        persons_set_filtered = {
-            person for person in self.persons if not person.filter_matched
-        }
-        return sorted(persons_set_filtered, key=lambda x: x.author)
+    # The final value of get_author is correct only after BlameReader.run() has been
+    # called.
+    def get_author(self, author: Author | None) -> Author:
+        """
+        Return the main author name for the given author name, based on the person
+        associated with the given author.
+        """
+        return self.get_person(author).author
 
 
 @dataclass

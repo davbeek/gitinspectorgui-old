@@ -102,7 +102,7 @@ def write_repo_output(
     else:
         outfile_name = base_name
 
-    repo_parent = Path(repo.gitrepo.working_dir).parent
+    repo_parent = repo.path.parent
     outfile = repo_parent / outfile_name
     outfilestr = str(outfile)
 
@@ -210,7 +210,7 @@ def process_repos_on_main_thread(
         with ThreadPoolExecutor(max_workers=6) as thread_executor:
             # repo.set_thread_executor(thread_executor)
             if args.dry_run <= 1:
-                stats_found = repo.calculate_stats(thread_executor)
+                stats_found = repo.run(thread_executor)
                 if stats_found:
                     if args.dry_run == 1:
                         log("")
@@ -248,7 +248,7 @@ def process_repos_on_main_thread(
                     continue
 
                 # dryrun == 0 or dryrun == 1
-                stats_found = repo.calculate_stats(thread_executor)
+                stats_found = repo.run(thread_executor)
                 log("        ", end="")
                 if not stats_found:
                     log("No statistics matching filters found")
@@ -313,7 +313,7 @@ def process_repo_in_process_pool(
         stats_found = False
         files_to_log = []
         if dryrun <= 1:
-            stats_found = repo.calculate_stats(thread_executor)
+            stats_found = repo.run(thread_executor)
         if dryrun == 0 and stats_found:
             files_to_log, _, _ = write_repo_output(
                 repo.args,

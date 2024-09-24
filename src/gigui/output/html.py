@@ -196,7 +196,7 @@ class HTMLTable:
 
 
 class HTMLModifier:
-    def __init__(self, html: str) -> None:
+    def __init__(self, html: Html) -> None:
         self.soup = BeautifulSoup(html, "html.parser")
 
     def new_nav_tab(self, name: str) -> Tag:

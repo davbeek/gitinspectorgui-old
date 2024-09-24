@@ -138,7 +138,7 @@ class OutStatRows:
         return rows
 
     def out_blames(self) -> dict[FileStr, tuple[list[Row], list[bool]]]:
-        return self.repo.blame_manager.out_blames()  # type: ignore
+        return self.repo.blame_tables.out_blames()  # type: ignore
 
     def out_authors_files_stats(self) -> list[Row]:
         a2f2f: dict[Author, dict[FileStr, FileStat]] = self.repo.stats.author2fstr2fstat
