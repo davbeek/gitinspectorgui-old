@@ -46,7 +46,7 @@ DEFAULT_EXTENSIONS = [
 WEBVIEW_WIDTH = 1200
 WEBVIEW_HEIGHT = 800
 
-# Output settings html browser
+# Output settings web browser
 MAX_BROWSER_TABS = 10
 
 # Output settings Excel

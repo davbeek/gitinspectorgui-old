@@ -1,4 +1,8 @@
-from gigui.common import get_relative_fstr
+from pathlib import Path
+
+from bs4 import BeautifulSoup, Tag
+
+from gigui.common import get_relative_fstr, log
 from gigui.output.outbase import (
     OutStatRows,
     header_authors,
@@ -8,7 +12,8 @@ from gigui.output.outbase import (
     header_files_authors,
     string2truncated,
 )
-from gigui.typedefs import HTML, FileStr, Row
+from gigui.repo import GIRepo
+from gigui.typedefs import FileStr, Html, Row
 
 header_class_dict: dict[str, str] = {
     "ID": "id_col",
@@ -169,7 +174,7 @@ class HTMLTable:
 
     def add_blame_tables(
         self,
-    ) -> list[tuple[FileStr, HTML]]:
+    ) -> list[tuple[FileStr, Html]]:
         fstr2rows_iscomments: dict[FileStr, tuple[list[Row], list[bool]]]
         fstr2rows_iscomments = self.out_rows.out_blames()
         blame_html_tables: list[tuple[str, str]] = []
@@ -188,3 +193,103 @@ class HTMLTable:
             )
 
         return blame_html_tables
+
+
+class HTMLModifier:
+    def __init__(self, html: str) -> None:
+        self.soup = BeautifulSoup(html, "html.parser")
+
+    def new_nav_tab(self, name: str) -> Tag:
+        nav_li = self.soup.new_tag("li", attrs={"class": "nav-item"})
+        nav_bt = self.soup.new_tag(
+            "button",
+            attrs={
+                "class": "nav-link",
+                "id": name + "-tab",
+                "data-bs-toggle": "tab",
+                "data-bs-target": "#" + name,
+            },
+        )
+        nav_bt.string = name
+        nav_li.append(nav_bt)
+        return nav_li
+
+    def new_tab_content(self, name: str) -> Tag:
+        div = self.soup.new_tag(
+            "div",
+            attrs={
+                "class": "tab-pane fade",
+                "id": name,
+            },
+        )
+        div.string = "__" + name + "__"
+        return div
+
+    def add_blame_tables_to_html(self, blames_htmls: list[tuple[str, str]]) -> str:
+        nav_ul = self.soup.find("ul", {"id": "stats-tabs"})
+        tab_div = self.soup.find("div", {"class": "tab-content"})
+        if nav_ul and tab_div:
+            for blame in blames_htmls:
+                file_name, _ = blame
+                nav_ul.append(self.new_nav_tab(file_name))
+                tab_div.append(self.new_tab_content(file_name))
+
+            html = str(self.soup)
+            for blame in blames_htmls:
+                file_name, content = blame
+                html = html.replace("__" + file_name + "__", content)
+
+            return html
+        else:
+            if nav_ul is None:
+                log(
+                    "Cannot find the component with id = 'stats-tabs'", text_color="red"
+                )
+
+            if tab_div is None:
+                log(
+                    "Cannot find the component with class = 'tab-content'",
+                    text_color="red",
+                )
+
+        return str(self.soup)
+
+
+def out_html(
+    repo: GIRepo,
+    outfilestr: str,  # Path to write the result file.
+    blame_skip: bool,
+) -> Html:
+    """
+    Generate an html file with analysis result of the provided repository.
+    """
+
+    # Load the template file.
+    module_dir = Path(__file__).resolve().parent
+    html_path = module_dir / "files" / "template.html"
+    with open(html_path, "r", encoding="utf-8") as f:
+        html_template = f.read()
+
+    # Construct the file in memory and add the authors and files to it.
+    out_rows = OutStatRows(repo)
+    htmltable = HTMLTable(outfilestr, out_rows, repo.args.subfolder)
+    authors_html = htmltable.add_authors_table()
+    authors_files_html = htmltable.add_authors_files_table()
+    files_authors_html = htmltable.add_files_authors_table()
+    files_html = htmltable.add_files_table()
+
+    html = html_template.replace("__TITLE__", f"{repo.name} viewer")
+    html = html.replace("__AUTHORS__", authors_html)
+    html = html.replace("__AUTHORS_FILES__", authors_files_html)
+    html = html.replace("__FILES_AUTHORS__", files_authors_html)
+    html = html.replace("__FILES__", files_html)
+
+    # Add blame output if not skipped.
+    if not blame_skip:
+        blames_htmls = htmltable.add_blame_tables()
+        html_modifier = HTMLModifier(html)
+        html = html_modifier.add_blame_tables_to_html(blames_htmls)
+
+    # Convert the table to text and return it.
+    soup = BeautifulSoup(html, "html.parser")
+    return soup.prettify(formatter="html")

@@ -8,7 +8,7 @@ type SHAlong = str  # long commit SHA
 type SHAshort = str  # short commit SHA
 type Rev = SHAlong | SHAshort  # long or short commit SHA
 
-type HTML = str
+type Html = str
 
 type BlameLine = str  # single line of code
 type BlameLines = list[BlameLine]

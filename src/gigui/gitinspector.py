@@ -9,19 +9,17 @@ from pathlib import Path
 from pstats import Stats
 
 import PySimpleGUI as sg
-from bs4 import BeautifulSoup
 
 from gigui.args_settings_keys import AUTO, NONE, Args, Keys
 from gigui.common import log, open_webview
 from gigui.constants import DEFAULT_FILE_BASE, DEFAULT_FORMAT, MAX_BROWSER_TABS
 from gigui.data import FileStat, Person
-from gigui.html_modifier import HTMLModifier
 from gigui.output import outbase
 from gigui.output.excel import Book
-from gigui.output.htmltable import HTMLTable
+from gigui.output.html import out_html
 from gigui.output.outbase import OutStatRows
 from gigui.repo import GIRepo, get_repos, total_len
-from gigui.typedefs import FileStr
+from gigui.typedefs import FileStr, Html
 
 logger = logging.getLogger(__name__)
 
@@ -51,46 +49,6 @@ def openfiles(fstrs: list[str]):
                 raise RuntimeError(f"Unknown platform {platform.system()}")
 
 
-def out_html(
-    repo: GIRepo,
-    outfilestr: str,  # Path to write the result file.
-    blame_skip: bool,
-) -> str:  # HTML code
-    """
-    Generate an HTML file with analysis result of the provided repository.
-    """
-
-    # Load the template file.
-    module_parent = Path(__file__).resolve().parent
-    html_path = module_parent / "output/files/template.html"
-    with open(html_path, "r", encoding="utf-8") as f:
-        html_template = f.read()
-
-    # Construct the file in memory and add the authors and files to it.
-    out_rows = OutStatRows(repo)
-    htmltable = HTMLTable(outfilestr, out_rows, repo.args.subfolder)
-    authors_html = htmltable.add_authors_table()
-    authors_files_html = htmltable.add_authors_files_table()
-    files_authors_html = htmltable.add_files_authors_table()
-    files_html = htmltable.add_files_table()
-
-    html = html_template.replace("__TITLE__", f"{repo.name} viewer")
-    html = html.replace("__AUTHORS__", authors_html)
-    html = html.replace("__AUTHORS_FILES__", authors_files_html)
-    html = html.replace("__FILES_AUTHORS__", files_authors_html)
-    html = html.replace("__FILES__", files_html)
-
-    # Add blame output if not skipped.
-    if not blame_skip:
-        blames_htmls = htmltable.add_blame_tables()
-        html_modifier = HTMLModifier(html)
-        html = html_modifier.add_blame_tables_to_html(blames_htmls)
-
-    # Convert the table to text and return it.
-    soup = BeautifulSoup(html, "html.parser")
-    return soup.prettify(formatter="html")
-
-
 def log_endtime(start_time: float):
     """
     Output a log entry to the log of the currently amount of passed time since 'start_time'.
@@ -108,7 +66,7 @@ def write_repo_output(
 ) -> tuple[
     list[FileStr],  # Files to log
     FileStr,  # File to open
-    tuple[str, str],  # (HTML code, name of repository), empty if no webview generated.
+    tuple[Html, str],  # (HTML code, name of repository), empty if no webview generated.
 ]:
     """
     Generate result file(s) for the analysis of the given repository.

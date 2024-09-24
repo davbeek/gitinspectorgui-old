@@ -10,7 +10,7 @@ from git import Commit as GitCommit
 from git import InvalidGitRepositoryError, NoSuchPathError, PathLike, Repo
 
 from gigui.args_settings_keys import Args
-from gigui.blame_manager import BlameManager, Commit
+from gigui.blame import BlameManager, Commit
 from gigui.common import divide_to_percentage, log
 from gigui.data import FileStat, MultiCommit, Person, Persons, PersonStat, RepoStats
 from gigui.typedefs import Author, FileStr, Rev, SHAlong, SHAshort
