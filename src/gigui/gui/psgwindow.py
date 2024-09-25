@@ -171,6 +171,7 @@ def popup(title, message):
     sg.popup(title, message, keep_on_top=True, text_color="black")
 
 
+# pylint: disable=too-many-locals
 def make_window() -> sg.Window:
     # Cannot use logging here, as there is not yet any new window to log to and the
     # window in common and _logging still points to the old window after a "Reset

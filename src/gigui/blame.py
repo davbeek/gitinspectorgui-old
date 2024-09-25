@@ -46,6 +46,7 @@ class Blame:
 class BlameReader:
     args: Args
 
+    # pylint: disable=too-many-arguments disable=too-many-positional-arguments
     def __init__(
         self,
         gitrepo: Repo,
@@ -192,16 +193,16 @@ class BlameTables:
                 log(f"No blame output matching filters found for file {fstr}")
         return fstr2rows_iscomments
 
+    # pylint: disable=too-many-locals
     def _out_blames_fstr(self, fstr: FileStr) -> tuple[list[Row], list[bool]]:
         blames: list[Blame] = self.fstr2blames[fstr]
         rows: list[Row] = []
         is_comments: list[bool] = []
         line_nr = 1
 
-        authors = self._blame_authors
         author2nr: dict[Author, int] = {}
         author_nr = 1
-        for author in authors:
+        for author in self._blame_authors:
             if author in self.persons_db.authors_included:
                 author2nr[author] = author_nr
                 author_nr += 1

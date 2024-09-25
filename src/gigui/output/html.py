@@ -259,6 +259,7 @@ class HTMLModifier:
         return str(self.soup)
 
 
+# pylint: disable=too-many-locals
 def out_html(
     repo: GIRepo,
     outfilestr: FileStr,  # Path to write the result file.

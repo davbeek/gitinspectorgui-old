@@ -310,6 +310,7 @@ class PersonsDB:
         # There can only be one "Unknown" key. If the "Unknown" key is present, it
         # belongs to a person where both author and email are "Unknown"
 
+    # pylint: disable=too-many-branches disable=too-many-return-statements
     def add_person(self, author: Author | None, email: Email | None) -> "Person":
         author = self.define(author)
         email = self.define(email)
