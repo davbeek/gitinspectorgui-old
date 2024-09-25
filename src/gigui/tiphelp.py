@@ -145,8 +145,10 @@ class Help(Tip):
     show: str = "Show the settings location and its values."
     save: str = "Save settings file."
     save_as: str = "Save settings file to PATH."
-    load: str = "Load settings file from PATH."
-    reset: str = "Reset saved settings to their default values."
+    load: str = "Load settings file from PATH and update its location."
+    reset: str = (
+        "Reset saved settings and location of settings file to their default values."
+    )
     about: str = "Output license information."
     about_info: str = (
         f"GitinspectorGUI version {get_version()}, available under the MIT license. It uses "
