@@ -53,14 +53,16 @@ bg_row_colors: list[str] = ["bg-rowlightgreen", "bg-white"]
 
 
 class HTMLTable:
-    def __init__(self, name: str, out_rows: OutStatRows, subfolder: str) -> None:
-        self.out_rows: OutStatRows = out_rows
-        self.outfile: str = name
-        self.subfolder: str = subfolder
+    def __init__(
+        self, name: FileStr, out_rows: OutStatRows, subfolder: FileStr
+    ) -> None:
+        self.out_rows = out_rows
+        self.outfile = name
+        self.subfolder = subfolder
 
     def add_conditional_styles_table(
         self, header: list[str], rows: list[Row], bg_colors: list[str]
-    ) -> str:
+    ) -> Html:
         bg_colors_cnt = len(bg_colors)
 
         table = "<table>\n"
@@ -101,7 +103,7 @@ class HTMLTable:
     def empty_to_nbsp(self, s: str) -> str:
         return s if s.strip() else "&nbsp;"
 
-    def add_authors_table(self) -> str:
+    def add_authors_table(self) -> Html:
         rows: list[Row] = self.out_rows.out_authors_stats()
         return self.add_conditional_styles_table(
             self.insert_str_at(header_authors(), "Empty", 2),
@@ -109,7 +111,7 @@ class HTMLTable:
             bg_author_colros,
         )
 
-    def add_authors_files_table(self) -> str:
+    def add_authors_files_table(self) -> Html:
         rows: list[Row] = self.out_rows.out_authors_files_stats()
         return self.add_conditional_styles_table(
             self.insert_str_at(header_authors_files(), "Empty", 2),
@@ -117,7 +119,7 @@ class HTMLTable:
             bg_author_colros,
         )
 
-    def add_files_authors_table(self) -> str:
+    def add_files_authors_table(self) -> Html:
         rows: list[Row] = self.out_rows.out_files_authors_stats()
         return self.add_conditional_styles_table(
             self.insert_str_at(header_files_authors(), "Empty", 2),
@@ -125,11 +127,11 @@ class HTMLTable:
             bg_author_colros,
         )
 
-    def add_files_table(self) -> str:
+    def add_files_table(self) -> Html:
         rows: list[Row] = self.out_rows.out_files_stats()
         return self.add_conditional_styles_table(header_files(), rows, bg_row_colors)
 
-    def add_blame_table(self, rows_iscomments: tuple[list[Row], list[bool]]) -> str:
+    def add_blame_table(self, rows_iscomments: tuple[list[Row], list[bool]]) -> Html:
         bg_colors_cnt = len(bg_author_colros)
         header = header_blames()
 
@@ -177,7 +179,7 @@ class HTMLTable:
     ) -> list[tuple[FileStr, Html]]:
         fstr2rows_iscomments: dict[FileStr, tuple[list[Row], list[bool]]]
         fstr2rows_iscomments = self.out_rows.out_blames()
-        blame_html_tables: list[tuple[str, str]] = []
+        blame_html_tables: list[tuple[FileStr, Html]] = []
         relative_fstrs = [
             get_relative_fstr(fstr, self.subfolder)
             for fstr in fstr2rows_iscomments.keys()
@@ -225,7 +227,9 @@ class HTMLModifier:
         div.string = "__" + name + "__"
         return div
 
-    def add_blame_tables_to_html(self, blames_htmls: list[tuple[str, str]]) -> str:
+    def add_blame_tables_to_html(
+        self, blames_htmls: list[tuple[FileStr, Html]]
+    ) -> Html:
         nav_ul = self.soup.find("ul", {"id": "stats-tabs"})
         tab_div = self.soup.find("div", {"class": "tab-content"})
         if nav_ul and tab_div:
@@ -257,7 +261,7 @@ class HTMLModifier:
 
 def out_html(
     repo: GIRepo,
-    outfilestr: str,  # Path to write the result file.
+    outfilestr: FileStr,  # Path to write the result file.
     blame_skip: bool,
 ) -> Html:
     """
