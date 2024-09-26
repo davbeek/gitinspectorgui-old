@@ -47,45 +47,48 @@ class GIRepo:
             bool: True after successful execution, False if no stats have been found.
         """
 
-        self.repo_reader.run(thread_executor)
+        try:
+            self.repo_reader.run(thread_executor)
 
-        # Use results from repo_reader to initialize the other classes.
-        self.blame_reader = BlameReader(
-            self.repo_reader.gitrepo,
-            self.repo_reader.head_commit,
-            self.repo_reader.ex_sha_shorts,
-            self.repo_reader.fstrs,
-            self.repo_reader.persons_db,
-        )
-        self.blame_tables = BlameTables(
-            self.repo_reader.fstrs,
-            self.repo_reader.persons_db,
-            self.blame_reader.fstr2blames,
-        )
-        self.stat_tables = StatTables(
-            self.name,
-            self.repo_reader.fstrs,
-            self.repo_reader.fstr2mcommits,
-            self.repo_reader.persons_db,
-        )
+            # Use results from repo_reader to initialize the other classes.
+            self.blame_reader = BlameReader(
+                self.repo_reader.gitrepo,
+                self.repo_reader.head_commit,
+                self.repo_reader.ex_sha_shorts,
+                self.repo_reader.fstrs,
+                self.repo_reader.persons_db,
+            )
+            self.blame_tables = BlameTables(
+                self.repo_reader.fstrs,
+                self.repo_reader.persons_db,
+                self.blame_reader.fstr2blames,
+            )
+            self.stat_tables = StatTables(
+                self.name,
+                self.repo_reader.fstrs,
+                self.repo_reader.fstr2mcommits,
+                self.repo_reader.persons_db,
+            )
 
-        # This calculates all blames but also adds the author and email of
-        # each blame to the persons list. This is necessary, because the blame
-        # functionality can have another way to set/get the author and email of a
-        # commit.
-        self.blame_reader.run(thread_executor)
+            # This calculates all blames but also adds the author and email of
+            # each blame to the persons list. This is necessary, because the blame
+            # functionality can have another way to set/get the author and email of a
+            # commit.
+            self.blame_reader.run(thread_executor)
 
-        # Set stats.author2fstr2fstat, the basis of all other stat tables
-        self.stat_tables.set_stats_author2fstr2fstat()
+            # Set stats.author2fstr2fstat, the basis of all other stat tables
+            self.stat_tables.set_stats_author2fstr2fstat()
+            if list(self.stats.author2fstr2fstat.keys()) == ["*"]:
+                return False
 
-        # Update author2fstr2fstat with line counts for each author.
-        self.blame_tables.run(self.stats.author2fstr2fstat)
+            # Update author2fstr2fstat with line counts for each author.
+            self.blame_tables.run(self.stats.author2fstr2fstat)
 
-        # Calculate the other tables
-        ok: bool = self.stat_tables.run()
-
-        self.repo_reader.gitrepo.close()
-        return ok
+            # Calculate the other tables
+            ok: bool = self.stat_tables.run()
+            return ok
+        finally:
+            self.repo_reader.gitrepo.close()
 
     @property
     def path(self) -> Path:
@@ -139,22 +142,9 @@ class StatTables:
                     target[author][fstr] = FileStat(fstr)
                 target[author][fstr].add_multicommit(mcommit)
 
-    def run(self) -> bool:
-        """
-        Generate tables encoded as dictionaries in self.stats.
-
-        Returns:
-            bool: True after successful execution, False if no stats have been found.
-        """
-
-        if list(self.stats.author2fstr2fstat.keys()) == ["*"]:
-            return False
-
-        stats = self.stats
-        source = stats.author2fstr2fstat
-
-        # Calculate self.fstr2fstat
-        target = stats.fstr2fstat
+    def set_stats_fstr2fstat(self):
+        source = self.stats.author2fstr2fstat
+        target = self.stats.fstr2fstat
         fstrs = set()
         for author, fstr2fstat in source.items():
             if author == "*":
@@ -171,12 +161,9 @@ class StatTables:
                 # Order of names must correspond to the order of the commits
                 target[fstr].add_name(mcommit.fstr)
 
-        if list(target.keys()) == ["*"]:
-            return False
-
-        # source = self.author2fstr2fstat
-        # Calculate target = self.fstr2author2fstat
-        target = stats.fstr2author2fstat
+    def set_stats_fstr2author2fstat(self):
+        source = self.stats.author2fstr2fstat
+        target = self.stats.fstr2author2fstat
         for author, fstr2fstat in source.items():
             if author == "*":
                 target["*"] = source["*"]
@@ -189,11 +176,11 @@ class StatTables:
                     target[fstr]["*"] = FileStat(fstr)
                 target[fstr][author] = fstat
                 target[fstr]["*"].stat.add(fstat.stat)
-                target[fstr]["*"].names = stats.fstr2fstat[fstr].names
+                target[fstr]["*"].names = self.stats.fstr2fstat[fstr].names
 
-        # source = stats.author2fstr2fstat
-        # Calculate stats.author2pstat
-        target = stats.author2pstat
+    def set_stats_author2pstat(self):
+        source = self.stats.author2fstr2fstat
+        target = self.stats.author2pstat
         for author, fstr2fstat in source.items():
             if author == "*":
                 target["*"] = PersonStat(Person("*", "*"))
@@ -205,30 +192,49 @@ class StatTables:
                     continue
                 target[author].stat.add(fstat.stat)
 
-        PFStat = TypeVar("PFStat", PersonStat, FileStat)
-        AuFi = TypeVar("AuFi", Author, FileStr)
+    def run(self) -> bool:
+        """
+        Generate tables encoded as dictionaries in self.stats.
 
-        total_insertions = stats.author2pstat["*"].stat.insertions
-        total_lines = stats.author2pstat["*"].stat.line_count
+        Returns:
+            bool: True after successful execution, False if no stats have been found.
+        """
 
-        # Calculate percentages, af is either an author or fstr
+        self.set_stats_fstr2fstat()
+
+        if list(self.stats.fstr2fstat.keys()) == ["*"]:
+            return False
+
+        self.set_stats_fstr2author2fstat()
+
+        self.set_stats_author2pstat()
+
+        AuthorOrFileStr = TypeVar("AuthorOrFileStr", Author, FileStr)
+        PersonStatOrFileStat = TypeVar("PersonStatOrFileStat", PersonStat, FileStat)
+
+        total_insertions = self.stats.author2pstat["*"].stat.insertions
+        total_lines = self.stats.author2pstat["*"].stat.line_count
+
+        # Calculate percentages
         def calculate_percentages(
-            af2pfstat: dict[AuFi, PFStat], total_insertions: int, total_lines: int
+            af2pf_stat: dict[AuthorOrFileStr, PersonStatOrFileStat],
+            total_insertions: int,
+            total_lines: int,
         ):
-            afs = af2pfstat.keys()
-            for af in afs:
-                af2pfstat[af].stat.percent_insertions = divide_to_percentage(
-                    af2pfstat[af].stat.insertions, total_insertions
+            afs = af2pf_stat.keys()
+            for af in afs:  # af is either an author or fstr
+                af2pf_stat[af].stat.percent_insertions = divide_to_percentage(
+                    af2pf_stat[af].stat.insertions, total_insertions
                 )
-                af2pfstat[af].stat.percent_lines = divide_to_percentage(
-                    af2pfstat[af].stat.line_count, total_lines
+                af2pf_stat[af].stat.percent_lines = divide_to_percentage(
+                    af2pf_stat[af].stat.line_count, total_lines
                 )
 
-        calculate_percentages(stats.fstr2fstat, total_insertions, total_lines)
-        calculate_percentages(stats.author2pstat, total_insertions, total_lines)
-        for author, fstr2fstat in stats.author2fstr2fstat.items():
+        calculate_percentages(self.stats.fstr2fstat, total_insertions, total_lines)
+        calculate_percentages(self.stats.author2pstat, total_insertions, total_lines)
+        for _, fstr2fstat in self.stats.author2fstr2fstat.items():
             calculate_percentages(fstr2fstat, total_insertions, total_lines)
-        for fstr, author2fstat in stats.fstr2author2fstat.items():
+        for _, author2fstat in self.stats.fstr2author2fstat.items():
             calculate_percentages(author2fstat, total_insertions, total_lines)
         return True
 

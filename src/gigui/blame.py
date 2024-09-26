@@ -238,7 +238,7 @@ class BlameTables:
     def run(self, author2fstr2fstat: dict[Author, dict[FileStr, FileStat]]):
         """
         Update author2fstr2fstat with line counts for each author.
-        Sets local list of sordered unfiltered _blame_authors.
+        Sets local list of sorted unfiltered _blame_authors.
         """
         author2line_count: dict[Author, int] = {}
         target = author2fstr2fstat
