@@ -23,7 +23,7 @@ class RepoReader:
     def __init__(self, name: str, location: PathLike):
         self.name: str = name
 
-        # The default True value of expand_vars can leads to confusing warnings from
+        # The default True value of expand_vars can lead to confusing warnings from
         # GitPython:
         self.gitrepo: Repo = Repo(location, expand_vars=False)
 
@@ -95,7 +95,12 @@ class RepoReader:
                     for blob in self.head_commit.tree.traverse()
                     if (
                         (blob.type == "blob")  # type: ignore
-                        and (blob.path.split(".")[-1] in self.args.extensions)  # type: ignore
+                        and (
+                            (
+                                blob.path.split(".")[-1]  # type: ignore
+                                in self.args.extensions
+                            )
+                        )
                     )
                 ]
 
@@ -144,9 +149,6 @@ class RepoReader:
         self.head_commit = next(self.gitrepo.iter_commits(**since_until_kwargs))
 
     def _set_fstr2lines(self):
-        def count_lines_in_blob(blob):
-            return len(blob.data_stream.read().decode("utf-8").split("\n"))
-
         self.fstr2lines["*"] = 0
         for blob in self.head_commit.tree.traverse():
             if (
@@ -154,9 +156,12 @@ class RepoReader:
                 and blob.path in self.fstrs  # type: ignore
                 and blob.path not in self.fstr2lines  # type: ignore
             ):
-                lines: int = count_lines_in_blob(blob)
-                self.fstr2lines[blob.path] = lines  # type: ignore
-                self.fstr2lines["*"] += lines
+                # number of lines in blob
+                line_count: int = len(
+                    blob.data_stream.read().decode("utf-8").split("\n")  # type: ignore
+                )
+                self.fstr2lines[blob.path] = line_count  # type: ignore
+                self.fstr2lines["*"] += line_count
 
     def _get_since_until_args(self) -> list[str]:
         since = self.args.since
@@ -244,9 +249,7 @@ class RepoReader:
         lines_str: str = self.git.log(git_log_args())
         return lines_str, fstr
 
-    def _process_commit_lines_for(
-        self, fstr: FileStr, lines_str: str
-    ) -> list[MultiCommit]:
+    def _process_commit_lines_for(self, lines_str: str) -> list[MultiCommit]:
         commits: list[MultiCommit] = []
         lines = lines_str.splitlines()
         while lines:
@@ -267,28 +270,47 @@ class RepoReader:
             insertions = int(stats.pop(0))
             deletions = int(stats.pop(0))
             line = " ".join(stats)
+
             if "=>" not in line:
+                # if no renames or copies have been found, the line represents the file
+                # name fstr
                 fstr = line
             elif "{" in line:
-                # Eliminate the {...} abbreviation part of the line
-                # which occur for file renames and file copies.
-                # Examples of these lines are:
+                # If { is in the line, it is part of a {...} abbreviation in a rename or
+                # copy expression. This means that the file has been renamed or copied
+                # to a new name. Set fstr to this new name.
+                #
+                # To find the new name, the {...} abbreviation part of the line needs to
+                # be eliminated. Examples of such lines are:
+                #
                 # 1. gitinspector/{gitinspect_gui.py => gitinspector_gui.py}
-                # 2. gitinspect_gui.py => gitinspector/gitinspect_gui.py
-                # 3. src/gigui/{ => gi}/gitinspector.py
+                # 2. src/gigui/{ => gi}/gitinspector.py
+
                 prefix, rest = line.split("{")
-                old_part, rest = rest.split(" => ")
+
+                # _ is old_part
+                _, rest = rest.split(" => ")
+
                 new_part, suffix = rest.split("}")
-                prev_name = f"{prefix}{old_part}{suffix}"
+
+                # prev_name = f"{prefix}{old_part}{suffix}"
                 new_name = f"{prefix}{new_part}{suffix}"
+
                 # src/gigui/{ => gi}/gitinspector.py leads to:
                 # src/gigui//gitinspector.py => src/gigui/gi/gitinspector.py
-                prev_name = prev_name.replace("//", "/")
-                fstr = new_name = new_name.replace("//", "/")
+
+                # prev_name = prev_name.replace("//", "/")
+                # new_name = new_name.replace("//", "/")
+                fstr = new_name.replace("//", "/")
             else:
+                # gitinspect_gui.py => gitinspector/gitinspect_gui.py
+
                 split = line.split(" => ")
-                prev_name = split[0]
-                fstr = new_name = split[1]
+
+                # prev_name = split[0]
+                # new_name = split[1]
+                fstr = split[1]
+
             if (
                 len(commits) > 1
                 and fstr == commits[-1].fstr
@@ -337,15 +359,11 @@ class RepoReader:
             ]
             for future in as_completed(futures):
                 lines_str, fstr = future.result()
-                self.fstr2mcommits[fstr] = self._process_commit_lines_for(
-                    fstr, lines_str
-                )
+                self.fstr2mcommits[fstr] = self._process_commit_lines_for(lines_str)
         else:  # single thread
             for fstr in self.fstrs:
                 lines_str, fstr = self._get_commit_lines_for(fstr)
-                self.fstr2mcommits[fstr] = self._process_commit_lines_for(
-                    fstr, lines_str
-                )
+                self.fstr2mcommits[fstr] = self._process_commit_lines_for(lines_str)
         reduce_commits()
 
     @classmethod

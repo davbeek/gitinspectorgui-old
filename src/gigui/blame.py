@@ -181,7 +181,7 @@ class BlameTables:
         self.fstr2blames = fstr2blames
 
         # List of blame authors, so no filtering, ordered by highest blame line count.
-        self._blame_authors: list[Author]
+        self._blame_authors: list[Author] = []
 
     def out_blames(self) -> dict[FileStr, tuple[list[Row], list[bool]]]:
         fstr2rows_iscomments: dict[FileStr, tuple[list[Row], list[bool]]] = {}
@@ -235,7 +235,9 @@ class BlameTables:
                     line_nr += 1
         return rows, is_comments
 
-    def run(self, author2fstr2fstat: dict[Author, dict[FileStr, FileStat]]):
+    def update_author2fstr2fstat(
+        self, author2fstr2fstat: dict[Author, dict[FileStr, FileStat]]
+    ) -> dict[Author, dict[FileStr, FileStat]]:
         """
         Update author2fstr2fstat with line counts for each author.
         Sets local list of sorted unfiltered _blame_authors.
@@ -271,3 +273,4 @@ class BlameTables:
         authors = author2line_count.keys()
         authors = sorted(authors, key=lambda x: author2line_count[x], reverse=True)
         self._blame_authors = authors
+        return target

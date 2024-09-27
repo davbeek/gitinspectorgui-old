@@ -35,9 +35,9 @@ class Stat:
         self.deletions: int = 0
         self.date_sum: int = 0  # Sum of Unix timestamps in seconds
         self.line_count: int = 0  # DEFINED BY BLAME, NOT BY FILE SIZE!!!
-        self.percent_insertions: float
-        self.percent_deletions: float
-        self.percent_lines: float
+        self.percent_insertions: float = 0
+        self.percent_deletions: float = 0
+        self.percent_lines: float = 0
 
     @property
     def stability(self) -> str:
@@ -77,7 +77,8 @@ class Stat:
         self.deletions += mcommit.deletions
         self.date_sum += mcommit.date_sum
 
-    def timestamp_to_age(self, time_stamp: int) -> str:
+    @staticmethod
+    def timestamp_to_age(time_stamp: int) -> str:
         seconds: int = NOW - time_stamp
         days: float = seconds / SECONDS_IN_DAY
         years: int = floor(days / DAYS_IN_YEAR)
@@ -242,7 +243,7 @@ class Person:
         # nice authors have first and last name
         nice_authors = {author for author in self.authors if " " in author}
 
-        # top authors also do not have a period or comma in there name.
+        # top authors also do not have a period or comma in their name.
         top_authors = {
             author
             for author in nice_authors
@@ -294,19 +295,18 @@ class Person:
 
 class PersonsDB:
     """
-    The data-base with known persons.
+    The database with known persons.
 
-    It stores found email addresses and user names of users in the analyzed
+    It stores found email addresses and usernames of users in the analyzed
     repositories and tries to merge the information if they seem to point
-    to the same person. A person can have several user names and/or several
+    to the same person. A person can have several usernames and/or several
     email addresses.
 
     ae2person -- Dictionary of author names and email addresses to a Person.
     """
 
     def __init__(self):
-        self.ae2person: dict[Author | Email, Person] = {}
-        self.ae2person["*"] = Person("*", "*")
+        self.ae2person: dict[Author | Email, Person] = {"*": Person("*", "*")}
         # There can only be one "Unknown" key. If the "Unknown" key is present, it
         # belongs to a person where both author and email are "Unknown"
 
@@ -389,9 +389,6 @@ class PersonsDB:
     def authors_excluded(self) -> list[Author]:
         return [person.author for person in self.persons if person.filter_matched]
 
-    def define(self, ae: Author | Email | None) -> Author | Email:
-        return "Unknown" if ae is None or ae == "" else ae
-
     def add_author_with_unknown_email(self, author: Author) -> "Person":
         if author in self.ae2person:
             return self.ae2person[author]
@@ -419,6 +416,10 @@ class PersonsDB:
         associated with the given author.
         """
         return self.get_person(author).author
+
+    @staticmethod
+    def define(ae: Author | Email | None) -> Author | Email:
+        return "Unknown" if ae is None or ae == "" else ae
 
 
 @dataclass
