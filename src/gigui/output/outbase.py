@@ -75,14 +75,14 @@ def percentage_to_out(percentage: float) -> int | str:
         return round(percentage)
 
 
-class OutStatRows:
+class TableStatsRows:
     def __init__(self, repo: GIRepo):
         self.repo = repo
 
     # Return a sorted list of authors occurring in the stats outputs, so these are
     # filtered authors.
-    def out_authors_included(self) -> list[Author]:
-        a2p: dict[Author, PersonStat] = self.repo.stats.author2pstat
+    def get_authors_included(self) -> list[Author]:
+        a2p: dict[Author, PersonStat] = self.repo.author2pstat
         authors = a2p.keys()
         authors = sorted(authors, key=lambda x: a2p[x].stat.line_count, reverse=True)
         return authors
@@ -110,12 +110,12 @@ class OutStatRows:
             + ([stat.deletions, stat.age] if self.repo.args.deletions else [stat.age])
         )
 
-    def out_authors_stats(self) -> list[Row]:
-        a2p: dict[Author, PersonStat] = self.repo.stats.author2pstat
+    def get_authors_stats_rows(self) -> list[Row]:
+        a2p: dict[Author, PersonStat] = self.repo.author2pstat
         rows: list[Row] = []
         row: Row
         id_val: int = 0
-        for author in self.out_authors_included():
+        for author in self.get_authors_included():
             person = self.repo.get_person(author)
             row = [id_val, person.authors_str, person.emails_str]
             row.extend(self.out_stat_values(a2p[author].stat, len(a2p)))
@@ -123,8 +123,8 @@ class OutStatRows:
             id_val += 1
         return rows
 
-    def out_files_stats(self) -> list[Row]:
-        f2f: dict[FileStr, FileStat] = self.repo.stats.fstr2fstat
+    def get_files_stats_rows(self) -> list[Row]:
+        f2f: dict[FileStr, FileStat] = self.repo.fstr2fstat
         rows: list[Row] = []
         row: Row
         id_val: int = 0
@@ -137,20 +137,20 @@ class OutStatRows:
             id_val += 1
         return rows
 
-    def out_blames(self) -> dict[FileStr, tuple[list[Row], list[bool]]]:
+    def get_blames(self) -> dict[FileStr, tuple[list[Row], list[bool]]]:
         return self.repo.blame_tables.out_blames()  # type: ignore
 
-    def out_authors_files_stats(self) -> list[Row]:
-        a2f2f: dict[Author, dict[FileStr, FileStat]] = self.repo.stats.author2fstr2fstat
+    def get_authors_files_stats_rows(self) -> list[Row]:
+        a2f2f: dict[Author, dict[FileStr, FileStat]] = self.repo.author2fstr2fstat
         row: Row
         rows: list[Row] = []
         id_val: int = 0
-        for author in self.out_authors_included():
+        for author in self.get_authors_included():
             person = self.repo.get_person(author)
             fstrs = a2f2f[author].keys()
             fstrs = sorted(
                 fstrs,
-                key=lambda x: self.repo.stats.fstr2fstat[x].stat.line_count,
+                key=lambda x: self.repo.fstr2fstat[x].stat.line_count,
                 reverse=True,
             )
             for fstr in fstrs:
@@ -168,15 +168,15 @@ class OutStatRows:
             id_val += 1
         return rows
 
-    def out_files_authors_stats(self) -> list[Row]:
-        f2a2f: dict[FileStr, dict[Author, FileStat]] = self.repo.stats.fstr2author2fstat
+    def get_files_authors_stats_rows(self) -> list[Row]:
+        f2a2f: dict[FileStr, dict[Author, FileStat]] = self.repo.fstr2author2fstat
         row: Row
         rows: list[Row] = []
         id_val: int = 0
         fstrs = f2a2f.keys()
         fstrs = sorted(
             fstrs,
-            key=lambda x: self.repo.stats.fstr2fstat[x].stat.line_count,
+            key=lambda x: self.repo.fstr2fstat[x].stat.line_count,
             reverse=True,
         )
         for fstr in fstrs:

@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup, Tag
 
 from gigui.common import get_relative_fstr, log
 from gigui.output.outbase import (
-    OutStatRows,
+    TableStatsRows,
     header_authors,
     header_authors_files,
     header_blames,
@@ -54,7 +54,7 @@ bg_row_colors: list[str] = ["bg-rowlightgreen", "bg-white"]
 
 class HTMLTable:
     def __init__(
-        self, name: FileStr, out_rows: OutStatRows, subfolder: FileStr
+        self, name: FileStr, out_rows: TableStatsRows, subfolder: FileStr
     ) -> None:
         self.out_rows = out_rows
         self.outfile = name
@@ -104,7 +104,7 @@ class HTMLTable:
         return s if s.strip() else "&nbsp;"
 
     def add_authors_table(self) -> Html:
-        rows: list[Row] = self.out_rows.out_authors_stats()
+        rows: list[Row] = self.out_rows.get_authors_stats_rows()
         return self.add_conditional_styles_table(
             self.insert_str_at(header_authors(), "Empty", 2),
             self.insert_empties_at(rows, 2),
@@ -112,7 +112,7 @@ class HTMLTable:
         )
 
     def add_authors_files_table(self) -> Html:
-        rows: list[Row] = self.out_rows.out_authors_files_stats()
+        rows: list[Row] = self.out_rows.get_authors_files_stats_rows()
         return self.add_conditional_styles_table(
             self.insert_str_at(header_authors_files(), "Empty", 2),
             self.insert_empties_at(rows, 2),
@@ -120,7 +120,7 @@ class HTMLTable:
         )
 
     def add_files_authors_table(self) -> Html:
-        rows: list[Row] = self.out_rows.out_files_authors_stats()
+        rows: list[Row] = self.out_rows.get_files_authors_stats_rows()
         return self.add_conditional_styles_table(
             self.insert_str_at(header_files_authors(), "Empty", 2),
             self.insert_empties_at(rows, 2),
@@ -128,7 +128,7 @@ class HTMLTable:
         )
 
     def add_files_table(self) -> Html:
-        rows: list[Row] = self.out_rows.out_files_stats()
+        rows: list[Row] = self.out_rows.get_files_stats_rows()
         return self.add_conditional_styles_table(header_files(), rows, bg_row_colors)
 
     def add_blame_table(self, rows_iscomments: tuple[list[Row], list[bool]]) -> Html:
@@ -178,7 +178,7 @@ class HTMLTable:
         self,
     ) -> list[tuple[FileStr, Html]]:
         fstr2rows_iscomments: dict[FileStr, tuple[list[Row], list[bool]]]
-        fstr2rows_iscomments = self.out_rows.out_blames()
+        fstr2rows_iscomments = self.out_rows.get_blames()
         blame_html_tables: list[tuple[FileStr, Html]] = []
         relative_fstrs = [
             get_relative_fstr(fstr, self.subfolder)
@@ -276,7 +276,7 @@ def out_html(
         html_template = f.read()
 
     # Construct the file in memory and add the authors and files to it.
-    out_rows = OutStatRows(repo)
+    out_rows = TableStatsRows(repo)
     htmltable = HTMLTable(outfilestr, out_rows, repo.args.subfolder)
     authors_html = htmltable.add_authors_table()
     authors_files_html = htmltable.add_authors_files_table()

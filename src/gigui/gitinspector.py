@@ -17,7 +17,7 @@ from gigui.data import FileStat, Person
 from gigui.output import outbase
 from gigui.output.excel import Book
 from gigui.output.html import out_html
-from gigui.output.outbase import OutStatRows
+from gigui.output.outbase import TableStatsRows
 from gigui.repo import GIRepo, get_repos, total_len
 from gigui.typedefs import FileStr, Html
 
@@ -135,7 +135,7 @@ def write_repo_output(  # pylint: disable=too-many-locals
     if "excel" in formats:
         logfile(f"{outfile_name}.xlsx")
         if args.dry_run == 0:
-            out_rows = OutStatRows(repo)
+            out_rows = TableStatsRows(repo)
             book = Book(outfilestr, out_rows, repo.args.subfolder)
             book.add_authors_sheet()
             book.add_authors_files_sheet()

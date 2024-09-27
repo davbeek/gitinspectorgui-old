@@ -8,7 +8,7 @@ from xlsxwriter.worksheet import Worksheet
 
 from gigui.common import get_relative_fstr
 from gigui.output.outbase import (
-    OutStatRows,
+    TableStatsRows,
     header_authors,
     header_authors_files,
     header_blames,
@@ -25,13 +25,13 @@ type FormatSpec = dict[str, str | int | float]
 WHITE = "#FFFFFF"
 
 # Author background colors
-AUTHORLIGHTGREEN = "#E6FFE6"
-AUTHORLIGHTBLUE = "#ADD8E6"
-AUTHORLIGHTRED = "#FFCCCB"
-AUTHORLIGHTYELLOW = "#FFFFBF"
-AUTHORLIGHTORANGE = "#FFD7B5"
-AUTHORLIGHTPURPLE = "#CBC3E3"
-AUTHORLIGHTGREY = "#D3D3D3"
+AUTHOR_LIGHTGREEN = "#E6FFE6"
+AUTHOR_LIGHTBLUE = "#ADD8E6"
+AUTHOR_LIGHTRED = "#FFCCCB"
+AUTHOR_LIGHTYELLOW = "#FFFFBF"
+AUTHOR_LIGHTORANGE = "#FFD7B5"
+AUTHOR_LIGHTPURPLE = "#CBC3E3"
+AUTHOR_LIGHTGRAY = "#D3D3D3"
 
 # Row background and border colors
 ROWWHITE_BORDER = "#D8E4BC"
@@ -350,9 +350,9 @@ class BlameSheet(TableSheet):
 
 
 class Book:
-    def __init__(self, name: str, out_rows: OutStatRows, subfolder: str):
+    def __init__(self, name: str, out_rows: TableStatsRows, subfolder: str):
         self.name: str = name
-        self.out_rows: OutStatRows = out_rows
+        self.out_rows: TableStatsRows = out_rows
         self.subfolder = subfolder
 
         self.outfile: str = self.name + ".xlsx"
@@ -360,13 +360,13 @@ class Book:
         self.formats: dict[str, ExcelFormat] = {}
         self.author_color_formats: list[ExcelFormat] = []
         self.author_colors = [
-            AUTHORLIGHTGREEN,
-            AUTHORLIGHTBLUE,
-            AUTHORLIGHTRED,
-            AUTHORLIGHTYELLOW,
-            AUTHORLIGHTORANGE,
-            AUTHORLIGHTPURPLE,
-            AUTHORLIGHTGREY,
+            AUTHOR_LIGHTGREEN,
+            AUTHOR_LIGHTBLUE,
+            AUTHOR_LIGHTRED,
+            AUTHOR_LIGHTYELLOW,
+            AUTHOR_LIGHTORANGE,
+            AUTHOR_LIGHTPURPLE,
+            AUTHOR_LIGHTGRAY,
         ]
 
         self.add_format("align_left", {"align": "left"})
@@ -411,7 +411,7 @@ class Book:
         self.formats[format_name] = excel_format
 
     def add_authors_sheet(self):
-        rows: list[Row] = self.out_rows.out_authors_stats()
+        rows: list[Row] = self.out_rows.get_authors_stats_rows()
         AuthorsSheet(
             rows,
             self.workbook.add_chart({"type": "pie"}),  # type: ignore
@@ -421,7 +421,7 @@ class Book:
         )
 
     def add_authors_files_sheet(self):
-        rows: list[Row] = self.out_rows.out_authors_files_stats()
+        rows: list[Row] = self.out_rows.get_authors_files_stats_rows()
         AuthorsFilesSheet(
             rows,
             header_authors_files(),
@@ -430,7 +430,7 @@ class Book:
         )
 
     def add_files_authors_sheet(self):
-        rows: list[Row] = self.out_rows.out_files_authors_stats()
+        rows: list[Row] = self.out_rows.get_files_authors_stats_rows()
         FilesAuthorsSheet(
             rows,
             header_files_authors(),
@@ -439,7 +439,7 @@ class Book:
         )
 
     def add_files_sheet(self):
-        rows: list[Row] = self.out_rows.out_files_stats()
+        rows: list[Row] = self.out_rows.get_files_stats_rows()
         FilesSheet(
             rows,
             header_files(),
@@ -465,7 +465,7 @@ class Book:
         self,
     ):
         fstr2rows_iscomments: dict[FileStr, tuple[list[Row], list[bool]]]
-        fstr2rows_iscomments = self.out_rows.out_blames()
+        fstr2rows_iscomments = self.out_rows.get_blames()
         relative_fstrs = [
             get_relative_fstr(fstr, self.subfolder)
             for fstr in fstr2rows_iscomments.keys()
