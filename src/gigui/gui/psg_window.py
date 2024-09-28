@@ -7,168 +7,38 @@ import PySimpleGUI as sg
 from gigui._logging import add_gui_handler
 from gigui.args_settings_keys import AUTO, VIEWER_CHOICES, Keys, SettingsFile
 from gigui.constants import (
-    ENABLED_COLOR,
     INIT_COL_PERCENT,
     MAX_COL_HEIGHT,
-    OPTION_TITLE_WIDTH,
     WINDOW_HEIGHT_CORR,
     WINDOW_SIZE_X,
     WINDOW_SIZE_Y,
 )
 from gigui.gui.commongui import icon
+from gigui.gui.psg_window_support import (
+    BUTTON_PADDING,
+    button,
+    checkbox,
+    column,
+    configure_canvas,
+    configure_frame,
+    frame,
+    input_box,
+    name_basic,
+    name_choice,
+    name_header,
+    name_input,
+    radio,
+    spinbox,
+)
 from gigui.tiphelp import Tip
 
 logger = logging.getLogger(__name__)
 
 RADIO_BUTTON_GROUP_FIX_ID = 2
-BUTTON_PADDING = (3, 2)
+
 
 tip = Tip()
 keys = Keys()
-
-
-# Do NOT use None as default value for size, because that will lead to an exception:
-SIZE_NONE = (None, None)
-
-
-def button(text: str, key: str, pad=BUTTON_PADDING) -> sg.Button:
-    return sg.B(
-        text,
-        k=key,
-        pad=pad,
-        button_color=ENABLED_COLOR,
-    )
-
-
-def name_basic(text: str, tooltip, size=SIZE_NONE, pad=None) -> sg.Text:
-    return sg.Text(
-        text,
-        tooltip=tooltip,
-        size=size,
-        pad=pad,
-        text_color="black",
-        background_color="white",
-    )
-
-
-def name_header(text: str, tooltip) -> sg.Text:
-    return name_basic(
-        text,
-        tooltip,
-        pad=(0, 4),
-        size=OPTION_TITLE_WIDTH,
-    )
-
-
-def name_choice(text: str, tooltip) -> sg.Text:
-    return name_basic(text, tooltip, pad=(0, 0))
-
-
-def name_input(text: str, tooltip, pad=(0, 0)) -> sg.Text:
-    return name_basic(text, tooltip, pad=pad)
-
-
-def input_box(
-    key: str,
-    disabled: bool = False,
-    size=SIZE_NONE,
-) -> sg.Input:
-    return sg.Input(
-        k=key,
-        pad=((3, 2), 2),
-        expand_x=True,
-        enable_events=True,
-        disabled=disabled,
-        tooltip=getattr(tip, key),
-        text_color="black",
-        background_color="white",
-        disabled_readonly_background_color="grey92",
-        size=size,
-    )
-
-
-def checkbox(
-    text: str,
-    key: str,
-    disabled=False,
-) -> sg.Checkbox:
-    return sg.Checkbox(
-        text,
-        k=key,
-        tooltip=getattr(tip, key),
-        pad=((0, 6), 0),
-        enable_events=True,
-        disabled=disabled,
-        text_color="black",
-        background_color="white",
-    )
-
-
-def spinbox(key: str, spin_range: list[int], pad=None) -> sg.Spin:
-    return sg.Spin(
-        spin_range,
-        initial_value=1,
-        k=key,
-        enable_events=True,
-        pad=((3, 10), None) if pad is None else pad,
-        size=2,
-        readonly=True,
-        background_color="white",
-    )
-
-
-def radio(
-    text: str,
-    group_id: int,
-    key: str,
-) -> sg.Radio:
-    return sg.Radio(
-        text,
-        group_id,
-        k=key,
-        default=False,
-        enable_events=True,
-        pad=((0, 0), 2),
-        tooltip=getattr(tip, key),
-        text_color="black",
-        background_color="white",
-    )
-
-
-def frame(title: str, layout: list, pad: tuple[int, int] = (0, 0)) -> sg.Frame:
-    return sg.Frame(
-        layout=layout,
-        title=title,
-        relief=sg.RELIEF_SUNKEN,
-        expand_x=True,
-        pad=pad,
-        title_color="black",
-        background_color="white",
-    )
-
-
-def column(layout: list, col_height, key=None) -> sg.Column:
-    return sg.Column(
-        layout,
-        k=key,
-        vertical_scroll_only=True,
-        scrollable=True,
-        expand_x=True,
-        size=(None, col_height),
-        background_color="white",
-    )
-
-
-def configure_canvas(event, canvas, frame_id):
-    canvas.itemconfig(frame_id, width=event.width)
-
-
-def configure_frame(canvas):
-    canvas.configure(scrollregion=canvas.bbox("all"))
-
-
-def popup(title, message):
-    sg.popup(title, message, keep_on_top=True, text_color="black")
 
 
 # pylint: disable=too-many-locals
@@ -177,12 +47,140 @@ def make_window() -> sg.Window:
     # window in common and _logging still points to the old window after a "Reset
     # settings file" command has been given.
 
-    col_height = int((WINDOW_SIZE_Y - WINDOW_HEIGHT_CORR) * INIT_COL_PERCENT / 100)
-    col_height = min(MAX_COL_HEIGHT, col_height)
-
     sg.theme("SystemDefault")
 
-    io_config = frame(
+    # create the window
+    window = sg.Window(
+        "GitinspectorGUI",
+        window_layout(),
+        size=(WINDOW_SIZE_X, WINDOW_SIZE_Y),
+        icon=icon,
+        finalize=True,
+        resizable=True,
+        margins=(0, 0),
+        background_color="white",
+    )
+    add_gui_handler()
+    config_column = window[keys.config_column]
+    widget = config_column.Widget  # type: ignore
+    assert widget is not None
+    frame_id = widget.frame_id
+    tk_frame = widget.TKFrame
+    canvas = widget.canvas
+    window.bind("<Configure>", "Conf")
+    canvas.bind(
+        "<Configure>",
+        lambda event, canvas=canvas, frame_id=frame_id: configure_canvas(
+            event, canvas, frame_id
+        ),
+    )
+    tk_frame.bind("<Configure>", lambda event, canvas=canvas: configure_frame(canvas))
+    canvas.itemconfig(frame_id, width=canvas.winfo_width())
+    sg.cprint_set_output_destination(window, keys.multiline)
+    window.refresh()
+    return window
+
+
+# All the stuff inside the window
+def window_layout() -> list[list[sg.Element] | list[sg.Column] | list[sg.Multiline]]:
+    COL_HEIGHT_UNLIMITED = int(
+        (WINDOW_SIZE_Y - WINDOW_HEIGHT_CORR) * INIT_COL_PERCENT / 100
+    )
+    COL_HEIGHT = min(MAX_COL_HEIGHT, COL_HEIGHT_UNLIMITED)
+
+    return [
+        layout_top_row(),
+        [
+            column(
+                [
+                    [io_config()],
+                    [output_formats()],
+                    [general_config_frame()],
+                    [analysis_options()],
+                    [exclusion_patterns_frame()],
+                ],
+                COL_HEIGHT,
+                keys.config_column,
+            )
+        ],
+        [
+            sg.Multiline(
+                size=(70, 10),
+                write_only=True,
+                key=keys.multiline,
+                reroute_cprint=True,
+                expand_y=True,
+                expand_x=True,
+                auto_refresh=True,
+                background_color="white",
+            )
+        ],
+    ]
+
+
+def layout_top_row() -> list[sg.Element]:
+    return [
+        sg.Column(
+            [
+                [
+                    button("Execute", keys.execute),
+                    button("Clear", keys.clear),
+                    button("Show", keys.show, pad=((20, 3), 2)),
+                    button("Save", keys.save),
+                    sg.FileSaveAs(
+                        "Save As",
+                        key=keys.save_as,
+                        target=keys.save_as,
+                        file_types=(("JSON", "*.json"),),
+                        default_extension=".json",
+                        enable_events=True,
+                        initial_folder=str(SettingsFile.get_location()),
+                        pad=BUTTON_PADDING,
+                    ),
+                    sg.FileBrowse(
+                        "Load",
+                        key=keys.load,
+                        target=keys.load,
+                        file_types=(("JSON", "*.json"),),
+                        enable_events=True,
+                        initial_folder=str(SettingsFile.get_location().parent),
+                        pad=BUTTON_PADDING,
+                    ),
+                    button("Reset", keys.reset, pad=((3, 20), 2)),
+                    button("Help", keys.help),
+                    button("About", keys.about),
+                    button("Exit", keys.exit),
+                ]
+            ],
+            pad=(0, (4, 0)),
+            background_color="white",
+        ),
+        sg.Column(
+            [
+                [
+                    spinbox(
+                        keys.col_percent,
+                        list(range(20, 100, 5)),
+                        pad=((0, 5), None),
+                    ),
+                    sg.Text(
+                        "%",
+                        pad=((0, 5), None),
+                        text_color="black",
+                        background_color="white",
+                    ),
+                ]
+            ],
+            element_justification="right",
+            expand_x=True,
+            pad=(0, (4, 0)),
+            background_color="white",
+        ),
+    ]
+
+
+def io_config() -> sg.Frame:
+    return frame(
         "IO configuration",
         layout=[
             [
@@ -194,7 +192,7 @@ def make_window() -> sg.Window:
                 # preceding input box.
                 sg.FolderBrowse(
                     key=keys.browse_input_fstr,
-                    initial_folder=Path.home(),
+                    initial_folder=str(Path.home()),
                 ),
             ],
             [
@@ -240,7 +238,9 @@ def make_window() -> sg.Window:
         ],
     )
 
-    output_formats = frame(
+
+def output_formats() -> sg.Frame:
+    return frame(
         "Output generation and formatting",
         layout=[
             [
@@ -322,7 +322,9 @@ def make_window() -> sg.Window:
         ],
     )
 
-    general_config_frame = frame(
+
+def general_config_frame() -> sg.Frame:
+    return frame(
         "Inclusions and exclusions",
         layout=[
             [
@@ -406,7 +408,9 @@ def make_window() -> sg.Window:
         ],
     )
 
-    analysis_options = frame(
+
+def analysis_options() -> sg.Frame:
+    return frame(
         "Analysis options",
         layout=[
             [
@@ -438,48 +442,52 @@ def make_window() -> sg.Window:
             ],
         ],
     )
-    size = (10, None)
-    title_size = 10
-    left_column = [
+
+
+def exclusion_patterns_frame() -> sg.Frame:
+    SIZE = (10, None)
+    TITLE_SIZE = 10
+
+    LEFT_COLUMN = [
         [
             name_header("Author", tooltip=tip.ex_authors),
             input_box(
                 keys.ex_authors,
-                size=size,
+                size=SIZE,
             ),
         ],
         [
             name_header("File/Folder", tooltip=tip.ex_files),
-            input_box(keys.ex_files, size=size),
+            input_box(keys.ex_files, size=SIZE),
         ],
     ]
 
-    right_column = [
+    RIGHT_COLUMN = [
         [
-            name_basic("Email", tooltip=tip.ex_emails, size=title_size),
+            name_basic("Email", tooltip=tip.ex_emails, size=TITLE_SIZE),
             input_box(
                 keys.ex_emails,
-                size=size,
+                size=SIZE,
             ),
         ],
         [
-            name_basic("Revision hash", tooltip=tip.ex_revisions, size=title_size),
+            name_basic("Revision hash", tooltip=tip.ex_revisions, size=TITLE_SIZE),
             input_box(
                 keys.ex_revisions,
-                size=size,
+                size=SIZE,
             ),
         ],
     ]
 
-    exclusion_patterns_frame = frame(
+    return frame(
         "Exclusion patterns",
         layout=[
             [
                 sg.Column(
-                    left_column, expand_x=True, pad=(0, 0), background_color="white"
+                    LEFT_COLUMN, expand_x=True, pad=(0, 0), background_color="white"
                 ),
                 sg.Column(
-                    right_column, expand_x=True, pad=(0, 0), background_color="white"
+                    RIGHT_COLUMN, expand_x=True, pad=(0, 0), background_color="white"
                 ),
             ],
             [
@@ -490,121 +498,3 @@ def make_window() -> sg.Window:
             ],
         ],
     )
-
-    # All the stuff inside the window
-    layout = [
-        [
-            sg.Column(
-                [
-                    [
-                        button("Execute", keys.execute),
-                        button("Clear", keys.clear),
-                        button("Show", keys.show, pad=((20, 3), 2)),
-                        button("Save", keys.save),
-                        sg.FileSaveAs(
-                            "Save As",
-                            key=keys.save_as,
-                            target=keys.save_as,
-                            file_types=(("JSON", "*.json"),),
-                            default_extension=".json",
-                            enable_events=True,
-                            initial_folder=str(SettingsFile.get_location()),
-                            pad=BUTTON_PADDING,
-                        ),
-                        sg.FileBrowse(
-                            "Load",
-                            key=keys.load,
-                            target=keys.load,
-                            file_types=(("JSON", "*.json"),),
-                            enable_events=True,
-                            initial_folder=str(SettingsFile.get_location().parent),
-                            pad=BUTTON_PADDING,
-                        ),
-                        button("Reset", keys.reset, pad=((3, 20), 2)),
-                        button("Help", keys.help),
-                        button("About", keys.about),
-                        button("Exit", keys.exit),
-                    ]
-                ],
-                pad=(0, (4, 0)),
-                background_color="white",
-            ),
-            sg.Column(
-                [
-                    [
-                        spinbox(
-                            keys.col_percent,
-                            list(range(20, 100, 5)),
-                            pad=((0, 5), None),
-                        ),
-                        sg.Text(
-                            "%",
-                            pad=((0, 5), None),
-                            text_color="black",
-                            background_color="white",
-                        ),
-                    ]
-                ],
-                element_justification="right",
-                expand_x=True,
-                pad=(0, (4, 0)),
-                background_color="white",
-            ),
-        ],
-        [
-            column(
-                [
-                    [io_config],
-                    [output_formats],
-                    [general_config_frame],
-                    [analysis_options],
-                    [exclusion_patterns_frame],
-                ],
-                col_height,
-                keys.config_column,
-            )
-        ],
-        [
-            sg.Multiline(
-                size=(70, 10),
-                write_only=True,
-                key=keys.multiline,
-                reroute_cprint=True,
-                expand_y=True,
-                expand_x=True,
-                auto_refresh=True,
-                background_color="white",
-            )
-        ],
-    ]
-
-    # create the window
-    window = sg.Window(
-        "GitinspectorGUI",
-        layout,
-        size=(WINDOW_SIZE_X, WINDOW_SIZE_Y),
-        icon=icon,
-        finalize=True,
-        resizable=True,
-        margins=(0, 0),
-        background_color="white",
-    )
-    add_gui_handler()
-    config_column = window[keys.config_column]
-    widget = config_column.Widget  # type: ignore
-    assert widget is not None
-    frame_id = widget.frame_id
-    tk_frame = widget.TKFrame
-    canvas = widget.canvas
-    window.bind("<Configure>", "Conf")
-    canvas.bind(
-        "<Configure>",
-        lambda event, canvas=canvas, frame_id=frame_id: configure_canvas(
-            event, canvas, frame_id
-        ),
-    )
-    tk_frame.bind("<Configure>", lambda event, canvas=canvas: configure_frame(canvas))
-    canvas.itemconfig(frame_id, width=canvas.winfo_width())
-    sg.cprint_set_output_destination(window, keys.multiline)
-    window.refresh()
-    return window
