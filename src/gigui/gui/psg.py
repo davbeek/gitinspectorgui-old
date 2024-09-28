@@ -37,7 +37,7 @@ from gigui.gui.psg_support import (
     use_single_repo,
     window_state_from_settings,
 )
-from gigui.gui.psgwindow import make_window
+from gigui.gui.psg_window import make_window
 from gigui.tiphelp import Help, Tip
 from gigui.typedefs import FileStr
 
@@ -45,99 +45,6 @@ logger = logging.getLogger(__name__)
 
 tip = Tip()
 keys = Keys()
-
-
-def execute(  # pylint: disable=too-many-branches
-    window: sg.Window,
-    values: dict,
-    input_paths: list[Path],
-    input_valid: bool,
-    outfile_base: FileStr,
-):
-    def popup(title, message):
-        sg.popup(
-            title,
-            message,
-            keep_on_top=True,
-            text_color="black",
-            background_color="white",
-        )
-
-    start_time = time.time()
-    logger.info(f"{values = }")
-
-    def disable_buttons(window: sg.Window):
-        for bt in buttons:
-            update_button_state(window[bt], True)  # type: ignore
-
-    if not input_valid:
-        popup("Error", "Input folder path not valid")
-        return
-
-    if not input_paths:
-        popup("Error", "Input folder path empty")
-        return
-
-    if not outfile_base:
-        popup("Error", "Output file base empty")
-        return
-
-    args = Args()
-    settings_schema: dict[str, Any] = SettingsFile.SETTINGS_SCHEMA["properties"]
-    for key, value in settings_schema.items():
-        if key not in {
-            keys.profile,
-            keys.fix,
-            keys.format,
-            keys.extensions,
-            keys.since,
-            keys.until,
-            keys.multi_thread,
-            keys.multi_core,
-        }:
-            if value["type"] == "array":
-                setattr(args, key, str_split_comma(values[key]))  # type: ignore
-            else:
-                setattr(args, key, values[key])
-
-    if values[keys.prefix]:
-        args.fix = keys.prefix
-    elif values[keys.postfix]:
-        args.fix = keys.postfix
-    else:
-        args.fix = keys.nofix
-
-    out_format_selected = []
-    for key in AVAILABLE_FORMATS:
-        if values[key]:
-            out_format_selected.append(key)
-    args.format = out_format_selected
-
-    for key in keys.since, keys.until:
-        val = values[key]
-        if not val or val == "":
-            continue
-        try:
-            val = datetime.strptime(values[key], "%Y-%m-%d").strftime("%Y-%m-%d")
-        except (TypeError, ValueError):
-            popup(
-                "Reminder",
-                "Invalid date format. Correct format is YYYY-MM-DD. Please try again.",
-            )
-            return
-        setattr(args, key, str(val))
-
-    args.extensions = (
-        str_split_comma(values[keys.extensions])
-        if values[keys.extensions]
-        else DEFAULT_EXTENSIONS
-    )
-
-    logger.info(f"{args = }")
-    disable_buttons(window)
-    window.perform_long_operation(
-        lambda: gitinspector_main(args, start_time, window), keys.end
-    )
 
 
 def rungui(settings: Settings):
@@ -335,6 +242,99 @@ def rungui_inner(settings: Settings) -> bool:
                 webview_process.daemon = True
                 webview_process.start()
     return recreate_window
+
+
+def execute(  # pylint: disable=too-many-branches
+    window: sg.Window,
+    values: dict,
+    input_paths: list[Path],
+    input_valid: bool,
+    outfile_base: FileStr,
+):
+    def popup(title, message):
+        sg.popup(
+            title,
+            message,
+            keep_on_top=True,
+            text_color="black",
+            background_color="white",
+        )
+
+    start_time = time.time()
+    logger.info(f"{values = }")
+
+    def disable_buttons(window: sg.Window):
+        for bt in buttons:
+            update_button_state(window[bt], True)  # type: ignore
+
+    if not input_valid:
+        popup("Error", "Input folder path not valid")
+        return
+
+    if not input_paths:
+        popup("Error", "Input folder path empty")
+        return
+
+    if not outfile_base:
+        popup("Error", "Output file base empty")
+        return
+
+    args = Args()
+    settings_schema: dict[str, Any] = SettingsFile.SETTINGS_SCHEMA["properties"]
+    for key, value in settings_schema.items():
+        if key not in {
+            keys.profile,
+            keys.fix,
+            keys.format,
+            keys.extensions,
+            keys.since,
+            keys.until,
+            keys.multi_thread,
+            keys.multi_core,
+        }:
+            if value["type"] == "array":
+                setattr(args, key, str_split_comma(values[key]))  # type: ignore
+            else:
+                setattr(args, key, values[key])
+
+    if values[keys.prefix]:
+        args.fix = keys.prefix
+    elif values[keys.postfix]:
+        args.fix = keys.postfix
+    else:
+        args.fix = keys.nofix
+
+    out_format_selected = []
+    for key in AVAILABLE_FORMATS:
+        if values[key]:
+            out_format_selected.append(key)
+    args.format = out_format_selected
+
+    for key in keys.since, keys.until:
+        val = values[key]
+        if not val or val == "":
+            continue
+        try:
+            val = datetime.strptime(values[key], "%Y-%m-%d").strftime("%Y-%m-%d")
+        except (TypeError, ValueError):
+            popup(
+                "Reminder",
+                "Invalid date format. Correct format is YYYY-MM-DD. Please try again.",
+            )
+            return
+        setattr(args, key, str(val))
+
+    args.extensions = (
+        str_split_comma(values[keys.extensions])
+        if values[keys.extensions]
+        else DEFAULT_EXTENSIONS
+    )
+
+    logger.info(f"{args = }")
+    disable_buttons(window)
+    window.perform_long_operation(
+        lambda: gitinspector_main(args, start_time, window), keys.end
+    )
 
 
 if __name__ == "__main__":
