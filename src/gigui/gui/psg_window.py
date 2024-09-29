@@ -123,7 +123,7 @@ def window_layout() -> list[list[sg.Element] | list[sg.Column] | list[sg.Multili
     ]
 
 
-def get_icon():
+def get_icon() -> bytes:
     def resource_path(relative_path=None) -> Path:
         """Get absolute path to resource, works for dev and for PyInstaller"""
         try:

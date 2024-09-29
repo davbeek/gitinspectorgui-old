@@ -51,15 +51,15 @@ class WindowButtons:
             keys.browse_input_fstr,
         ]
 
-    def disable_all(self):
+    def disable_all(self) -> None:
         for button in self.buttons:
             self._update_button_state(button, True)
 
-    def enable_all(self):
+    def enable_all(self) -> None:
         for button in self.buttons:
             self._update_button_state(button, False)
 
-    def _update_button_state(self, button: str, disabled: bool):
+    def _update_button_state(self, button: str, disabled: bool) -> None:
         if disabled:
             color = DISABLED_COLOR
         else:
@@ -67,7 +67,7 @@ class WindowButtons:
         self.window[button].update(disabled=disabled, button_color=color)  # type: ignore
 
 
-def window_state_from_settings(window: sg.Window, settings: Settings):
+def window_state_from_settings(window: sg.Window, settings: Settings) -> None:
     settings_dict = asdict(settings)
     # settings_min is settings dict with 5 keys removed: keys.fix - keys.multi_core
     settings_min = {
@@ -107,17 +107,17 @@ def window_state_from_settings(window: sg.Window, settings: Settings):
     window.write_event_value(keys.verbosity, settings.verbosity)
 
 
-def disable_element(ele: sg.Element):
+def disable_element(ele: sg.Element) -> None:
     ele.update(disabled=True)
 
 
-def enable_element(ele: sg.Element):
+def enable_element(ele: sg.Element) -> None:
     ele.update(disabled=False)
 
 
 def update_column_height(
     element: sg.Element, window_height: int, last_window_height: int, state: GUIState
-):
+) -> None:
     column_height = element.Widget.canvas.winfo_height()  # type: ignore
     if column_height < MAX_COL_HEIGHT or (window_height - last_window_height) <= 0:
         column_height = int(
@@ -129,18 +129,18 @@ def update_column_height(
 
 def update_col_percent(
     window: sg.Window, window_height: int, percent: int, state: GUIState
-):
+) -> None:
     config_column: sg.Column = window[keys.config_column]  # type: ignore
     if state.col_percent != percent:
         state.col_percent = percent
         update_column_height(config_column, window_height, window_height, state)
 
 
-def help_window():
-    def help_text(string):
+def help_window() -> None:
+    def help_text(string) -> sg.Text:
         return sg.Text(string, text_color="black", background_color="white", pad=(0, 0))
 
-    def hyperlink_text(url):
+    def hyperlink_text(url) -> sg.Text:
         return sg.Text(
             url,
             enable_events=True,
@@ -180,7 +180,7 @@ def help_window():
     window.close()
 
 
-def popup_custom(title, message, user_input=None):
+def popup_custom(title, message, user_input=None) -> str | None:
     layout = [[sg.Text(message, text_color="black", background_color="white")]]
     if user_input:
         layout += [
@@ -195,7 +195,7 @@ def popup_custom(title, message, user_input=None):
     return None if event != "OK" else event
 
 
-def log(*args: str, color=None):
+def log(*args: str, color=None) -> None:
     sg.cprint("\n".join(args), c=color)
 
 
@@ -206,7 +206,7 @@ def use_single_repo(input_paths: list[Path]) -> bool:
 def update_outfile_str(
     window: sg.Window,
     state: GUIState,
-):
+) -> None:
     def get_outfile_str() -> str:
 
         def get_rename_file() -> str:
@@ -240,11 +240,11 @@ def update_outfile_str(
     window[keys.outfile_path].update(value=get_outfile_str())  # type: ignore
 
 
-def paths_valid(paths: list[Path], sg_input: sg.Input, colored: bool = True):
+def paths_valid(paths: list[Path], sg_input: sg.Input, colored: bool = True) -> bool:
     def path_exists_case_sensitive(p: Path) -> bool:
         return p.exists() and str(p) in map(str, p.parent.iterdir())
 
-    def invalid_input(element: sg.Element):
+    def invalid_input(element: sg.Element) -> None:
         element.update(background_color="#FD9292")
 
     if all(path_exists_case_sensitive(path) for path in paths):

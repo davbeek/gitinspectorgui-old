@@ -116,10 +116,12 @@ class StatsReader:
 
         include_files = self.args.include_files
         show_n_files = self.args.n_files
+
+        matches: list[FileStr]
         if not include_files:
             matches = get_biggest_worktree_files(show_n_files)
         else:  # Get files matching file pattern
-            matches: list[FileStr] = [
+            matches = [
                 blob.path  # type: ignore
                 for blob in self.head_commit.tree.traverse()
                 if (
@@ -134,7 +136,7 @@ class StatsReader:
             ]
         return matches
 
-    def _set_head_commit(self):
+    def _set_head_commit(self) -> None:
         since = self.args.since
         until = self.args.until
 
@@ -148,7 +150,7 @@ class StatsReader:
 
         self.head_commit = next(self.gitrepo.iter_commits(**since_until_kwargs))
 
-    def _set_fstr2lines(self):
+    def _set_fstr2lines(self) -> None:
         self.fstr2lines["*"] = 0
         for blob in self.head_commit.tree.traverse():
             if (
@@ -175,7 +177,7 @@ class StatsReader:
         else:
             return []
 
-    def _get_commits_first_pass(self):
+    def _get_commits_first_pass(self) -> None:
         commits: list[Commit] = []
         ex_sha_shorts: set[SHAshort] = set()
         sha_short: SHAshort

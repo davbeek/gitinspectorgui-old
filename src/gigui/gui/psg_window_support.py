@@ -139,5 +139,5 @@ def column(layout: list, col_height, key=None) -> sg.Column:
     )
 
 
-def popup(title, message):
+def popup(title, message) -> None:
     sg.popup(title, message, keep_on_top=True, text_color="black")

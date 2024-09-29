@@ -92,6 +92,9 @@
     //
     // Pylance, None, Jedi (Jedi DOES NOT WORK)
     "python.languageServer": "Pylance",
+    //
+    "mypy-type-checker.cwd": "${fileDirname}",
+    //
     "python.testing.pytestEnabled": true,
     "python.terminal.activateEnvInCurrentTerminal": false,
     "python.terminal.activateEnvironment": false,

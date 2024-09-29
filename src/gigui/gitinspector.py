@@ -248,12 +248,12 @@ def process_repo_in_process_pool(
     len_repos: int,
     outfile_base: str,
     gui_window: sg.Window | None,
-) -> tuple[bool, list[str]]:
+) -> tuple[bool, list[FileStr]]:
     init_classes(args)
     with ThreadPoolExecutor(max_workers=5) as thread_executor:
         dryrun = repo.args.dry_run
         stats_found = False
-        files_to_log = []
+        files_to_log: list[FileStr] = []
         if dryrun <= 1:
             stats_found = repo.run(thread_executor)
         if dryrun == 0 and stats_found:

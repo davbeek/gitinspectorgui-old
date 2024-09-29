@@ -83,7 +83,7 @@ class TableStatsRows:
     # filtered authors.
     def get_authors_included(self) -> list[Author]:
         a2p: dict[Author, PersonStat] = self.repo.author2pstat
-        authors = a2p.keys()
+        authors = list(a2p.keys())
         authors = sorted(authors, key=lambda x: a2p[x].stat.line_count, reverse=True)
         return authors
 
@@ -128,7 +128,7 @@ class TableStatsRows:
         rows: list[Row] = []
         row: Row
         id_val: int = 0
-        fstrs = f2f.keys()
+        fstrs = list(f2f.keys())
         fstrs = sorted(fstrs, key=lambda x: f2f[x].stat.line_count, reverse=True)
         for fstr in fstrs:
             row = [id_val, f2f[fstr].relative_names_str(subfolder)]
@@ -147,7 +147,7 @@ class TableStatsRows:
         id_val: int = 0
         for author in self.get_authors_included():
             person = self.repo.get_person(author)
-            fstrs = a2f2f[author].keys()
+            fstrs = list(a2f2f[author].keys())
             fstrs = sorted(
                 fstrs,
                 key=lambda x: self.repo.fstr2fstat[x].stat.line_count,
@@ -173,14 +173,14 @@ class TableStatsRows:
         row: Row
         rows: list[Row] = []
         id_val: int = 0
-        fstrs = f2a2f.keys()
+        fstrs = list(f2a2f.keys())
         fstrs = sorted(
             fstrs,
             key=lambda x: self.repo.fstr2fstat[x].stat.line_count,
             reverse=True,
         )
         for fstr in fstrs:
-            authors = f2a2f[fstr].keys()
+            authors = list(f2a2f[fstr].keys())
             authors = sorted(
                 authors,
                 key=lambda x: f2a2f[fstr][  # pylint: disable=cell-var-from-loop

@@ -62,43 +62,45 @@ class Sheet:
 
         worksheet.set_zoom(ZOOMLEVEL)
 
-    def set_pos(self, row: int, col: int):
+    def set_pos(self, row: int, col: int) -> None:
         self.row = row
         self.col = col
 
-    def inc_row(self):
+    def inc_row(self) -> None:
         self.row += 1
 
-    def inc_col(self):
+    def inc_col(self) -> None:
         self.col += 1
 
-    def reset_col(self):
+    def reset_col(self) -> None:
         self.col = 0
 
-    def next_row(self):
+    def next_row(self) -> None:
         self.inc_row()
         self.reset_col()
 
-    def update_max(self, row: int, col: int):
+    def update_max(self, row: int, col: int) -> None:
         self.maxrow = max(self.maxrow, row)
         self.maxcol = max(self.maxcol, col)
 
-    def write(self, data, excel_format: ExcelFormat | None = None):
+    def write(self, data, excel_format: ExcelFormat | None = None) -> None:
         self.worksheet.write(self.row, self.col, data, excel_format)
         self.update_max(self.row, self.col)
         self.inc_col()
 
-    def write_number(self, n: int):
+    def write_number(self, n: int) -> None:
         self.worksheet.write_number(self.row, self.col, n)
         self.update_max(self.row, self.col)
         self.inc_col()
 
-    def write_string(self, s: str):
+    def write_string(self, s: str) -> None:
         self.worksheet.write_string(self.row, self.col, s)
         self.update_max(self.row, self.col)
         self.inc_col()
 
-    def write_row(self, datalist: list, excel_format: ExcelFormat | None = None):
+    def write_row(
+        self, datalist: list, excel_format: ExcelFormat | None = None
+    ) -> None:
         datalist = [data for data in datalist if data is not None]
         if datalist:
             self.worksheet.write_row(self.row, self.col, datalist, excel_format)
@@ -141,7 +143,7 @@ class TableSheet(Sheet):
         col = self.head2col[head]
         return self.number_to_letter(col)
 
-    def set_excel_column_formats(self):
+    def set_excel_column_formats(self) -> None:
         for head in self.header_items:
             col = self.head2col[head]
             width = self.head2width.get(head)
@@ -149,7 +151,7 @@ class TableSheet(Sheet):
             excel_format = self.formats.get(formatname)  # type: ignore
             self.worksheet.set_column(col, col, width, excel_format)
 
-    def add_table(self, header: list[dict[str, str]]):
+    def add_table(self, header: list[dict[str, str]]) -> None:
         self.worksheet.add_table(
             0,
             0,
@@ -162,7 +164,7 @@ class TableSheet(Sheet):
         )
         self.worksheet.freeze_panes(1, 0)  # freeze top row
 
-    def set_conditional_author_formats(self):
+    def set_conditional_author_formats(self) -> None:
         author_color_formats: list[ExcelFormat] = self.book.author_color_formats
         # Add conditional formats for author colors
         total_formats_1 = len(author_color_formats) - 1
@@ -208,7 +210,7 @@ class StatsSheet(TableSheet):
             "Age Y:M:D": "align_right",
         }
 
-    def set_conditional_file_formats(self):
+    def set_conditional_file_formats(self) -> None:
         self.worksheet.conditional_format(
             1,
             0,
@@ -408,11 +410,11 @@ class Book:
 
         Path(self.outfile).unlink(missing_ok=True)
 
-    def add_format(self, format_name: str, formatspec: FormatSpec):
+    def add_format(self, format_name: str, formatspec: FormatSpec) -> None:
         excel_format = self.workbook.add_format(formatspec)
         self.formats[format_name] = excel_format
 
-    def add_authors_sheet(self):
+    def add_authors_sheet(self) -> None:
         rows: list[Row] = self.out_rows.get_authors_stats_rows()
         AuthorsSheet(
             rows,
@@ -422,7 +424,7 @@ class Book:
             self,
         )
 
-    def add_authors_files_sheet(self):
+    def add_authors_files_sheet(self) -> None:
         rows: list[Row] = self.out_rows.get_authors_files_stats_rows()
         AuthorsFilesSheet(
             rows,
@@ -431,7 +433,7 @@ class Book:
             self,
         )
 
-    def add_files_authors_sheet(self):
+    def add_files_authors_sheet(self) -> None:
         rows: list[Row] = self.out_rows.get_files_authors_stats_rows()
         FilesAuthorsSheet(
             rows,
@@ -440,7 +442,7 @@ class Book:
             self,
         )
 
-    def add_files_sheet(self):
+    def add_files_sheet(self) -> None:
         rows: list[Row] = self.out_rows.get_files_stats_rows()
         FilesSheet(
             rows,
@@ -453,7 +455,7 @@ class Book:
         self,
         name,
         rows_iscomments: tuple[list[Row], list[bool]],
-    ):
+    ) -> None:
         if rows_iscomments:
             sheetname = name.replace("/", ">")
             BlameSheet(
@@ -465,7 +467,7 @@ class Book:
 
     def add_blame_sheets(
         self,
-    ):
+    ) -> None:
         fstr2rows_iscomments: dict[FileStr, tuple[list[Row], list[bool]]]
         fstr2rows_iscomments = self.out_rows.get_blames()
 
@@ -483,5 +485,5 @@ class Book:
                 fstr2rows_iscomments[fstr],
             )
 
-    def close(self):
+    def close(self) -> None:
         self.workbook.close()

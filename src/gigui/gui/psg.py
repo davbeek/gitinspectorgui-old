@@ -45,7 +45,7 @@ tip = Tip()
 keys = Keys()
 
 
-def run(settings: Settings):
+def run(settings: Settings) -> None:
     recreate_window: bool = True
     while recreate_window:
         recreate_window = run_inner(settings)
@@ -250,7 +250,7 @@ def execute(  # pylint: disable=too-many-branches
     input_paths: list[Path],
     input_valid: bool,
     outfile_base: FileStr,
-):
+) -> None:
     def popup(title, message):
         sg.popup(
             title,
