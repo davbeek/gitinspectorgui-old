@@ -15,7 +15,6 @@ from gigui.constants import (
     REPO_HINT,
     WINDOW_HEIGHT_CORR,
 )
-from gigui.gui.commongui import icon
 from gigui.repo import is_git_repo
 from gigui.tiphelp import Help
 from gigui.typedefs import FileStr
@@ -164,7 +163,6 @@ def help_window():
     window = sg.Window(
         "Help Documentation",
         layout,
-        icon=icon,
         finalize=True,
         keep_on_top=True,
         background_color="white",
@@ -240,3 +238,19 @@ def update_outfile_str(
             return ""
 
     window[keys.outfile_path].update(value=get_outfile_str())  # type: ignore
+
+
+def paths_valid(paths: list[Path], sg_input: sg.Input, colored: bool = True):
+    def path_exists_case_sensitive(p: Path) -> bool:
+        return p.exists() and str(p) in map(str, p.parent.iterdir())
+
+    def invalid_input(element: sg.Element):
+        element.update(background_color="#FD9292")
+
+    if all(path_exists_case_sensitive(path) for path in paths):
+        sg_input.update(background_color="#FFFFFF")
+        return True
+    else:
+        if colored:
+            invalid_input(sg_input)
+        return False

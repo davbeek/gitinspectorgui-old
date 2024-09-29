@@ -20,7 +20,6 @@ from gigui.constants import (
     DEFAULT_EXTENSIONS,
 )
 from gigui.gitinspector import main as gitinspector_main
-from gigui.gui.commongui import paths_valid
 from gigui.gui.psg_support import (
     GUIState,
     WindowButtons,
@@ -28,6 +27,7 @@ from gigui.gui.psg_support import (
     enable_element,
     help_window,
     log,
+    paths_valid,
     popup_custom,
     update_col_percent,
     update_column_height,

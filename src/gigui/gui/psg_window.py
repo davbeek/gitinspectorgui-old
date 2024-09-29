@@ -1,5 +1,7 @@
 # noinspection PyPep8Naming
+import base64
 import logging
+import sys
 from pathlib import Path
 
 import PySimpleGUI as sg
@@ -13,7 +15,6 @@ from gigui.constants import (
     WINDOW_SIZE_X,
     WINDOW_SIZE_Y,
 )
-from gigui.gui.commongui import icon
 from gigui.gui.psg_window_support import (
     BUTTON_PADDING,
     button,
@@ -56,7 +57,7 @@ def make_window() -> sg.Window:
         "GitinspectorGUI",
         window_layout(),
         size=(WINDOW_SIZE_X, WINDOW_SIZE_Y),
-        icon=icon,
+        icon=get_icon(),
         finalize=True,
         resizable=True,
         margins=(0, 0),
@@ -120,6 +121,27 @@ def window_layout() -> list[list[sg.Element] | list[sg.Column] | list[sg.Multili
             )
         ],
     ]
+
+
+def get_icon():
+    def resource_path(relative_path=None) -> Path:
+        """Get absolute path to resource, works for dev and for PyInstaller"""
+        try:
+            # PyInstaller creates a temp folder and stores path in _MEIPASS
+            # noinspection PyProtectedMember
+            base_path = sys._MEIPASS  # type: ignore  # pylint: disable=E1101,W0212
+        except AttributeError:
+            base_path = Path(__file__).parent
+
+        if relative_path is None:
+            return base_path
+
+        return Path(base_path) / relative_path
+
+    icon_path = resource_path("images/icon.png")
+    with open(icon_path, "rb") as file:
+        icon = base64.b64encode(file.read())
+    return icon
 
 
 def layout_top_row() -> list[sg.Column]:
