@@ -21,6 +21,36 @@ logger = logging.getLogger(__name__)
 add_cli_handler()
 
 
+def main():
+    start_time = time.time()
+
+    parser = ArgumentParser(
+        prog="gitinspectorgui",
+        description="".join(Help.help_doc),
+        formatter_class=RawDescriptionHelpFormatter,
+    )
+
+    define_arguments(parser)
+    namespace = parser.parse_args()
+
+    settings: Settings = load_settings()
+    cli_args: CLIArgs = settings.to_cli_args()
+
+    if namespace.gui:
+        run_gui(settings)
+    elif (
+        namespace.show
+        or namespace.save
+        or namespace.save_as is not None
+        or namespace.load is not None
+        or namespace.reset
+    ):
+        handle_settings_file(namespace, cli_args)
+    else:
+        cli_args.update_with_namespace(namespace)
+        run_gitinspector_main(cli_args, start_time)
+
+
 def load_settings():
     settings: Settings
     error: str
@@ -33,33 +63,6 @@ def load_settings():
         )
 
     return settings
-
-
-def run_gitinspector_main(cli_args: CLIArgs, start_time: float):
-    if not cli_args.format:
-        cli_args.format = [DEFAULT_FORMAT]
-
-    if len(cli_args.format) > 1 and "auto" in cli_args.format:
-        others = [x for x in cli_args.format if x != "auto"]
-        logger.warning(f"Format auto has priority: ignoring {", ".join(others)}")
-        cli_args.format = ["auto"]
-
-    if not cli_args.extensions:
-        cli_args.extensions = DEFAULT_EXTENSIONS
-
-    # Replace "." by current working dir
-    input_fstr = [
-        (os.getcwd() if fstr == "." else fstr) for fstr in cli_args.input_fstrs
-    ]
-    cli_args.input_fstrs = input_fstr
-
-    if len(cli_args.input_fstrs) == 0:
-        cli_args.input_fstrs.append(os.getcwd())
-
-    logger.info(f"{cli_args = }")
-
-    args: Args = cli_args.create_args()
-    gitinspector.main(args, start_time)
 
 
 def handle_settings_file(namespace: Namespace, cli_args: CLIArgs):
@@ -105,34 +108,31 @@ def handle_settings_file(namespace: Namespace, cli_args: CLIArgs):
         log(f"Settings loaded from {path}.")
 
 
-def main():
-    start_time = time.time()
+def run_gitinspector_main(cli_args: CLIArgs, start_time: float):
+    if not cli_args.format:
+        cli_args.format = [DEFAULT_FORMAT]
 
-    parser = ArgumentParser(
-        prog="gitinspectorgui",
-        description="".join(Help.help_doc),
-        formatter_class=RawDescriptionHelpFormatter,
-    )
+    if len(cli_args.format) > 1 and "auto" in cli_args.format:
+        others = [x for x in cli_args.format if x != "auto"]
+        logger.warning(f"Format auto has priority: ignoring {", ".join(others)}")
+        cli_args.format = ["auto"]
 
-    define_arguments(parser)
-    namespace = parser.parse_args()
+    if not cli_args.extensions:
+        cli_args.extensions = DEFAULT_EXTENSIONS
 
-    settings: Settings = load_settings()
-    cli_args: CLIArgs = settings.to_cli_args()
+    # Replace "." by current working dir
+    input_fstr = [
+        (os.getcwd() if fstr == "." else fstr) for fstr in cli_args.input_fstrs
+    ]
+    cli_args.input_fstrs = input_fstr
 
-    if namespace.gui:
-        run_gui(settings)
-    elif (
-        namespace.show
-        or namespace.save
-        or namespace.save_as is not None
-        or namespace.load is not None
-        or namespace.reset
-    ):
-        handle_settings_file(namespace, cli_args)
-    else:
-        cli_args.update_with_namespace(namespace)
-        run_gitinspector_main(cli_args, start_time)
+    if len(cli_args.input_fstrs) == 0:
+        cli_args.input_fstrs.append(os.getcwd())
+
+    logger.info(f"{cli_args = }")
+
+    args: Args = cli_args.create_args()
+    gitinspector.main(args, start_time)
 
 
 if __name__ == "__main__":

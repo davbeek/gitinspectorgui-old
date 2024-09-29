@@ -26,72 +26,245 @@ from gigui.typedefs import FileStr, Html
 logger = logging.getLogger(__name__)
 
 
-def open_files(fstrs: list[str]):
-    """
-    Ask the OS to open the given html filenames.
+def main(args: Args, start_time: float, gui_window: sg.Window | None = None):
+    profiler = None
+    if args.profile:
+        profiler = Profile()
+        profiler.enable()
 
-    :param fstrs: The file paths to open.
-    """
-    if fstrs:
-        match platform.system():
-            case "Darwin":
-                subprocess.run(["open"] + fstrs, check=True)
-            case "Linux":
-                subprocess.run(["xdg-open"] + fstrs, check=True)
-            case "Windows":
-                if len(fstrs) != 1:
-                    raise RuntimeError(
-                        "Illegal attempt to open multiple html files at once on Windows."
-                    )
+    logger.info(f"{args = }")
+    init_classes(args)
+    repo_lists: list[list[GIRepo]] = []
 
-                # First argument "" is the title for the new command prompt window.
-                subprocess.run(["start", "", fstrs[0]], check=True)
+    for fstr in args.input_fstrs:
+        repo_lists.extend(get_repos(fstr, args.depth))
+    len_repos = total_len(repo_lists)
+    fix_ok = not (len_repos == 1 and args.fix == Keys.nofix)
 
-            case _:
-                raise RuntimeError(f"Unknown platform {platform.system()}")
+    if repo_lists and fix_ok:
+        outfile_base = args.outfile_base if args.outfile_base else DEFAULT_FILE_BASE
+        if not args.format:
+            args.format = [DEFAULT_FORMAT]
 
+        if not args.multi_core or len_repos == 1:  # Process on main_thread
+            process_repos_on_main_thread(
+                args, repo_lists, len_repos, outfile_base, gui_window, start_time
+            )
+        else:
+            # Process multiple repos on multi cores
+            # gui_window is not passed as argument to process_multi_repos_multi_core
+            # because gui_window.write_event_value only works on the main thread.
+            process_multi_repos_multi_core(
+                args, repo_lists, len_repos, outfile_base, gui_window, start_time
+            )
 
-def log_endtime(start_time: float):
-    """
-    Output a log entry to the log of the currently amount of passed time since 'start_time'.
-    """
-    end_time = time.time()
-    log(f"Done in {end_time - start_time:.1f} s")
-
-
-def get_outfile_name(fix: str, outfile_base: str, repo_name: str) -> FileStr:
-    base_name = Path(outfile_base).name
-    if fix == Keys.prefix:
-        outfile_name = repo_name + "-" + base_name
-    elif fix == Keys.postfix:
-        outfile_name = base_name + "-" + repo_name
-    else:
-        outfile_name = base_name
-    return outfile_name
+        out_profile(args, profiler)
+    elif not fix_ok:
+        log(
+            "Multiple repos detected and nofix option selected."
+            "Multiple repos need the (default prefix) or postfix option."
+        )
+    else:  # repos is empty
+        log("Found no repositories")
 
 
-def get_output_file_and_webview_data(
-    args: Args, repo: GIRepo, len_repos: int, outfilestr: str, out_format: str
+def init_classes(args: Args):
+    GIRepo.set_args(args)
+    FileStat.show_renames = args.show_renames
+    Person.show_renames = args.show_renames
+    Person.ex_author_patterns = args.ex_authors
+    Person.ex_email_patterns = args.ex_emails
+    outbase.deletions = args.deletions
+    outbase.scaled_percentages = args.scaled_percentages
+    outbase.subfolder = args.subfolder
+
+
+def process_repos_on_main_thread(
+    args: Args,
+    repo_lists: list[list[GIRepo]],
+    len_repos: int,
+    outfile_base: FileStr,
+    gui_window: sg.Window | None,
+    start_time: float,
 ):
-    file_to_open: FileStr = ""
-    webview_data: tuple[str, str] = "", ""
     if len_repos == 1:
-        match out_format:
-            case "html":
-                file_to_open = outfilestr + ".html"
-            case "excel":
-                file_to_open = outfilestr + ".xlsx"
-            case "auto":
-                html_code = out_html(repo, outfilestr, args.blame_skip)
-                webview_data = html_code, repo.name
-    else:  # multiple repos
-        if (
-            len_repos <= MAX_BROWSER_TABS
-            and out_format in {"auto", "html"}
-            and args.viewer == AUTO
-        ):
-            file_to_open = outfilestr + ".html"
-    return file_to_open, webview_data
+        process_len1_repo(
+            args,
+            repo_lists[0][0],
+            outfile_base,
+            gui_window,
+            start_time,
+        )
+    elif len_repos > 1:
+        count = 1
+        runs = 0
+        while repo_lists:
+            repos = repo_lists.pop(0)
+            count, files_to_open = handle_repos(
+                repos,
+                len_repos,
+                outfile_base,
+                count,
+                gui_window,
+            )
+            runs += 1
+        log_endtime(start_time)
+        if runs == 1 and files_to_open:  # type: ignore
+            open_files(files_to_open)
+
+
+# Process multiple repos in single core mode.
+def handle_repos(
+    repos: list[GIRepo],
+    len_repos: int,
+    outfile_base: str,
+    count: int,
+    gui_window: sg.Window | None,
+) -> tuple[int, list[FileStr]]:
+    log("Output in folder " + str(repos[0].path.parent))
+    with ThreadPoolExecutor(max_workers=5) as thread_executor:
+        files_to_open = []
+        for repo in repos:
+            dryrun = repo.args.dry_run
+            log(f"    {repo.name} repository ({count} of {len_repos})")
+            if dryrun == 2:
+                continue
+
+            # dryrun == 0 or dryrun == 1
+            stats_found = repo.run(thread_executor)
+            log("        ", end="")
+            if not stats_found:
+                log("No statistics matching filters found")
+            else:  # stats found
+                if dryrun == 1:
+                    log("")
+                else:  # dryrun == 0
+                    _, file_to_open, _ = write_repo_output(
+                        repo.args,
+                        repo,
+                        len_repos,
+                        outfile_base,
+                        gui_window,
+                    )
+                    if file_to_open:
+                        if platform.system() == "Windows":
+                            # Windows cannot open multiple files at once in a
+                            # browser, so files are opened one by one.
+                            open_files([file_to_open])
+                        else:
+                            files_to_open.append(file_to_open)
+            count += 1
+    return count, files_to_open
+
+
+# Process a single repository in case len(repos) == 1 which also means that
+# args.multi_core is False.
+def process_len1_repo(
+    args: Args,
+    repo: GIRepo,
+    outfile_base: str,
+    gui_window: sg.Window | None,
+    start_time: float,
+):
+    args.multi_core = False
+    file_to_open = ""
+    html_code = ""
+    name = ""
+
+    log("Output in folder " + str(repo.path.parent))
+    log(f"    {repo.name} repository ({1} of {1}) ")
+    with ThreadPoolExecutor(max_workers=6) as thread_executor:
+        # repo.set_thread_executor(thread_executor)
+        if args.dry_run <= 1:
+            stats_found = repo.run(thread_executor)
+            if stats_found:
+                if args.dry_run == 1:
+                    log("")
+                else:  # args.dry_run == 0
+                    log("        ", end="")
+                    _, file_to_open, (html_code, name) = write_repo_output(
+                        args,
+                        repo,
+                        1,
+                        outfile_base,
+                        gui_window,
+                    )
+            else:
+                log("No statistics matching filters found")
+    log_endtime(start_time)
+    if file_to_open:
+        open_files([file_to_open])
+    elif html_code:
+        open_webview(html_code, name)
+
+
+# Process multiple repositories in case len(repos) > 1 on multiple cores.
+def process_multi_repos_multi_core(
+    args: Args,
+    repo_lists: list[list[GIRepo]],
+    len_repos: int,
+    outfile_base: FileStr,
+    gui_window: sg.Window | None,
+    start_time: float,
+):
+    with ProcessPoolExecutor() as process_executor:
+        future_to_repo = {
+            process_executor.submit(
+                process_repo_in_process_pool,
+                args,
+                repo,
+                len_repos,
+                outfile_base,
+                gui_window,
+            ): repo
+            for repos in repo_lists
+            for repo in repos
+        }
+        count = 1
+        last_parent = None
+        for future in as_completed(future_to_repo):
+            repo = future_to_repo[future]
+            stats_found, files_to_log = future.result()
+            repo_parent = Path(repo.path).parent
+            if not last_parent or repo_parent != last_parent:
+                last_parent = repo_parent
+                log("Output in folder " + str(repo.path.parent))
+            log(f"    {repo.name} repository ({count} of {len_repos}) ")
+            if stats_found:
+                log(f"        {" ".join(files_to_log)}")
+            elif args.dry_run <= 1:
+                log(
+                    "        "
+                    "No statistics matching filters found for "
+                    f"repository {repo.name}"
+                )
+            count += 1
+        log_endtime(start_time)
+
+
+def process_repo_in_process_pool(
+    args: Args,
+    repo: GIRepo,
+    len_repos: int,
+    outfile_base: str,
+    gui_window: sg.Window | None,
+) -> tuple[bool, list[str]]:
+    init_classes(args)
+    with ThreadPoolExecutor(max_workers=5) as thread_executor:
+        dryrun = repo.args.dry_run
+        stats_found = False
+        files_to_log = []
+        if dryrun <= 1:
+            stats_found = repo.run(thread_executor)
+        if dryrun == 0 and stats_found:
+            files_to_log, _, _ = write_repo_output(
+                repo.args,
+                repo,
+                len_repos,
+                outfile_base,
+                gui_window,
+            )
+    return stats_found, files_to_log
 
 
 def write_repo_output(  # pylint: disable=too-many-locals
@@ -184,245 +357,72 @@ def write_repo_output(  # pylint: disable=too-many-locals
     return files_to_log, file_to_open, webview_data
 
 
-def init_classes(args: Args):
-    GIRepo.set_args(args)
-    FileStat.show_renames = args.show_renames
-    Person.show_renames = args.show_renames
-    Person.ex_author_patterns = args.ex_authors
-    Person.ex_email_patterns = args.ex_emails
-    outbase.deletions = args.deletions
-    outbase.scaled_percentages = args.scaled_percentages
-    outbase.subfolder = args.subfolder
+def open_files(fstrs: list[str]):
+    """
+    Ask the OS to open the given html filenames.
 
-
-# Process multiple repos in single core mode.
-def handle_repos(
-    repos: list[GIRepo],
-    len_repos: int,
-    outfile_base: str,
-    count: int,
-    gui_window: sg.Window | None,
-) -> tuple[int, list[FileStr]]:
-    log("Output in folder " + str(repos[0].path.parent))
-    with ThreadPoolExecutor(max_workers=5) as thread_executor:
-        files_to_open = []
-        for repo in repos:
-            dryrun = repo.args.dry_run
-            log(f"    {repo.name} repository ({count} of {len_repos})")
-            if dryrun == 2:
-                continue
-
-            # dryrun == 0 or dryrun == 1
-            stats_found = repo.run(thread_executor)
-            log("        ", end="")
-            if not stats_found:
-                log("No statistics matching filters found")
-            else:  # stats found
-                if dryrun == 1:
-                    log("")
-                else:  # dryrun == 0
-                    _, file_to_open, _ = write_repo_output(
-                        repo.args,
-                        repo,
-                        len_repos,
-                        outfile_base,
-                        gui_window,
+    :param fstrs: The file paths to open.
+    """
+    if fstrs:
+        match platform.system():
+            case "Darwin":
+                subprocess.run(["open"] + fstrs, check=True)
+            case "Linux":
+                subprocess.run(["xdg-open"] + fstrs, check=True)
+            case "Windows":
+                if len(fstrs) != 1:
+                    raise RuntimeError(
+                        "Illegal attempt to open multiple html files at once on Windows."
                     )
-                    if file_to_open:
-                        if platform.system() == "Windows":
-                            # Windows cannot open multiple files at once in a
-                            # browser, so files are opened one by one.
-                            open_files([file_to_open])
-                        else:
-                            files_to_open.append(file_to_open)
-            count += 1
-    return count, files_to_open
+
+                # First argument "" is the title for the new command prompt window.
+                subprocess.run(["start", "", fstrs[0]], check=True)
+
+            case _:
+                raise RuntimeError(f"Unknown platform {platform.system()}")
 
 
-# Process a single repository in case len(repos) == 1 which also means that
-# args.multi_core is False.
-def process_len1_repo(
-    args: Args,
-    repo: GIRepo,
-    outfile_base: str,
-    gui_window: sg.Window | None,
-    start_time: float,
+def log_endtime(start_time: float):
+    """
+    Output a log entry to the log of the currently amount of passed time since 'start_time'.
+    """
+    end_time = time.time()
+    log(f"Done in {end_time - start_time:.1f} s")
+
+
+def get_outfile_name(fix: str, outfile_base: str, repo_name: str) -> FileStr:
+    base_name = Path(outfile_base).name
+    if fix == Keys.prefix:
+        outfile_name = repo_name + "-" + base_name
+    elif fix == Keys.postfix:
+        outfile_name = base_name + "-" + repo_name
+    else:
+        outfile_name = base_name
+    return outfile_name
+
+
+def get_output_file_and_webview_data(
+    args: Args, repo: GIRepo, len_repos: int, outfilestr: str, out_format: str
 ):
-    args.multi_core = False
-    file_to_open = ""
-    html_code = ""
-    name = ""
-
-    log("Output in folder " + str(repo.path.parent))
-    log(f"    {repo.name} repository ({1} of {1}) ")
-    with ThreadPoolExecutor(max_workers=6) as thread_executor:
-        # repo.set_thread_executor(thread_executor)
-        if args.dry_run <= 1:
-            stats_found = repo.run(thread_executor)
-            if stats_found:
-                if args.dry_run == 1:
-                    log("")
-                else:  # args.dry_run == 0
-                    log("        ", end="")
-                    _, file_to_open, (html_code, name) = write_repo_output(
-                        args,
-                        repo,
-                        1,
-                        outfile_base,
-                        gui_window,
-                    )
-            else:
-                log("No statistics matching filters found")
-    log_endtime(start_time)
-    if file_to_open:
-        open_files([file_to_open])
-    elif html_code:
-        open_webview(html_code, name)
-
-
-def process_repos_on_main_thread(
-    args: Args,
-    repo_lists: list[list[GIRepo]],
-    len_repos: int,
-    outfile_base: FileStr,
-    gui_window: sg.Window | None,
-    start_time: float,
-):
+    file_to_open: FileStr = ""
+    webview_data: tuple[str, str] = "", ""
     if len_repos == 1:
-        process_len1_repo(
-            args,
-            repo_lists[0][0],
-            outfile_base,
-            gui_window,
-            start_time,
-        )
-    elif len_repos > 1:
-        count = 1
-        runs = 0
-        while repo_lists:
-            repos = repo_lists.pop(0)
-            count, files_to_open = handle_repos(
-                repos,
-                len_repos,
-                outfile_base,
-                count,
-                gui_window,
-            )
-            runs += 1
-        log_endtime(start_time)
-        if runs == 1 and files_to_open:  # type: ignore
-            open_files(files_to_open)
-
-
-def process_repo_in_process_pool(
-    args: Args,
-    repo: GIRepo,
-    len_repos: int,
-    outfile_base: str,
-    gui_window: sg.Window | None,
-) -> tuple[bool, list[str]]:
-    init_classes(args)
-    with ThreadPoolExecutor(max_workers=5) as thread_executor:
-        dryrun = repo.args.dry_run
-        stats_found = False
-        files_to_log = []
-        if dryrun <= 1:
-            stats_found = repo.run(thread_executor)
-        if dryrun == 0 and stats_found:
-            files_to_log, _, _ = write_repo_output(
-                repo.args,
-                repo,
-                len_repos,
-                outfile_base,
-                gui_window,
-            )
-    return stats_found, files_to_log
-
-
-# Process multiple repositories in case len(repos) > 1 on multiple cores.
-def process_multi_repos_multi_core(
-    args: Args,
-    repo_lists: list[list[GIRepo]],
-    len_repos: int,
-    outfile_base: FileStr,
-    gui_window: sg.Window | None,
-    start_time: float,
-):
-    with ProcessPoolExecutor() as process_executor:
-        future_to_repo = {
-            process_executor.submit(
-                process_repo_in_process_pool,
-                args,
-                repo,
-                len_repos,
-                outfile_base,
-                gui_window,
-            ): repo
-            for repos in repo_lists
-            for repo in repos
-        }
-        count = 1
-        last_parent = None
-        for future in as_completed(future_to_repo):
-            repo = future_to_repo[future]
-            stats_found, files_to_log = future.result()
-            repo_parent = Path(repo.path).parent
-            if not last_parent or repo_parent != last_parent:
-                last_parent = repo_parent
-                log("Output in folder " + str(repo.path.parent))
-            log(f"    {repo.name} repository ({count} of {len_repos}) ")
-            if stats_found:
-                log(f"        {" ".join(files_to_log)}")
-            elif args.dry_run <= 1:
-                log(
-                    "        "
-                    "No statistics matching filters found for "
-                    f"repository {repo.name}"
-                )
-            count += 1
-        log_endtime(start_time)
-
-
-def main(args: Args, start_time: float, gui_window: sg.Window | None = None):
-    profiler = None
-    if args.profile:
-        profiler = Profile()
-        profiler.enable()
-
-    logger.info(f"{args = }")
-    init_classes(args)
-    repo_lists: list[list[GIRepo]] = []
-
-    for fstr in args.input_fstrs:
-        repo_lists.extend(get_repos(fstr, args.depth))
-    len_repos = total_len(repo_lists)
-    fix_ok = not (len_repos == 1 and args.fix == Keys.nofix)
-
-    if repo_lists and fix_ok:
-        outfile_base = args.outfile_base if args.outfile_base else DEFAULT_FILE_BASE
-        if not args.format:
-            args.format = [DEFAULT_FORMAT]
-
-        if not args.multi_core or len_repos == 1:  # Process on main_thread
-            process_repos_on_main_thread(
-                args, repo_lists, len_repos, outfile_base, gui_window, start_time
-            )
-        else:
-            # Process multiple repos on multi cores
-            # gui_window is not passed as argument to process_multi_repos_multi_core
-            # because gui_window.write_event_value only works on the main thread.
-            process_multi_repos_multi_core(
-                args, repo_lists, len_repos, outfile_base, gui_window, start_time
-            )
-
-        out_profile(args, profiler)
-    elif not fix_ok:
-        log(
-            "Multiple repos detected and nofix option selected."
-            "Multiple repos need the (default prefix) or postfix option."
-        )
-    else:  # repos is empty
-        log("Found no repositories")
+        match out_format:
+            case "html":
+                file_to_open = outfilestr + ".html"
+            case "excel":
+                file_to_open = outfilestr + ".xlsx"
+            case "auto":
+                html_code = out_html(repo, outfilestr, args.blame_skip)
+                webview_data = html_code, repo.name
+    else:  # multiple repos
+        if (
+            len_repos <= MAX_BROWSER_TABS
+            and out_format in {"auto", "html"}
+            and args.viewer == AUTO
+        ):
+            file_to_open = outfilestr + ".html"
+    return file_to_open, webview_data
 
 
 def out_profile(args, profiler):

@@ -9,46 +9,6 @@ from gigui.tiphelp import Help
 hlp = Help()
 
 
-class SplitAppendArgs(Action):
-    def __call__(self, parser, namespace, arg_string, option_string=None):
-
-        # split arg_string over "," then remove spacing and remove empty strings
-        xs = str_split_comma(arg_string)
-
-        # When the option is not used at all, the option value is set to the default
-        # value of the option.
-
-        # if not from line below, allows for both "" and [] to be used as empty values
-        if not getattr(namespace, self.dest):
-            # first time the option is used, set the list
-            setattr(namespace, self.dest, xs)
-        else:
-            # next occurrence of option, list is already there, so append to list
-            getattr(namespace, self.dest).extend(xs)
-
-
-def valid_datetime_type(arg_datetime_str):
-    """custom argparse type for user datetime values given from the command line"""
-    if arg_datetime_str == "":
-        return arg_datetime_str
-    else:
-        try:
-            return datetime.datetime.strptime(arg_datetime_str, "%Y-%m-%d").strftime(
-                "%Y-%m-%d"
-            )
-        except ValueError as e:
-            raise ArgumentTypeError(
-                f"Given Datetime ({arg_datetime_str}) not valid! "
-                "Expected format: 'YYYY-MM-DD'."
-            ) from e
-
-
-def process_subfolder(subfolder):
-    if len(subfolder) and (not subfolder.endswith("/")):
-        subfolder += "/"
-    return subfolder
-
-
 def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statements
     mutex_group_titled = parser.add_argument_group("Mutually exclusive options")
     mutex_group = mutex_group_titled.add_mutually_exclusive_group()
@@ -310,3 +270,43 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
         metavar="N",
         help=hlp.profile,
     )
+
+
+class SplitAppendArgs(Action):
+    def __call__(self, parser, namespace, arg_string, option_string=None):
+
+        # split arg_string over "," then remove spacing and remove empty strings
+        xs = str_split_comma(arg_string)
+
+        # When the option is not used at all, the option value is set to the default
+        # value of the option.
+
+        # if not from line below, allows for both "" and [] to be used as empty values
+        if not getattr(namespace, self.dest):
+            # first time the option is used, set the list
+            setattr(namespace, self.dest, xs)
+        else:
+            # next occurrence of option, list is already there, so append to list
+            getattr(namespace, self.dest).extend(xs)
+
+
+def valid_datetime_type(arg_datetime_str):
+    """custom argparse type for user datetime values given from the command line"""
+    if arg_datetime_str == "":
+        return arg_datetime_str
+    else:
+        try:
+            return datetime.datetime.strptime(arg_datetime_str, "%Y-%m-%d").strftime(
+                "%Y-%m-%d"
+            )
+        except ValueError as e:
+            raise ArgumentTypeError(
+                f"Given Datetime ({arg_datetime_str}) not valid! "
+                "Expected format: 'YYYY-MM-DD'."
+            ) from e
+
+
+def process_subfolder(subfolder):
+    if len(subfolder) and (not subfolder.endswith("/")):
+        subfolder += "/"
+    return subfolder
