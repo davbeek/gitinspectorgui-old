@@ -14,7 +14,7 @@ from gigui.typedefs import Author, FileStr, Rev, SHAlong, SHAshort
 logger = logging.getLogger(__name__)
 
 
-class RepoReader:
+class StatsReader:
     args: Args
 
     # Here the values of the --ex-revision parameter are stored as a set.
@@ -249,6 +249,7 @@ class RepoReader:
         lines_str: str = self.git.log(git_log_args())
         return lines_str, fstr
 
+    # pylint: disable=too-many-locals
     def _process_commit_lines_for(self, lines_str: str) -> list[MultiCommit]:
         commits: list[MultiCommit] = []
         lines = lines_str.splitlines()

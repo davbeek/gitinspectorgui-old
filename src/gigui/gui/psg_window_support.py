@@ -139,13 +139,5 @@ def column(layout: list, col_height, key=None) -> sg.Column:
     )
 
 
-def configure_canvas(event, canvas, frame_id):
-    canvas.itemconfig(frame_id, width=event.width)
-
-
-def configure_frame(canvas):
-    canvas.configure(scrollregion=canvas.bbox("all"))
-
-
 def popup(title, message):
     sg.popup(title, message, keep_on_top=True, text_color="black")

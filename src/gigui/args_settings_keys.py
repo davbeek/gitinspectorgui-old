@@ -24,7 +24,7 @@ from gigui.constants import (
 PREFIX = "prefix"
 POSTFIX = "postfix"
 NOFIX = "nofix"
-FIXTYPE = [PREFIX, POSTFIX, NOFIX]
+FIX_TYPE = [PREFIX, POSTFIX, NOFIX]
 
 AUTO = "auto"
 NONE = "none"
@@ -69,14 +69,6 @@ class Args:
     ex_revisions: list[str] = field(default_factory=list)
     ex_messages: list[str] = field(default_factory=list)
 
-    # Return a valid settings dict for a dict that already satisfies the schema
-    @staticmethod
-    def validate_format_setting(d: dict) -> dict:
-        formats = d["format"]
-        if len(formats) == 0 or AUTO in formats and len(formats) > 1:
-            formats = [AUTO]
-        return d
-
 
 @dataclass
 class Settings(Args):
@@ -89,6 +81,11 @@ class Settings(Args):
         with open(settings_path, "w", encoding="utf-8") as f:
             d = json.dumps(settings_dict, indent=4, sort_keys=True)
             f.write(d)
+
+    # Validate the format setting for a setting read from the settings file.
+    def validate_format(self) -> None:
+        if len(self.format) == 0 or AUTO in self.format and len(self.format) > 1:
+            self.format = [AUTO]
 
     def save(self):
         settings_dict = asdict(self)
@@ -181,7 +178,7 @@ class CLIArgs(Args):
 
     # Overwrite all settings apart from col_percent, which keeps its value
     def create_settings(self) -> Settings:
-        logger.info(f"CLIself = {self}")
+        logger.info(f"CLI self = {self}")
 
         settings = Settings()
         sets_dict = asdict(settings)
@@ -257,11 +254,11 @@ class KeysArgs:
     ex_messages: str = "ex_messages"
 
     def __post_init__(self):
-        fldnames_args = {fld.name for fld in fields(Args)}
-        fldnames_keys = {fld.name for fld in fields(KeysArgs)}
-        assert fldnames_args == fldnames_keys, (
-            f"Args - KeysArgs: {fldnames_args - fldnames_keys}\n"
-            f"KeysArgs - Args: {fldnames_keys - fldnames_args}"
+        fld_names_args = {fld.name for fld in fields(Args)}
+        fld_names_keys = {fld.name for fld in fields(KeysArgs)}
+        assert fld_names_args == fld_names_keys, (
+            f"Args - KeysArgs: {fld_names_args - fld_names_keys}\n"
+            f"KeysArgs - Args: {fld_names_keys - fld_names_args}"
         )
 
 
@@ -336,7 +333,7 @@ class SettingsFile:
                 "items": {"type": "string", "enum": AVAILABLE_FORMATS},
             },
             "extensions": {"type": "array", "items": {"type": "string"}},
-            "fix": {"type": "string", "enum": FIXTYPE},
+            "fix": {"type": "string", "enum": FIX_TYPE},
             "outfile_base": {"type": "string"},
             "depth": {"type": "integer"},
             "scaled_percentages": {"type": "boolean"},
@@ -416,8 +413,9 @@ class SettingsFile:
                 s = f.read()
                 settings_dict = json.loads(s)
                 jsonschema.validate(settings_dict, cls.SETTINGS_SCHEMA)
-                settings_dict = Settings.validate_format_setting(settings_dict)
-                return Settings(**settings_dict), ""
+                settings = Settings(**settings_dict)
+                settings.validate_format()
+                return settings, ""
         except (
             ValueError,
             FileNotFoundError,

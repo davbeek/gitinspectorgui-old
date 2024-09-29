@@ -11,7 +11,7 @@ from gigui.args_settings_keys import Args, CLIArgs, Settings, SettingsFile
 from gigui.cli_arguments import define_arguments
 from gigui.common import log
 from gigui.constants import DEFAULT_EXTENSIONS, DEFAULT_FORMAT
-from gigui.gui.psg import rungui
+from gigui.gui.psg import run as run_gui
 from gigui.tiphelp import Help
 
 # Limit the width of the help text to 80 characters.
@@ -62,7 +62,7 @@ def run_gitinspector_main(cli_args: CLIArgs, start_time: float):
     gitinspector.main(args, start_time)
 
 
-def handle_settings_file(namespace: Namespace, settings: Settings, cli_args: CLIArgs):
+def handle_settings_file(namespace: Namespace, cli_args: CLIArgs):
     if namespace.show:
         SettingsFile.show()
     elif namespace.save:
@@ -121,7 +121,7 @@ def main():
     cli_args: CLIArgs = settings.to_cli_args()
 
     if namespace.gui:
-        rungui(settings)
+        run_gui(settings)
     elif (
         namespace.show
         or namespace.save
@@ -129,7 +129,7 @@ def main():
         or namespace.load is not None
         or namespace.reset
     ):
-        handle_settings_file(namespace, settings, cli_args)
+        handle_settings_file(namespace, cli_args)
     else:
         cli_args.update_with_namespace(namespace)
         run_gitinspector_main(cli_args, start_time)

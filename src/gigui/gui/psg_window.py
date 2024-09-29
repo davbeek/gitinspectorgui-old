@@ -19,8 +19,6 @@ from gigui.gui.psg_window_support import (
     button,
     checkbox,
     column,
-    configure_canvas,
-    configure_frame,
     frame,
     input_box,
     name_basic,
@@ -34,14 +32,18 @@ from gigui.tiphelp import Tip
 
 logger = logging.getLogger(__name__)
 
+COL_HEIGHT_UNLIMITED = int(
+    (WINDOW_SIZE_Y - WINDOW_HEIGHT_CORR) * INIT_COL_PERCENT / 100
+)
+COL_HEIGHT = min(MAX_COL_HEIGHT, COL_HEIGHT_UNLIMITED)
 RADIO_BUTTON_GROUP_FIX_ID = 2
-
 
 tip = Tip()
 keys = Keys()
 
 
 # pylint: disable=too-many-locals
+# noinspection PyUnresolvedReferences
 def make_window() -> sg.Window:
     # Cannot use logging here, as there is not yet any new window to log to and the
     # window in common and _logging still points to the old window after a "Reset
@@ -62,19 +64,26 @@ def make_window() -> sg.Window:
     )
     add_gui_handler()
     config_column = window[keys.config_column]
+
     widget = config_column.Widget  # type: ignore
     assert widget is not None
+
+    canvas = widget.canvas
     frame_id = widget.frame_id
     tk_frame = widget.TKFrame
-    canvas = widget.canvas
+
     window.bind("<Configure>", "Conf")
     canvas.bind(
         "<Configure>",
-        lambda event, canvas=canvas, frame_id=frame_id: configure_canvas(
-            event, canvas, frame_id
+        lambda event, canvas=canvas, frame_id=frame_id: canvas.itemconfig(
+            frame_id, width=event.width
         ),
     )
-    tk_frame.bind("<Configure>", lambda event, canvas=canvas: configure_frame(canvas))
+    tk_frame.bind(
+        "<Configure>",
+        lambda _, canvas=canvas: canvas.configure(scrollregion=canvas.bbox("all")),
+    )
+
     canvas.itemconfig(frame_id, width=canvas.winfo_width())
     sg.cprint_set_output_destination(window, keys.multiline)
     window.refresh()
@@ -83,20 +92,15 @@ def make_window() -> sg.Window:
 
 # All the stuff inside the window
 def window_layout() -> list[list[sg.Element] | list[sg.Column] | list[sg.Multiline]]:
-    COL_HEIGHT_UNLIMITED = int(
-        (WINDOW_SIZE_Y - WINDOW_HEIGHT_CORR) * INIT_COL_PERCENT / 100
-    )
-    COL_HEIGHT = min(MAX_COL_HEIGHT, COL_HEIGHT_UNLIMITED)
-
     return [
         layout_top_row(),
         [
             column(
                 [
-                    [io_config()],
-                    [output_formats()],
+                    [io_config_frame()],
+                    [output_formats_frame()],
                     [general_config_frame()],
-                    [analysis_options()],
+                    [analysis_options_frame()],
                     [exclusion_patterns_frame()],
                 ],
                 COL_HEIGHT,
@@ -118,7 +122,7 @@ def window_layout() -> list[list[sg.Element] | list[sg.Column] | list[sg.Multili
     ]
 
 
-def layout_top_row() -> list[sg.Element]:
+def layout_top_row() -> list[sg.Column]:
     return [
         sg.Column(
             [
@@ -179,7 +183,7 @@ def layout_top_row() -> list[sg.Element]:
     ]
 
 
-def io_config() -> sg.Frame:
+def io_config_frame() -> sg.Frame:
     return frame(
         "IO configuration",
         layout=[
@@ -239,7 +243,7 @@ def io_config() -> sg.Frame:
     )
 
 
-def output_formats() -> sg.Frame:
+def output_formats_frame() -> sg.Frame:
     return frame(
         "Output generation and formatting",
         layout=[
@@ -409,7 +413,7 @@ def general_config_frame() -> sg.Frame:
     )
 
 
-def analysis_options() -> sg.Frame:
+def analysis_options_frame() -> sg.Frame:
     return frame(
         "Analysis options",
         layout=[
@@ -445,6 +449,7 @@ def analysis_options() -> sg.Frame:
 
 
 def exclusion_patterns_frame() -> sg.Frame:
+    # pylint: disable = invalid-name
     SIZE = (10, None)
     TITLE_SIZE = 10
 

@@ -15,6 +15,8 @@ from gigui.output.outbase import (
 from gigui.repo import GIRepo
 from gigui.typedefs import FileStr, Html, Row
 
+MAX_LENGTH_TAB_NAME = 40
+
 header_class_dict: dict[str, str] = {
     "ID": "id_col",
     "Author": "author_col",
@@ -180,16 +182,20 @@ class HTMLTable:
         fstr2rows_iscomments: dict[FileStr, tuple[list[Row], list[bool]]]
         fstr2rows_iscomments = self.out_rows.get_blames()
         blame_html_tables: list[tuple[FileStr, Html]] = []
+
         relative_fstrs = [
             get_relative_fstr(fstr, self.subfolder)
             for fstr in fstr2rows_iscomments.keys()
         ]
-        relativefstr2truncated = string2truncated(relative_fstrs, 31)
+        relative_fstr2truncated = string2truncated(
+            relative_fstrs,
+            MAX_LENGTH_TAB_NAME,
+        )
 
-        for fstr, relfstr in zip(fstr2rows_iscomments.keys(), relative_fstrs):
+        for fstr, rel_fstr in zip(fstr2rows_iscomments.keys(), relative_fstrs):
             blame_html_tables.append(
                 (
-                    relativefstr2truncated[relfstr],
+                    relative_fstr2truncated[rel_fstr],
                     self.add_blame_table(fstr2rows_iscomments[fstr]),
                 )
             )
@@ -277,11 +283,11 @@ def out_html(
 
     # Construct the file in memory and add the authors and files to it.
     out_rows = TableStatsRows(repo)
-    htmltable = HTMLTable(outfilestr, out_rows, repo.args.subfolder)
-    authors_html = htmltable.add_authors_table()
-    authors_files_html = htmltable.add_authors_files_table()
-    files_authors_html = htmltable.add_files_authors_table()
-    files_html = htmltable.add_files_table()
+    html_table = HTMLTable(outfilestr, out_rows, repo.args.subfolder)
+    authors_html = html_table.add_authors_table()
+    authors_files_html = html_table.add_authors_files_table()
+    files_authors_html = html_table.add_files_authors_table()
+    files_html = html_table.add_files_table()
 
     html = html_template.replace("__TITLE__", f"{repo.name} viewer")
     html = html.replace("__AUTHORS__", authors_html)
@@ -291,7 +297,7 @@ def out_html(
 
     # Add blame output if not skipped.
     if not blame_skip:
-        blames_htmls = htmltable.add_blame_tables()
+        blames_htmls = html_table.add_blame_tables()
         html_modifier = HTMLModifier(html)
         html = html_modifier.add_blame_tables_to_html(blames_htmls)
 

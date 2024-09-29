@@ -1,7 +1,7 @@
 import datetime
 from argparse import Action, ArgumentParser, ArgumentTypeError, BooleanOptionalAction
 
-from gigui.args_settings_keys import FIXTYPE, VIEWER_CHOICES
+from gigui.args_settings_keys import FIX_TYPE, VIEWER_CHOICES
 from gigui.common import get_digit, get_pos_number, get_version, str_split_comma
 from gigui.constants import AVAILABLE_FORMATS
 from gigui.tiphelp import Help
@@ -129,7 +129,7 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
     )
     group_output.add_argument(
         "--fix",
-        choices=FIXTYPE,
+        choices=FIX_TYPE,
         help=hlp.pre_postfix,
     )
     # Output generation and formatting

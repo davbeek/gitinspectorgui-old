@@ -22,22 +22,9 @@ from gigui.typedefs import FileStr
 
 keys = Keys()
 
-buttons = [
-    keys.execute,
-    keys.clear,
-    keys.show,
-    keys.save,
-    keys.save_as,
-    keys.load,
-    keys.reset,
-    keys.help,
-    keys.about,
-    keys.browse_input_fstr,
-]
-
 
 # Initial values of GUIState are not used. They are set to their proper values during
-# initialization of the rungui_inner function.
+# initialization of the run_inner function.
 @dataclass
 class GUIState:
     col_percent: int
@@ -48,12 +35,37 @@ class GUIState:
     outfile_base: str = DEFAULT_FILE_BASE
 
 
-def update_button_state(ele: sg.Button, disabled: bool):
-    if disabled:
-        color = DISABLED_COLOR
-    else:
-        color = ENABLED_COLOR
-    ele.update(disabled=disabled, button_color=color)
+class WindowButtons:
+    def __init__(self, window: sg.Window):
+        self.window = window
+
+        self.buttons: list[str] = [
+            keys.execute,
+            keys.clear,
+            keys.show,
+            keys.save,
+            keys.save_as,
+            keys.load,
+            keys.reset,
+            keys.help,
+            keys.about,
+            keys.browse_input_fstr,
+        ]
+
+    def disable_all(self):
+        for button in self.buttons:
+            self._update_button_state(button, True)
+
+    def enable_all(self):
+        for button in self.buttons:
+            self._update_button_state(button, False)
+
+    def _update_button_state(self, button: str, disabled: bool):
+        if disabled:
+            color = DISABLED_COLOR
+        else:
+            color = ENABLED_COLOR
+        self.window[button].update(disabled=disabled, button_color=color)  # type: ignore
 
 
 def window_state_from_settings(window: sg.Window, settings: Settings):
@@ -191,11 +203,6 @@ def log(*args: str, color=None):
 
 def use_single_repo(input_paths: list[Path]) -> bool:
     return len(input_paths) == 1 and is_git_repo(str(input_paths[0]))
-
-
-def enable_buttons(window: sg.Window):
-    for bt in buttons:
-        update_button_state(window[bt], False)  # type: ignore
 
 
 def update_outfile_str(

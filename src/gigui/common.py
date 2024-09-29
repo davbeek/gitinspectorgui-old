@@ -12,10 +12,10 @@ DEFAULT_WRAP_WIDTH = 88
 
 logger = logging.getLogger(__name__)
 
-# Set to True at the start of gui.psg.rungui
+# Set to True at the start of gui.psg.run
 gui = False  # pylint: disable=invalid-name
 
-# Set to the value of the GUI window at the start of gui.psg.rungui
+# Set to the value of the GUI window at the start of gui.psg.run
 gui_window: sg.Window | None = None
 
 

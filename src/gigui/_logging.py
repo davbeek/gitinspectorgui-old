@@ -5,7 +5,7 @@ import PySimpleGUI as sg
 
 FORMAT = "%(name)s %(funcName)s %(lineno)s\n%(message)s\n"
 DEBUG = "debug"
-# Set to the value of the GUI window at the start of gui.psg.rungui
+# Set to the value of the GUI window at the start of gui.psg.run
 gui_window: sg.Window | None = None
 
 # Root logger should not have a name, so that all loggers with names are automatically

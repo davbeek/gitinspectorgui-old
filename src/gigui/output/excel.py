@@ -20,6 +20,8 @@ from gigui.typedefs import FileStr, Row
 
 type FormatSpec = dict[str, str | int | float]
 
+MAX_LENGTH_SHEET_NAME = 31  # hard coded in Excel
+
 # Same for row and blame colors
 # Note that not specifying a color is equivalent to specifying white
 WHITE = "#FFFFFF"
@@ -466,14 +468,18 @@ class Book:
     ):
         fstr2rows_iscomments: dict[FileStr, tuple[list[Row], list[bool]]]
         fstr2rows_iscomments = self.out_rows.get_blames()
+
         relative_fstrs = [
             get_relative_fstr(fstr, self.subfolder)
             for fstr in fstr2rows_iscomments.keys()
         ]
-        relativefstr2truncated = string2truncated(relative_fstrs, 31)
-        for fstr, relfstr in zip(fstr2rows_iscomments.keys(), relative_fstrs):
+        relative_fstr2truncated = string2truncated(
+            relative_fstrs, MAX_LENGTH_SHEET_NAME
+        )
+
+        for fstr, rel_fstr in zip(fstr2rows_iscomments.keys(), relative_fstrs):
             self.add_blame_sheet(
-                relativefstr2truncated[relfstr],
+                relative_fstr2truncated[rel_fstr],
                 fstr2rows_iscomments[fstr],
             )
 

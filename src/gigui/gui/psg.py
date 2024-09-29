@@ -23,14 +23,12 @@ from gigui.gitinspector import main as gitinspector_main
 from gigui.gui.commongui import paths_valid
 from gigui.gui.psg_support import (
     GUIState,
-    buttons,
+    WindowButtons,
     disable_element,
-    enable_buttons,
     enable_element,
     help_window,
     log,
     popup_custom,
-    update_button_state,
     update_col_percent,
     update_column_height,
     update_outfile_str,
@@ -47,16 +45,16 @@ tip = Tip()
 keys = Keys()
 
 
-def rungui(settings: Settings):
+def run(settings: Settings):
     recreate_window: bool = True
     while recreate_window:
-        recreate_window = rungui_inner(settings)
+        recreate_window = run_inner(settings)
         settings = Settings()
         set_logging_level_from_verbosity(settings.verbosity)
 
 
 # pylint: disable=too-many-locals disable=too-many-branches disable=too-many-statements
-def rungui_inner(settings: Settings) -> bool:
+def run_inner(settings: Settings) -> bool:
     logger.info(f"{settings = }")
     state: GUIState = GUIState(settings.col_percent)
     common.gui = True
@@ -72,11 +70,13 @@ def rungui_inner(settings: Settings) -> bool:
     common.gui_window = window
     _logging.gui_window = window
 
+    buttons = WindowButtons(window)
+
     window_state_from_settings(window, settings)  # type: ignore
     last_window_height: int = window.Size[1]  # type: ignore
 
-    # Multi-core not working and not implemented in GUI. No checkbox to enable it.
-    # Ensure that multi_core is False.
+    # Multicore not working and not implemented in GUI. No checkbox to enable it.
+    # Ensure that multicore is False.
     settings.multi_core = False
 
     while True:
@@ -167,7 +167,7 @@ def rungui_inner(settings: Settings) -> bool:
             # Execute command has finished via window.perform_long_operation in
             # run_gitinspector().
             case keys.end:
-                enable_buttons(window)
+                buttons.enable_all()
 
             case keys.log:
                 message, end, color = values["log"]
@@ -263,9 +263,7 @@ def execute(  # pylint: disable=too-many-branches
     start_time = time.time()
     logger.info(f"{values = }")
 
-    def disable_buttons(window: sg.Window):
-        for bt in buttons:
-            update_button_state(window[bt], True)  # type: ignore
+    buttons = WindowButtons(window)
 
     if not input_valid:
         popup("Error", "Input folder path not valid")
@@ -331,7 +329,7 @@ def execute(  # pylint: disable=too-many-branches
     )
 
     logger.info(f"{args = }")
-    disable_buttons(window)
+    buttons.disable_all()
     window.perform_long_operation(
         lambda: gitinspector_main(args, start_time, window), keys.end
     )
@@ -342,4 +340,4 @@ if __name__ == "__main__":
     error: str
     current_settings, error = SettingsFile.load()
     multiprocessing.freeze_support()
-    rungui(current_settings)
+    run(current_settings)

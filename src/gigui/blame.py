@@ -65,7 +65,7 @@ class BlameReader:
 
         self.sha_long2nr: dict[SHAlong, int] = self._set_sha_long2nr()
 
-    # Sets the fstr2blames dictionary, but also adds the author and email of each
+    # Set the fstr2blames dictionary, but also add the author and email of each
     # blame to the persons list. This is necessary, because the blame functionality
     # can have another way to set/get the author and email of a commit.
     def run(self, thread_executor: ThreadPoolExecutor):
@@ -240,7 +240,7 @@ class BlameTables:
     ) -> dict[Author, dict[FileStr, FileStat]]:
         """
         Update author2fstr2fstat with line counts for each author.
-        Sets local list of sorted unfiltered _blame_authors.
+        Set local list of sorted unfiltered _blame_authors.
         """
         author2line_count: dict[Author, int] = {}
         target = author2fstr2fstat

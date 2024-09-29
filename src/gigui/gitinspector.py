@@ -26,7 +26,7 @@ from gigui.typedefs import FileStr, Html
 logger = logging.getLogger(__name__)
 
 
-def openfiles(fstrs: list[str]):
+def open_files(fstrs: list[str]):
     """
     Ask the OS to open the given html filenames.
 
@@ -232,7 +232,7 @@ def handle_repos(
                         if platform.system() == "Windows":
                             # Windows cannot open multiple files at once in a
                             # browser, so files are opened one by one.
-                            openfiles([file_to_open])
+                            open_files([file_to_open])
                         else:
                             files_to_open.append(file_to_open)
             count += 1
@@ -275,7 +275,7 @@ def process_len1_repo(
                 log("No statistics matching filters found")
     log_endtime(start_time)
     if file_to_open:
-        openfiles([file_to_open])
+        open_files([file_to_open])
     elif html_code:
         open_webview(html_code, name)
 
@@ -311,7 +311,7 @@ def process_repos_on_main_thread(
             runs += 1
         log_endtime(start_time)
         if runs == 1 and files_to_open:  # type: ignore
-            openfiles(files_to_open)
+            open_files(files_to_open)
 
 
 def process_repo_in_process_pool(
@@ -322,7 +322,6 @@ def process_repo_in_process_pool(
     gui_window: sg.Window | None,
 ) -> tuple[bool, list[str]]:
     init_classes(args)
-    files_to_log = ""
     with ThreadPoolExecutor(max_workers=5) as thread_executor:
         dryrun = repo.args.dry_run
         stats_found = False
