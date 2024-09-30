@@ -25,7 +25,7 @@ class StatsReader:
 
         # The default True value of expand_vars can lead to confusing warnings from
         # GitPython:
-        self.gitrepo: Repo = Repo(location, expand_vars=False)
+        self.git_repo: Repo = Repo(location, expand_vars=False)
 
         # List of all commits in the repo starting at the until date parameter (if set),
         # or else at the first commit of the repo. The list includes merge commits and
@@ -44,7 +44,7 @@ class StatsReader:
         # Dict of file names to their sizes:
         self.fstr2lines: dict[FileStr, int] = {}
 
-        self.fstr2mcommits: dict[FileStr, list[MultiCommit]] = {}
+        self.fstr2multicommits: dict[FileStr, list[MultiCommit]] = {}
         self.stats = RepoStats()
         self.persons_db: PersonsDB = PersonsDB()
 
@@ -53,7 +53,7 @@ class StatsReader:
 
     @property
     def git(self):
-        return self.gitrepo.git
+        return self.git_repo.git
 
     def run(self, thread_executor: ThreadPoolExecutor):
         self._set_head_commit()
@@ -64,7 +64,7 @@ class StatsReader:
         self._set_fstr2lines()
         self._get_commits_first_pass()
 
-        # print(f"{"    Calc commit for":22}{self.gitrepo.working_dir}")
+        # print(f"{"    Calc commit for":22}{self.git_repo.working_dir}")
         self._set_fstr2commits(thread_executor)
 
     def get_person(self, author: Author | None) -> Person:
@@ -148,7 +148,7 @@ class StatsReader:
         elif until:
             since_until_kwargs = {"until": until}
 
-        self.head_commit = next(self.gitrepo.iter_commits(**since_until_kwargs))
+        self.head_commit = next(self.git_repo.iter_commits(**since_until_kwargs))
 
     def _set_fstr2lines(self) -> None:
         self.fstr2lines["*"] = 0
@@ -342,17 +342,17 @@ class StatsReader:
             fstrs = copy.deepcopy(self.fstrs)
             # Default sorting order ascending: from small to large, so the first element
             # is the smallest.
-            fstrs.sort(key=lambda x: len(self.fstr2mcommits[x]))
+            fstrs.sort(key=lambda x: len(self.fstr2multicommits[x]))
             while fstrs:
                 fstr1 = fstrs.pop()
-                mcommits1 = self.fstr2mcommits[fstr1]
-                if not mcommits1:
+                multicommits1 = self.fstr2multicommits[fstr1]
+                if not multicommits1:
                     continue
                 for fstr2 in fstrs:
-                    mcommits2 = self.fstr2mcommits[fstr2]
+                    multicommits2 = self.fstr2multicommits[fstr2]
                     i = -1
-                    while mcommits2 and mcommits1[i] == mcommits2[-1]:
-                        mcommits2.pop()
+                    while multicommits2 and multicommits1[i] == multicommits2[-1]:
+                        multicommits2.pop()
                         i -= 1
 
         if self.args.multi_thread:
@@ -362,11 +362,11 @@ class StatsReader:
             ]
             for future in as_completed(futures):
                 lines_str, fstr = future.result()
-                self.fstr2mcommits[fstr] = self._process_commit_lines_for(lines_str)
+                self.fstr2multicommits[fstr] = self._process_commit_lines_for(lines_str)
         else:  # single thread
             for fstr in self.fstrs:
                 lines_str, fstr = self._get_commit_lines_for(fstr)
-                self.fstr2mcommits[fstr] = self._process_commit_lines_for(lines_str)
+                self.fstr2multicommits[fstr] = self._process_commit_lines_for(lines_str)
         reduce_commits()
 
     @classmethod

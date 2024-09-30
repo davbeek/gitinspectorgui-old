@@ -8,7 +8,6 @@ from git import Repo
 
 from gigui.args_settings_keys import Args
 from gigui.comment import get_is_comment_lines
-from gigui.common import log
 from gigui.data import FileStat, PersonsDB
 from gigui.typedefs import (
     Author,
@@ -20,6 +19,7 @@ from gigui.typedefs import (
     SHAlong,
     SHAshort,
 )
+from gigui.utils import log
 
 
 # Commit that is used to order and number commits by date, starting at 1 for the
@@ -49,13 +49,13 @@ class BlameReader:
     # pylint: disable=too-many-arguments disable=too-many-positional-arguments
     def __init__(
         self,
-        gitrepo: Repo,
+        git_repo: Repo,
         head_commit: GitCommit,
         ex_sha_shorts: set[SHAshort],
         fstrs: list[FileStr],
         persons_db: PersonsDB,
     ):
-        self.gitrepo = gitrepo
+        self.git_repo = git_repo
         self.head_commit = head_commit
         self.ex_sha_shorts = ex_sha_shorts
         self.fstrs = fstrs
@@ -104,7 +104,7 @@ class BlameReader:
         c: GitCommit
         sha_long2nr: dict[SHAlong, int] = {}
         i = 1
-        for c in self.gitrepo.iter_commits(reverse=True):
+        for c in self.git_repo.iter_commits(reverse=True):
             sha_long2nr[c.hexsha] = i
             i += 1
         return sha_long2nr
@@ -124,13 +124,13 @@ class BlameReader:
             blame_opts.append("-w")
         for rev in self.ex_sha_shorts:
             blame_opts.append(f"--ignore-rev={rev}")
-        working_dir = self.gitrepo.working_dir
+        working_dir = self.git_repo.working_dir
         ignore_revs_path = Path(working_dir) / "_git-blame-ignore-revs.txt"
         if ignore_revs_path.exists():
             blame_opts.append(f"--ignore-revs-file={str(ignore_revs_path)}")
 
         # Run the git command to get the blames for the file.
-        git_blames: GitBlames = self.gitrepo.blame(
+        git_blames: GitBlames = self.git_repo.blame(
             self.head_commit.hexsha, fstr, rev_opts=blame_opts
         )  # type: ignore
         return git_blames, fstr
@@ -220,7 +220,7 @@ class BlameTables:
                 if self.args.blame_omit_exclusions and exclude_line:
                     line_nr += 1
                 else:
-                    row = [
+                    row: Row = [
                         0 if exclude_line else author2nr[author],
                         author,
                         b.date.strftime("%Y-%m-%d"),
@@ -270,7 +270,7 @@ class BlameTables:
                     target[author][fstr].stat.line_count += line_count  # type: ignore
                     target[author]["*"].stat.line_count += line_count
                     target["*"]["*"].stat.line_count += line_count
-        authors = author2line_count.keys()
+        authors = list(author2line_count.keys())
         authors = sorted(authors, key=lambda x: author2line_count[x], reverse=True)
         self._blame_authors = authors
         return target

@@ -1,11 +1,16 @@
 import argparse
 import logging
+import platform
+import subprocess
+import time
 from pathlib import Path
 
 import PySimpleGUI as sg
 import webview
 
+from gigui.args_settings_keys import Keys
 from gigui.constants import WEBVIEW_HEIGHT, WEBVIEW_WIDTH
+from gigui.typedefs import FileStr
 
 STDOUT = True
 DEFAULT_WRAP_WIDTH = 88
@@ -26,6 +31,31 @@ def log(arg, text_color=None, end="\n"):
         print(arg, end=end)
 
 
+def open_files(fstrs: list[str]):
+    """
+    Ask the OS to open the given html filenames.
+
+    :param fstrs: The file paths to open.
+    """
+    if fstrs:
+        match platform.system():
+            case "Darwin":
+                subprocess.run(["open"] + fstrs, check=True)
+            case "Linux":
+                subprocess.run(["xdg-open"] + fstrs, check=True)
+            case "Windows":
+                if len(fstrs) != 1:
+                    raise RuntimeError(
+                        "Illegal attempt to open multiple html files at once on Windows."
+                    )
+
+                # First argument "" is the title for the new command prompt window.
+                subprocess.run(["start", "", fstrs[0]], check=True)
+
+            case _:
+                raise RuntimeError(f"Unknown platform {platform.system()}")
+
+
 def open_webview(html_code: str, repo_name: str):
     webview.create_window(
         f"{repo_name} viewer",
@@ -34,6 +64,25 @@ def open_webview(html_code: str, repo_name: str):
         height=WEBVIEW_HEIGHT,
     )
     webview.start()
+
+
+def log_end_time(start_time: float):
+    """
+    Output a log entry to the log of the currently amount of passed time since 'start_time'.
+    """
+    end_time = time.time()
+    log(f"Done in {end_time - start_time:.1f} s")
+
+
+def get_outfile_name(fix: str, outfile_base: str, repo_name: str) -> FileStr:
+    base_name = Path(outfile_base).name
+    if fix == Keys.prefix:
+        outfile_name = repo_name + "-" + base_name
+    elif fix == Keys.postfix:
+        outfile_name = base_name + "-" + repo_name
+    else:
+        outfile_name = base_name
+    return outfile_name
 
 
 def divide_to_percentage(dividend: int, divisor: int) -> float:
@@ -85,8 +134,8 @@ def get_relative_fstr(fstr: str, subfolder: str):
 
 
 def get_version() -> str:
-    mydir = Path(__file__).resolve().parent
-    version_file = mydir / "version.txt"
+    my_dir = Path(__file__).resolve().parent
+    version_file = my_dir / "version.txt"
     with open(version_file, "r", encoding="utf-8") as file:
         version = file.read().strip()
     return version

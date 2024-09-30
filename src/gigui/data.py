@@ -4,8 +4,8 @@ import time
 from dataclasses import dataclass, field
 from math import floor
 
-from gigui.common import get_relative_fstr
 from gigui.typedefs import Author, Email, FileStr, Row, SHAshort
+from gigui.utils import get_relative_fstr
 
 SECONDS_IN_DAY = 60 * 60 * 24
 DAYS_IN_MONTH = 30.44
@@ -29,7 +29,7 @@ class MultiCommit:
 
 
 class Stat:
-    def __init__(self):
+    def __init__(self) -> None:
         self.commits: set[SHAshort] = set()
         self.insertions: int = 0
         self.deletions: int = 0
@@ -71,11 +71,11 @@ class Stat:
         self.date_sum = self.date_sum + other.date_sum
         self.line_count = self.line_count + other.line_count
 
-    def add_multicommit(self, mcommit: MultiCommit):
-        self.commits |= mcommit.commits
-        self.insertions += mcommit.insertions
-        self.deletions += mcommit.deletions
-        self.date_sum += mcommit.date_sum
+    def add_multicommit(self, multicommit: MultiCommit):
+        self.commits |= multicommit.commits
+        self.insertions += multicommit.insertions
+        self.deletions += multicommit.deletions
+        self.date_sum += multicommit.date_sum
 
     @staticmethod
     def timestamp_to_age(time_stamp: int) -> str:
@@ -125,9 +125,9 @@ class FileStat:
         if name not in self.names:
             self.names.append(name)
 
-    def add_multicommit(self, mcommit: MultiCommit):
-        self.add_name(mcommit.fstr)
-        self.stat.add_multicommit(mcommit)
+    def add_multicommit(self, multicommit: MultiCommit) -> None:
+        self.add_name(multicommit.fstr)
+        self.stat.add_multicommit(multicommit)
 
     @property
     def names_str(self) -> str:
@@ -305,7 +305,7 @@ class PersonsDB:
     ae2person -- Dictionary of author names and email addresses to a Person.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.ae2person: dict[Author | Email, Person] = {"*": Person("*", "*")}
         # There can only be one "Unknown" key. If the "Unknown" key is present, it
         # belongs to a person where both author and email are "Unknown"

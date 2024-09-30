@@ -1,8 +1,8 @@
 import textwrap
 from dataclasses import dataclass, fields
 
-from gigui.common import get_version
 from gigui.constants import DEFAULT_EXTENSIONS, DEFAULT_N_FILES
+from gigui.utils import get_version
 
 
 # Help for GUI tooltips and for Help button
@@ -11,7 +11,7 @@ from gigui.constants import DEFAULT_EXTENSIONS, DEFAULT_N_FILES
 @dataclass
 class Tip:
     # IO configuration
-    input_fstrs: str = "Absolute path(s) to repository, folders or URLs to be analysed"
+    input_fstrs: str = "Absolute path(s) to repository, folders or URLs to be analyzed"
     outfile_base: str = (
         "Name of output file without extension, prefix or postfix (default gitinspect)"
     )
@@ -156,7 +156,7 @@ class Help(Tip):
     )
     # Input
     input_fstrs: str = """
-         Relative or absolute PATH(s) to repository, folders or URLs to be analysed."""
+         Relative or absolute PATH(s) to repository, folders or URLs to be analyzed."""
     depth: str = """
         Number of levels of subfolders of the input folder PATH that is searched for
         repositories (default 5).

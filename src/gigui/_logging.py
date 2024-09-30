@@ -16,7 +16,7 @@ root_logger = logging.getLogger()
 
 # For GUI logger
 class GUIOutputHandler(logging.Handler):
-    def emit(self, record):
+    def emit(self, record: logging.LogRecord) -> None:
         log_entry = self.format(record)
         # Ensure log_entry always starts with a newline. This means that if two log
         # entries are written in succession, there will be an empty line between them.

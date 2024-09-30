@@ -9,10 +9,10 @@ from gigui import gitinspector
 from gigui._logging import add_cli_handler, set_logging_level_from_verbosity
 from gigui.args_settings_keys import Args, CLIArgs, Settings, SettingsFile
 from gigui.cli_arguments import define_arguments
-from gigui.common import log
 from gigui.constants import DEFAULT_EXTENSIONS, DEFAULT_FORMAT
 from gigui.gui.psg import run as run_gui
 from gigui.tiphelp import Help
+from gigui.utils import log
 
 # Limit the width of the help text to 80 characters.
 os.environ["COLUMNS"] = "90"
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 add_cli_handler()
 
 
-def main():
+def main() -> None:
     start_time = time.time()
 
     parser = ArgumentParser(
@@ -51,7 +51,7 @@ def main():
         run_gitinspector_main(cli_args, start_time)
 
 
-def load_settings():
+def load_settings() -> Settings:
     settings: Settings
     error: str
     settings, error = SettingsFile.load()

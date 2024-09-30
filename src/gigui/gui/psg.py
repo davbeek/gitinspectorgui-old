@@ -10,10 +10,9 @@ from typing import Any
 
 import PySimpleGUI as sg
 
-from gigui import _logging, common
+from gigui import _logging, utils
 from gigui._logging import set_logging_level_from_verbosity
 from gigui.args_settings_keys import Args, Keys, Settings, SettingsFile
-from gigui.common import open_webview, str_split_comma
 from gigui.constants import (
     AVAILABLE_FORMATS,
     DEBUG_SHOW_MAIN_EVENT_LOOP,
@@ -38,6 +37,7 @@ from gigui.gui.psg_support import (
 from gigui.gui.psg_window import make_window
 from gigui.tiphelp import Help, Tip
 from gigui.typedefs import FileStr
+from gigui.utils import open_webview, str_split_comma
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +57,7 @@ def run(settings: Settings) -> None:
 def run_inner(settings: Settings) -> bool:
     logger.info(f"{settings = }")
     state: GUIState = GUIState(settings.col_percent)
-    common.gui = True
+    utils.gui = True
 
     # Is set to True when handling "Reset settings file" menu item
     recreate_window: bool = False
@@ -67,7 +67,7 @@ def run_inner(settings: Settings) -> bool:
 
     window: sg.Window
     window = make_window()
-    common.gui_window = window
+    utils.gui_window = window
     _logging.gui_window = window
 
     buttons = WindowButtons(window)

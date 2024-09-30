@@ -2,9 +2,9 @@ import datetime
 from argparse import Action, ArgumentParser, ArgumentTypeError, BooleanOptionalAction
 
 from gigui.args_settings_keys import FIX_TYPE, VIEWER_CHOICES
-from gigui.common import get_digit, get_pos_number, get_version, str_split_comma
 from gigui.constants import AVAILABLE_FORMATS
 from gigui.tiphelp import Help
+from gigui.utils import get_digit, get_pos_number, get_version, str_split_comma
 
 hlp = Help()
 
@@ -84,7 +84,7 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
         "-o",
         "--output",
         dest="outfile_base",
-        metavar="FILEBASE",
+        metavar="FILE_BASE",
         help=hlp.outfile_base,
     )
     group_output.add_argument(

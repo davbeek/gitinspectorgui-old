@@ -8,10 +8,10 @@ from git import InvalidGitRepositoryError, NoSuchPathError, PathLike, Repo
 
 from gigui.args_settings_keys import Args
 from gigui.blame import BlameReader, BlameTables
-from gigui.common import divide_to_percentage, log
 from gigui.data import FileStat, MultiCommit, Person, PersonsDB, PersonStat
 from gigui.stats_reader import StatsReader
 from gigui.typedefs import Author, FileStr
+from gigui.utils import divide_to_percentage, log
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +58,7 @@ class GIRepo:
 
             # Use results from stats_reader to initialize the other classes.
             self.blame_reader = BlameReader(
-                self.stats_reader.gitrepo,
+                self.stats_reader.git_repo,
                 self.stats_reader.head_commit,
                 self.stats_reader.ex_sha_shorts,
                 self.stats_reader.fstrs,
@@ -79,7 +79,7 @@ class GIRepo:
             # Set stats.author2fstr2fstat, the basis of all other stat tables
             self.author2fstr2fstat = self.stat_tables.get_author2fstr2fstat(
                 self.stats_reader.fstrs,
-                self.stats_reader.fstr2mcommits,
+                self.stats_reader.fstr2multicommits,
                 self.stats_reader.persons_db,
             )
             if list(self.author2fstr2fstat.keys()) == ["*"]:
@@ -91,7 +91,7 @@ class GIRepo:
             )
 
             self.fstr2fstat = self.stat_tables.get_fstr2fstat(
-                self.author2fstr2fstat, self.stats_reader.fstr2mcommits
+                self.author2fstr2fstat, self.stats_reader.fstr2multicommits
             )
             if list(self.fstr2fstat.keys()) == ["*"]:
                 return False
@@ -115,7 +115,7 @@ class GIRepo:
             )
             return True
         finally:
-            self.stats_reader.gitrepo.close()
+            self.stats_reader.git_repo.close()
 
     @property
     def path(self) -> Path:

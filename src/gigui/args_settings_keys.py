@@ -9,9 +9,8 @@ import jsonschema
 import platformdirs
 from git import PathLike
 
-from gigui import common
+from gigui import utils
 from gigui._logging import set_logging_level_from_verbosity
-from gigui.common import log, str_split_comma
 from gigui.constants import (
     AVAILABLE_FORMATS,
     DEFAULT_COPY_MOVE,
@@ -20,6 +19,7 @@ from gigui.constants import (
     DEFAULT_N_FILES,
     SUBDIR_NESTING_DEPTH,
 )
+from gigui.utils import log, str_split_comma
 
 PREFIX = "prefix"
 POSTFIX = "postfix"
@@ -396,7 +396,7 @@ class SettingsFile:
         path = cls.get_location()
         log(f"Settings file location: {path}")
         settings, _ = cls.load()
-        if not common.gui:
+        if not utils.gui:
             settings.log()
 
     @classmethod

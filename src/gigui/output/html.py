@@ -2,7 +2,6 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup, Tag
 
-from gigui.common import get_relative_fstr, log
 from gigui.output.outbase import (
     TableStatsRows,
     header_authors,
@@ -14,6 +13,7 @@ from gigui.output.outbase import (
 )
 from gigui.repo import GIRepo
 from gigui.typedefs import FileStr, Html, Row
+from gigui.utils import get_relative_fstr, log
 
 MAX_LENGTH_TAB_NAME = 40
 
@@ -40,18 +40,18 @@ header_class_dict: dict[str, str] = {
     "Code": "code_col",
 }
 
-bg_author_colros: list[str] = [
+bg_author_colors: list[str] = [
     "bg-white",
-    "bg-authorlightgreen",
-    "bg-authorlightblue",
-    "bg-authorlightred",
-    "bg-authorlightyellow",
-    "bg-authorlightorange",
-    "bg-authorlightpurple",
-    "bg-authorlightgrey",
-    "bg-rowlightgreen",
+    "bg-author_light_green",
+    "bg-author_light_blue",
+    "bg-author_light_red",
+    "bg-author_light_yellow",
+    "bg-author_light_orange",
+    "bg-author_light_purple",
+    "bg-author_light_grey",
+    "bg-row_light_green",
 ]
-bg_row_colors: list[str] = ["bg-rowlightgreen", "bg-white"]
+bg_row_colors: list[str] = ["bg-row_light_green", "bg-white"]
 
 
 class HTMLTable:
@@ -110,7 +110,7 @@ class HTMLTable:
         return self.add_conditional_styles_table(
             self.insert_str_at(header_authors(), "Empty", 2),
             self.insert_empties_at(rows, 2),
-            bg_author_colros,
+            bg_author_colors,
         )
 
     def add_authors_files_table(self) -> Html:
@@ -118,7 +118,7 @@ class HTMLTable:
         return self.add_conditional_styles_table(
             self.insert_str_at(header_authors_files(), "Empty", 2),
             self.insert_empties_at(rows, 2),
-            bg_author_colros,
+            bg_author_colors,
         )
 
     def add_files_authors_table(self) -> Html:
@@ -126,7 +126,7 @@ class HTMLTable:
         return self.add_conditional_styles_table(
             self.insert_str_at(header_files_authors(), "Empty", 2),
             self.insert_empties_at(rows, 2),
-            bg_author_colros,
+            bg_author_colors,
         )
 
     def add_files_table(self) -> Html:
@@ -134,7 +134,7 @@ class HTMLTable:
         return self.add_conditional_styles_table(header_files(), rows, bg_row_colors)
 
     def add_blame_table(self, rows_iscomments: tuple[list[Row], list[bool]]) -> Html:
-        bg_colors_cnt = len(bg_author_colros)
+        bg_colors_cnt = len(bg_author_colors)
         header = header_blames()
 
         table = "<table>\n"
@@ -143,7 +143,7 @@ class HTMLTable:
         rows, is_comments = rows_iscomments
         for row, is_comment in zip(rows, is_comments):
             table_row = (
-                f"<tr class='{bg_author_colros[(int(row[0]) % bg_colors_cnt)]}'>\n"
+                f"<tr class='{bg_author_colors[(int(row[0]) % bg_colors_cnt)]}'>\n"
             )
 
             if is_comment:

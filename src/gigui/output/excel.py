@@ -6,7 +6,6 @@ from xlsxwriter.chart import Chart
 from xlsxwriter.workbook import Format as ExcelFormat
 from xlsxwriter.worksheet import Worksheet
 
-from gigui.common import get_relative_fstr
 from gigui.output.outbase import (
     TableStatsRows,
     header_authors,
@@ -17,6 +16,7 @@ from gigui.output.outbase import (
     string2truncated,
 )
 from gigui.typedefs import FileStr, Row
+from gigui.utils import get_relative_fstr
 
 type FormatSpec = dict[str, str | int | float]
 
@@ -27,22 +27,22 @@ MAX_LENGTH_SHEET_NAME = 31  # hard coded in Excel
 WHITE = "#FFFFFF"
 
 # Author background colors
-AUTHOR_LIGHTGREEN = "#E6FFE6"
-AUTHOR_LIGHTBLUE = "#ADD8E6"
-AUTHOR_LIGHTRED = "#FFCCCB"
-AUTHOR_LIGHTYELLOW = "#FFFFBF"
-AUTHOR_LIGHTORANGE = "#FFD7B5"
-AUTHOR_LIGHTPURPLE = "#CBC3E3"
-AUTHOR_LIGHTGRAY = "#D3D3D3"
+AUTHOR_LIGHT_GREEN = "#E6FFE6"
+AUTHOR_LIGHT_BLUE = "#ADD8E6"
+AUTHOR_LIGHT_RED = "#FFCCCB"
+AUTHOR_LIGHT_YELLOW = "#FFFFBF"
+AUTHOR_LIGHT_ORANGE = "#FFD7B5"
+AUTHOR_LIGHT_PURPLE = "#CBC3E3"
+AUTHOR_LIGHT_GRAY = "#D3D3D3"
 
 # Row background and border colors
-ROWWHITE_BORDER = "#D8E4BC"
+ROW_WHITE_BORDER = "#D8E4BC"
 
-ROWLIGHTGREEN = "#EBF1DE"
-ROWLIGHTGREEN_BORDER = "C4D79B"
+ROW_LIGHT_GREEN = "#EBF1DE"
+ROW_LIGHT_GREEN_BORDER = "C4D79B"
 
 # Worksheet zoom level for macOS is 120, for other platforms 100
-ZOOMLEVEL = 120 if sys.platform == "darwin" else 100
+ZOOM_LEVEL = 120 if sys.platform == "darwin" else 100
 
 
 class Sheet:
@@ -57,10 +57,10 @@ class Sheet:
 
         self.row: int = 0
         self.col: int = 0
-        self.maxrow: int = 0
-        self.maxcol: int = 0
+        self.max_row: int = 0
+        self.max_col: int = 0
 
-        worksheet.set_zoom(ZOOMLEVEL)
+        worksheet.set_zoom(ZOOM_LEVEL)
 
     def set_pos(self, row: int, col: int) -> None:
         self.row = row
@@ -80,8 +80,8 @@ class Sheet:
         self.reset_col()
 
     def update_max(self, row: int, col: int) -> None:
-        self.maxrow = max(self.maxrow, row)
-        self.maxcol = max(self.maxcol, col)
+        self.max_row = max(self.max_row, row)
+        self.max_col = max(self.max_col, col)
 
     def write(self, data, excel_format: ExcelFormat | None = None) -> None:
         self.worksheet.write(self.row, self.col, data, excel_format)
@@ -99,14 +99,14 @@ class Sheet:
         self.inc_col()
 
     def write_row(
-        self, datalist: list, excel_format: ExcelFormat | None = None
+        self, data_list: list, excel_format: ExcelFormat | None = None
     ) -> None:
-        datalist = [data for data in datalist if data is not None]
-        if datalist:
-            self.worksheet.write_row(self.row, self.col, datalist, excel_format)
-            newcol = self.col + len(datalist) - 1
-            self.update_max(self.row, newcol)
-            self.set_pos(self.row, newcol + 1)
+        data_list = [data for data in data_list if data is not None]
+        if data_list:
+            self.worksheet.write_row(self.row, self.col, data_list, excel_format)
+            new_col = self.col + len(data_list) - 1
+            self.update_max(self.row, new_col)
+            self.set_pos(self.row, new_col + 1)
 
     def number_to_letter(self, n: int) -> str:
         return chr(ord("A") + n)
@@ -123,19 +123,19 @@ class TableSheet(Sheet):
         self.header_items: list[str] = header_items
 
         self.head2col: dict[str, int] = {}
-        self.head2formatname: dict[str, str] = {}
+        self.head2format_name: dict[str, str] = {}
         self.head2width: dict[str, int] = {}
 
-        self.worksheet.set_zoom(ZOOMLEVEL)
+        self.worksheet.set_zoom(ZOOM_LEVEL)
         self.head2width |= {
             "ID": 4,
         }
-        self.head2formatname["ID"] = "align_left"
+        self.head2format_name["ID"] = "align_left"
 
     def create_header(self) -> list[dict[str, str]]:
-        headlist = self.header_items
-        header = [({"header": head}) for head in headlist]
-        for col, head in enumerate(headlist):
+        head_list = self.header_items
+        header = [({"header": head}) for head in head_list]
+        for col, head in enumerate(head_list):
             self.head2col[head] = col
         return header
 
@@ -147,16 +147,16 @@ class TableSheet(Sheet):
         for head in self.header_items:
             col = self.head2col[head]
             width = self.head2width.get(head)
-            formatname = self.head2formatname.get(head)
-            excel_format = self.formats.get(formatname)  # type: ignore
+            format_name = self.head2format_name.get(head)
+            excel_format = self.formats.get(format_name)  # type: ignore
             self.worksheet.set_column(col, col, width, excel_format)
 
     def add_table(self, header: list[dict[str, str]]) -> None:
         self.worksheet.add_table(
             0,
             0,
-            self.maxrow,
-            self.maxcol,
+            self.max_row,
+            self.max_col,
             {
                 "columns": header,
                 "style": "Table Style Light 11",
@@ -183,8 +183,8 @@ class TableSheet(Sheet):
             self.worksheet.conditional_format(
                 1,
                 0,
-                self.maxrow,
-                self.maxcol,
+                self.max_row,
+                self.max_col,
                 {
                     "type": "formula",
                     "criteria": critical,
@@ -201,7 +201,7 @@ class StatsSheet(TableSheet):
             "Author": 20,
             "File": 20,
         }
-        self.head2formatname |= {
+        self.head2format_name |= {
             "% Lines": "num_format",
             "% Insertions": "num_format",
             "% Scaled Lines": "num_format",
@@ -214,8 +214,8 @@ class StatsSheet(TableSheet):
         self.worksheet.conditional_format(
             1,
             0,
-            self.maxrow,
-            self.maxcol,
+            self.max_row,
+            self.max_col,
             {
                 "type": "formula",
                 "criteria": "MOD($A2,2)=1",
@@ -225,12 +225,12 @@ class StatsSheet(TableSheet):
         self.worksheet.conditional_format(
             1,
             0,
-            self.maxrow,
-            self.maxcol,
+            self.max_row,
+            self.max_col,
             {
                 "type": "formula",
                 "criteria": "MOD($A2,2)=0",
-                "format": self.formats["row_lightgreen"],
+                "format": self.formats["row_light_green"],
             },
         )
 
@@ -257,7 +257,7 @@ class AuthorsSheet(StatsSheet):
             points.append({"fill": {"color": c}})
         author_letter = self.head_to_letter("Author")
         lines_letter = self.head_to_letter("% Lines")
-        end_row = self.maxrow + 1
+        end_row = self.max_row + 1
         chart.add_series(
             {
                 "categories": f"=Authors!${author_letter}$3:${author_letter}${end_row}",
@@ -331,7 +331,7 @@ class BlameSheet(TableSheet):
             else:
                 self.write_row(row)
 
-        self.head2formatname |= {
+        self.head2format_name |= {
             "Date": "date_format",
             "SHA": "SHA_format",
             "Code": "code_format",
@@ -354,7 +354,9 @@ class BlameSheet(TableSheet):
 
 
 class Book:
-    def __init__(self, name: str, out_rows: TableStatsRows, subfolder: str):
+    def __init__(
+        self, name: str, out_rows: TableStatsRows, subfolder: str, blame_skip: bool
+    ):
         self.name: str = name
         self.out_rows: TableStatsRows = out_rows
         self.subfolder = subfolder
@@ -364,28 +366,35 @@ class Book:
         self.formats: dict[str, ExcelFormat] = {}
         self.author_color_formats: list[ExcelFormat] = []
         self.author_colors = [
-            AUTHOR_LIGHTGREEN,
-            AUTHOR_LIGHTBLUE,
-            AUTHOR_LIGHTRED,
-            AUTHOR_LIGHTYELLOW,
-            AUTHOR_LIGHTORANGE,
-            AUTHOR_LIGHTPURPLE,
-            AUTHOR_LIGHTGRAY,
+            AUTHOR_LIGHT_GREEN,
+            AUTHOR_LIGHT_BLUE,
+            AUTHOR_LIGHT_RED,
+            AUTHOR_LIGHT_YELLOW,
+            AUTHOR_LIGHT_ORANGE,
+            AUTHOR_LIGHT_PURPLE,
+            AUTHOR_LIGHT_GRAY,
         ]
+        self.add_authors_sheet()
+        self.add_authors_files_sheet()
+        self.add_files_authors_sheet()
+        self.add_files_sheet()
+        if not blame_skip:
+            self.add_blame_sheets()
+        self.close()
 
         self.add_format("align_left", {"align": "left"})
         self.add_format("align_right", {"align": "right"})
 
         self.add_format(
             "row_white",
-            {"bg_color": WHITE, "border": 1, "border_color": ROWWHITE_BORDER},
+            {"bg_color": WHITE, "border": 1, "border_color": ROW_WHITE_BORDER},
         )
         self.add_format(
             "row_lightgreen",
             {
-                "bg_color": ROWLIGHTGREEN,
+                "bg_color": ROW_LIGHT_GREEN,
                 "border": 1,
-                "border_color": ROWLIGHTGREEN_BORDER,
+                "border_color": ROW_LIGHT_GREEN_BORDER,
             },
         )
         self.add_format(
@@ -410,8 +419,8 @@ class Book:
 
         Path(self.outfile).unlink(missing_ok=True)
 
-    def add_format(self, format_name: str, formatspec: FormatSpec) -> None:
-        excel_format = self.workbook.add_format(formatspec)
+    def add_format(self, format_name: str, format_spec: FormatSpec) -> None:
+        excel_format = self.workbook.add_format(format_spec)
         self.formats[format_name] = excel_format
 
     def add_authors_sheet(self) -> None:
@@ -457,11 +466,11 @@ class Book:
         rows_iscomments: tuple[list[Row], list[bool]],
     ) -> None:
         if rows_iscomments:
-            sheetname = name.replace("/", ">")
+            sheet_name = name.replace("/", ">")
             BlameSheet(
                 rows_iscomments,
                 header_blames(),
-                self.workbook.add_worksheet(sheetname),
+                self.workbook.add_worksheet(sheet_name),
                 self,
             )
 
