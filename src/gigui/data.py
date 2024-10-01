@@ -40,9 +40,9 @@ class Stat:
         self.percent_lines: float = 0
 
     @property
-    def stability(self) -> str:
+    def stability(self) -> int | str:
         return (
-            f"{min(100, round(100 * self.line_count / self.insertions)):.1f}"
+            min(100, round(100 * self.line_count / self.insertions))
             if self.insertions and self.line_count
             else ""
         )
