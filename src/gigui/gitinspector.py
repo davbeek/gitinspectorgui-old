@@ -2,22 +2,28 @@ import logging
 import platform
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from cProfile import Profile
-from io import StringIO
 from pathlib import Path
-from pstats import Stats
 
 import PySimpleGUI as sg
 
-from gigui.args_settings_keys import AUTO, NONE, Args, Keys
+from gigui.args_settings import AUTO, NONE, Args
 from gigui.constants import DEFAULT_FILE_BASE, DEFAULT_FORMAT, MAX_BROWSER_TABS
 from gigui.data import FileStat, Person
+from gigui.keys import Keys
 from gigui.output import outbase
 from gigui.output.excel import Book
 from gigui.output.html import out_html
 from gigui.output.outbase import TableStatsRows
 from gigui.repo import GIRepo, get_repos, total_len
 from gigui.typedefs import FileStr, Html
-from gigui.utils import get_outfile_name, log, log_end_time, open_files, open_webview
+from gigui.utils import (
+    get_outfile_name,
+    log,
+    log_end_time,
+    open_files,
+    open_webview,
+    out_profile,
+)
 
 # pylint: disable=too-many-arguments disable=too-many-positional-arguments
 
@@ -370,24 +376,3 @@ def process_repo_in_process_pool(
                 gui_window,
             )
     return stats_found, files_to_log
-
-
-def out_profile(args, profiler):
-    def log_profile(profile: Profile, sort: str):
-        io_stream = StringIO()
-        stats = Stats(profile, stream=io_stream).strip_dirs()
-        stats.sort_stats(sort).print_stats(args.profile)
-        s = io_stream.getvalue()
-        log(s)
-
-    if args.profile:
-        assert profiler is not None
-        log("Profiling results:")
-        profiler.disable()
-        if 0 < args.profile < 100:
-            log_profile(profiler, "cumulative")
-            log_profile(profiler, "time")
-        else:
-            stats = Stats(profiler).strip_dirs()
-            log("printing to: gigui.prof")
-            stats.dump_stats("gigui.prof")

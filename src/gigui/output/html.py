@@ -19,39 +19,39 @@ MAX_LENGTH_TAB_NAME = 40
 
 header_class_dict: dict[str, str] = {
     "ID": "id_col",
-    "Author": "author_col",
-    "Empty": "empty_col",
-    "Email": "email_col",
-    "File": "file_col",
-    "% Lines": "p_lines_col number_col",
-    "% Insertions": "p_insertions_col number_col",
-    "% Scaled Lines": "ps_lines_col number_col",
-    "% Scaled Insertions": "ps_insertions_col number_col",
-    "Lines": "lines_col number_col",
-    "Insertions": "insertions_col number_col",
-    "Stability": "stability_col number_col",
-    "Commits": "commits_col number_col",
-    "Age Y:M:D": "age_col number_col",
-    "Date": "date_col",
-    "Message": "message_col",
-    "SHA": "sha_col number_col",
-    "Commit number": "commit_number_col number_col",
-    "Line": "line_col number_col",
-    "Code": "code_col",
+    "Author": "author-col",
+    "Empty": "empty-col",
+    "Email": "email-col",
+    "File": "file-col",
+    "% Lines": "p-lines-col number-col",
+    "% Insertions": "p-insertions-col number-col",
+    "% Scaled Lines": "ps-lines-col number-col",
+    "% Scaled Insertions": "ps-insertions-col number-col",
+    "Lines": "lines-col number-col",
+    "Insertions": "insertions-col number-col",
+    "Stability": "stability-col number-col",
+    "Commits": "commits-col number-col",
+    "Age Y:M:D": "age-col number-col",
+    "Date": "date-col",
+    "Message": "message-col",
+    "SHA": "sha-col number-col",
+    "Commit number": "commit-number-col number-col",
+    "Line": "line-col number-col",
+    "Code": "code-col",
 }
 
 bg_author_colors: list[str] = [
     "bg-white",
-    "bg-author_light_green",
-    "bg-author_light_blue",
-    "bg-author_light_red",
-    "bg-author_light_yellow",
-    "bg-author_light_orange",
-    "bg-author_light_purple",
-    "bg-author_light_grey",
-    "bg-row_light_green",
+    "bg-author-light-green",
+    "bg-author-light-blue",
+    "bg-author-light-red",
+    "bg-author-light-yellow",
+    "bg-author-light-orange",
+    "bg-author-light-purple",
+    "bg-author-light-grey",
+    "bg-row-light-green",
 ]
-bg_row_colors: list[str] = ["bg-row_light_green", "bg-white"]
+bg_row_colors: list[str] = ["bg-row-light-green", "bg-white"]
 
 
 class HTMLTable:
@@ -152,7 +152,7 @@ class HTMLTable:
                     table_row += (
                         f"<td class='{header_class_dict[header[i]]}'>{data}</td>\n"
                     )
-                table_row += f"<td class='comment_col'>{row[-1]}</td>\n"
+                table_row += f"<td class='comment-col'>{row[-1]}</td>\n"
             else:
                 row[7] = (
                     str(row[7])

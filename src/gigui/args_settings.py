@@ -19,6 +19,7 @@ from gigui.constants import (
     DEFAULT_N_FILES,
     SUBDIR_NESTING_DEPTH,
 )
+from gigui.keys import Keys, KeysArgs
 from gigui.utils import log, str_split_comma
 
 PREFIX = "prefix"
@@ -68,6 +69,14 @@ class Args:
     ex_emails: list[str] = field(default_factory=list)
     ex_revisions: list[str] = field(default_factory=list)
     ex_messages: list[str] = field(default_factory=list)
+
+    def __post_init__(self):
+        fld_names_args = {fld.name for fld in fields(Args)}
+        fld_names_keys = {fld.name for fld in fields(KeysArgs)}
+        assert fld_names_args == fld_names_keys, (
+            f"Args - KeysArgs: {fld_names_args - fld_names_keys}\n"
+            f"KeysArgs - Args: {fld_names_keys - fld_names_args}"
+        )
 
 
 @dataclass
@@ -214,92 +223,6 @@ class CLIArgs(Args):
         set_logging_level_from_verbosity(self.verbosity)
         logger.info(f"CLI args - Namespace: {args_vars - nmsp_vars}")
         logger.info(f"Namespace - CLI args:  {nmsp_vars - args_vars}")
-
-
-# The field names of class KeysArgs are identical to those of class Args, but the values
-# are all strings equal to the names.
-@dataclass
-class KeysArgs:
-    col_percent: str = "col_percent"
-    profile: str = "profile"
-    input_fstrs: str = "input_fstrs"
-    outfile_base: str = "outfile_base"
-    fix: str = "fix"
-    depth: str = "depth"
-    format: str = "format"
-    scaled_percentages: str = "scaled_percentages"
-    blame_omit_exclusions: str = "blame_omit_exclusions"
-    blame_skip: str = "blame_skip"
-    subfolder: str = "subfolder"
-    n_files: str = "n_files"
-    include_files: str = "include_files"
-    show_renames: str = "show_renames"
-    extensions: str = "extensions"
-    deletions: str = "deletions"
-    whitespace: str = "whitespace"
-    empty_lines: str = "empty_lines"
-    comments: str = "comments"
-    viewer: str = "viewer"
-    copy_move: str = "copy_move"
-    verbosity: str = "verbosity"
-    dry_run: str = "dry_run"
-    multi_thread: str = "multi_thread"
-    multi_core: str = "multi_core"
-    since: str = "since"
-    until: str = "until"
-    ex_files: str = "ex_files"
-    ex_authors: str = "ex_authors"
-    ex_emails: str = "ex_emails"
-    ex_revisions: str = "ex_revisions"
-    ex_messages: str = "ex_messages"
-
-    def __post_init__(self):
-        fld_names_args = {fld.name for fld in fields(Args)}
-        fld_names_keys = {fld.name for fld in fields(KeysArgs)}
-        assert fld_names_args == fld_names_keys, (
-            f"Args - KeysArgs: {fld_names_args - fld_names_keys}\n"
-            f"KeysArgs - Args: {fld_names_keys - fld_names_args}"
-        )
-
-
-@dataclass
-class Keys(KeysArgs):
-    help_doc: str = "help_doc"
-    # key to end the GUI when window is closed
-    end: str = "end"
-    # Logging
-    log: str = "log"
-    debug: str = "debug"
-    # Opening view
-    open_webview: str = "open_webview"
-    # Complete settings column
-    config_column: str = "config_column"
-    # Top row
-    execute: str = "execute"
-    clear: str = "clear"
-    show: str = "show"
-    save: str = "save"
-    save_as: str = "save_as"
-    load: str = "load"
-    reset: str = "reset"
-    help: str = "help"
-    about: str = "about"
-    exit: str = "exit"
-    # IO configuration
-    browse_input_fstr: str = "browse_input_fstr"
-    outfile_path: str = "outfile_path"
-    prefix: str = "prefix"
-    postfix: str = "postfix"
-    nofix: str = "nofix"
-    # Output formats in table form
-    auto: str = "auto"
-    html: str = "html"
-    excel: str = "excel"
-    # General configuration
-    since_box: str = "since_box"
-    until_box: str = "until_box"
-    # Console
-    multiline: str = "multiline"
 
 
 class SettingsFile:

@@ -3,13 +3,16 @@ import logging
 import platform
 import subprocess
 import time
+from cProfile import Profile
+from io import StringIO
 from pathlib import Path
+from pstats import Stats
 
 import PySimpleGUI as sg
 import webview
 
-from gigui.args_settings_keys import Keys
 from gigui.constants import WEBVIEW_HEIGHT, WEBVIEW_WIDTH
+from gigui.keys import Keys
 from gigui.typedefs import FileStr
 
 STDOUT = True
@@ -139,3 +142,24 @@ def get_version() -> str:
     with open(version_file, "r", encoding="utf-8") as file:
         version = file.read().strip()
     return version
+
+
+def out_profile(args, profiler):
+    def log_profile(profile: Profile, sort: str):
+        io_stream = StringIO()
+        stats = Stats(profile, stream=io_stream).strip_dirs()
+        stats.sort_stats(sort).print_stats(args.profile)
+        s = io_stream.getvalue()
+        log(s)
+
+    if args.profile:
+        assert profiler is not None
+        log("Profiling results:")
+        profiler.disable()
+        if 0 < args.profile < 100:
+            log_profile(profiler, "cumulative")
+            log_profile(profiler, "time")
+        else:
+            stats = Stats(profiler).strip_dirs()
+            log("printing to: gigui.prof")
+            stats.dump_stats("gigui.prof")

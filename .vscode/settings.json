@@ -55,6 +55,9 @@
         "--profile",
         "black"
     ],
+    //
+    "mypy-type-checker.cwd": "${fileDirname}",
+    //
     "[python]": {
         "editor.defaultFormatter": "ms-python.black-formatter",
         "editor.formatOnSave": true,
@@ -89,21 +92,19 @@
     "python.analysis.inlayHints.callArgumentNames": "off",
     // "python.analysis.inlayHints.callArgumentNames": "partial",
     "python.analysis.inlayHints.variableTypes": false,
-    //
-    // Pylance, None, Jedi (Jedi DOES NOT WORK)
-    "python.languageServer": "Pylance",
-    //
-    "mypy-type-checker.cwd": "${fileDirname}",
-    //
-    "python.testing.pytestEnabled": true,
-    "python.terminal.activateEnvInCurrentTerminal": false,
-    "python.terminal.activateEnvironment": false,
-    //
     // Error: basic info and errors
     // Warning: = Error + warnings
     // Information: = Warning + execution times and return info etc (Default)
     // Trace: = Information + ?????
     "python.analysis.logLevel": "Information",
+    //
+    // Pylance, None, Jedi (Jedi DOES NOT WORK)
+    "python.languageServer": "Pylance",
+    //
+    "python.testing.pytestEnabled": true,
+    "python.terminal.activateEnvInCurrentTerminal": false,
+    "python.terminal.activateEnvironment": false,
+    //
     //
     "rewrap.autoWrap.enabled": true,
     // Puts a single space between comment character "//" and comment text

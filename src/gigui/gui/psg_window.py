@@ -7,7 +7,7 @@ from pathlib import Path
 import PySimpleGUI as sg
 
 from gigui._logging import add_gui_handler
-from gigui.args_settings_keys import AUTO, VIEWER_CHOICES, Keys, SettingsFile
+from gigui.args_settings import AUTO, VIEWER_CHOICES, SettingsFile
 from gigui.constants import (
     INIT_COL_PERCENT,
     MAX_COL_HEIGHT,
@@ -29,6 +29,7 @@ from gigui.gui.psg_window_support import (
     radio,
     spinbox,
 )
+from gigui.keys import Keys
 from gigui.tiphelp import Tip
 
 logger = logging.getLogger(__name__)

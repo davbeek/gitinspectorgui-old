@@ -12,7 +12,7 @@ import PySimpleGUI as sg
 
 from gigui import _logging, utils
 from gigui._logging import set_logging_level_from_verbosity
-from gigui.args_settings_keys import Args, Keys, Settings, SettingsFile
+from gigui.args_settings import Args, Settings, SettingsFile
 from gigui.constants import (
     AVAILABLE_FORMATS,
     DEBUG_SHOW_MAIN_EVENT_LOOP,
@@ -35,6 +35,7 @@ from gigui.gui.psg_support import (
     window_state_from_settings,
 )
 from gigui.gui.psg_window import make_window
+from gigui.keys import Keys
 from gigui.tiphelp import Help, Tip
 from gigui.typedefs import FileStr
 from gigui.utils import open_webview, str_split_comma

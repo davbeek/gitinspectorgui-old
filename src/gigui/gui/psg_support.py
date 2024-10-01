@@ -4,7 +4,7 @@ from pathlib import Path
 
 import PySimpleGUI as sg
 
-from gigui.args_settings_keys import AUTO, Keys, Settings
+from gigui.args_settings import AUTO, Settings
 from gigui.constants import (
     AVAILABLE_FORMATS,
     DEFAULT_FILE_BASE,
@@ -15,6 +15,7 @@ from gigui.constants import (
     REPO_HINT,
     WINDOW_HEIGHT_CORR,
 )
+from gigui.keys import Keys
 from gigui.repo import is_git_repo
 from gigui.tiphelp import Help
 from gigui.typedefs import FileStr

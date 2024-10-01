@@ -6,7 +6,7 @@ from pathlib import Path
 from git import Commit as GitCommit
 from git import Repo
 
-from gigui.args_settings_keys import Args
+from gigui.args_settings import Args
 from gigui.comment import get_is_comment_lines
 from gigui.data import FileStat, PersonsDB
 from gigui.typedefs import (
@@ -183,6 +183,46 @@ class BlameTables:
         # List of blame authors, so no filtering, ordered by highest blame line count.
         self._blame_authors: list[Author] = []
 
+    def update_author2fstr2fstat(
+        self, author2fstr2fstat: dict[Author, dict[FileStr, FileStat]]
+    ) -> dict[Author, dict[FileStr, FileStat]]:
+        """
+        Update author2fstr2fstat with line counts for each author.
+        Set local list of sorted unfiltered _blame_authors.
+        """
+        author2line_count: dict[Author, int] = {}
+        target = author2fstr2fstat
+        for fstr in self.fstrs:
+            blames = self.fstr2blames[fstr]
+            for b in blames:
+                person = self.persons_db.get_person(b.author)
+                author = person.author
+                if author not in author2line_count:
+                    author2line_count[author] = 0
+                total_line_count = len(b.lines)  # type: ignore
+                comment_lines_subtract = (
+                    0 if self.args.comments else b.is_comment_lines.count(True)
+                )
+                empty_lines_subtract = (
+                    0
+                    if self.args.empty_lines
+                    else len([line for line in b.lines if not line.strip()])
+                )
+                line_count = (
+                    total_line_count - comment_lines_subtract - empty_lines_subtract
+                )
+                author2line_count[author] += line_count
+                if not person.filter_matched:
+                    if fstr not in target[author]:
+                        target[author][fstr] = FileStat(fstr)
+                    target[author][fstr].stat.line_count += line_count  # type: ignore
+                    target[author]["*"].stat.line_count += line_count
+                    target["*"]["*"].stat.line_count += line_count
+        authors = list(author2line_count.keys())
+        authors = sorted(authors, key=lambda x: author2line_count[x], reverse=True)
+        self._blame_authors = authors
+        return target
+
     def out_blames(self) -> dict[FileStr, tuple[list[Row], list[bool]]]:
         fstr2rows_iscomments: dict[FileStr, tuple[list[Row], list[bool]]] = {}
         for fstr in self.fstr2blames:
@@ -234,43 +274,3 @@ class BlameTables:
                     is_comments.append(is_comment)
                     line_nr += 1
         return rows, is_comments
-
-    def update_author2fstr2fstat(
-        self, author2fstr2fstat: dict[Author, dict[FileStr, FileStat]]
-    ) -> dict[Author, dict[FileStr, FileStat]]:
-        """
-        Update author2fstr2fstat with line counts for each author.
-        Set local list of sorted unfiltered _blame_authors.
-        """
-        author2line_count: dict[Author, int] = {}
-        target = author2fstr2fstat
-        for fstr in self.fstrs:
-            blames = self.fstr2blames[fstr]
-            for b in blames:
-                person = self.persons_db.get_person(b.author)
-                author = person.author
-                if author not in author2line_count:
-                    author2line_count[author] = 0
-                total_line_count = len(b.lines)  # type: ignore
-                comment_lines_subtract = (
-                    0 if self.args.comments else b.is_comment_lines.count(True)
-                )
-                empty_lines_subtract = (
-                    0
-                    if self.args.empty_lines
-                    else len([line for line in b.lines if not line.strip()])
-                )
-                line_count = (
-                    total_line_count - comment_lines_subtract - empty_lines_subtract
-                )
-                author2line_count[author] += line_count
-                if not person.filter_matched:
-                    if fstr not in target[author]:
-                        target[author][fstr] = FileStat(fstr)
-                    target[author][fstr].stat.line_count += line_count  # type: ignore
-                    target[author]["*"].stat.line_count += line_count
-                    target["*"]["*"].stat.line_count += line_count
-        authors = list(author2line_count.keys())
-        authors = sorted(authors, key=lambda x: author2line_count[x], reverse=True)
-        self._blame_authors = authors
-        return target

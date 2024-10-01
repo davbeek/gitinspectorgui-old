@@ -6,7 +6,7 @@ from typing import TypeVar
 
 from git import InvalidGitRepositoryError, NoSuchPathError, PathLike, Repo
 
-from gigui.args_settings_keys import Args
+from gigui.args_settings import Args
 from gigui.blame import BlameReader, BlameTables
 from gigui.data import FileStat, MultiCommit, Person, PersonsDB, PersonStat
 from gigui.stats_reader import StatsReader
@@ -239,50 +239,6 @@ class StatsTables:
         return af2pf_stat
 
 
-def is_dir_safe(pathlike: PathLike) -> bool:
-
-    try:
-        return os.path.isdir(pathlike)
-    except PermissionError:
-        logger.warning(f"Permission denied for path {str(pathlike)}")
-        return False
-
-
-def subdirs_safe(pathlike: PathLike) -> list[Path]:
-    try:
-        if not is_dir_safe(pathlike):
-            return []
-        subs = os.listdir(pathlike)
-        subpaths = [Path(pathlike) / sub for sub in subs]
-        return [path for path in subpaths if is_dir_safe(path)]
-    # Exception when the os does not allow to list the contents of the path dir:
-    except PermissionError:
-        logger.warning(f"Permission denied for path {str(pathlike)}")
-        return []
-
-
-def is_git_repo(pathlike: PathLike) -> bool:
-    path = Path(pathlike)
-    try:
-        git_path = path / ".git"
-        if git_path.is_symlink():
-            git_path = git_path.resolve()
-            if not git_path.is_dir():
-                return False
-        elif not git_path.is_dir():
-            return False
-    except (PermissionError, TimeoutError):  # git_path.is_symlink() may time out
-        return False
-
-    try:
-        # The default True value of expand_vars leads to confusing warnings from
-        # GitPython for many paths from system folders.
-        repo = Repo(path, expand_vars=False)
-        return not repo.bare
-    except (InvalidGitRepositoryError, NoSuchPathError):
-        return False
-
-
 def get_repos(pathlike: PathLike, depth: int) -> list[list[GIRepo]]:
     path = Path(pathlike)
     repo_lists: list[list[GIRepo]]
@@ -308,6 +264,49 @@ def get_repos(pathlike: PathLike, depth: int) -> list[list[GIRepo]]:
             return repo_lists
     else:
         log(f"Path {pathlike} is not a directory")
+        return []
+
+
+def is_dir_safe(pathlike: PathLike) -> bool:
+    try:
+        return os.path.isdir(pathlike)
+    except PermissionError:
+        logger.warning(f"Permission denied for path {str(pathlike)}")
+        return False
+
+
+def is_git_repo(pathlike: PathLike) -> bool:
+    path = Path(pathlike)
+    try:
+        git_path = path / ".git"
+        if git_path.is_symlink():
+            git_path = git_path.resolve()
+            if not git_path.is_dir():
+                return False
+        elif not git_path.is_dir():
+            return False
+    except (PermissionError, TimeoutError):  # git_path.is_symlink() may time out
+        return False
+
+    try:
+        # The default True value of expand_vars leads to confusing warnings from
+        # GitPython for many paths from system folders.
+        repo = Repo(path, expand_vars=False)
+        return not repo.bare
+    except (InvalidGitRepositoryError, NoSuchPathError):
+        return False
+
+
+def subdirs_safe(pathlike: PathLike) -> list[Path]:
+    try:
+        if not is_dir_safe(pathlike):
+            return []
+        subs = os.listdir(pathlike)
+        subpaths = [Path(pathlike) / sub for sub in subs]
+        return [path for path in subpaths if is_dir_safe(path)]
+    # Exception when the os does not allow to list the contents of the path dir:
+    except PermissionError:
+        logger.warning(f"Permission denied for path {str(pathlike)}")
         return []
 
 

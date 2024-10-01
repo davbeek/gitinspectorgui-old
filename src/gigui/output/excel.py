@@ -374,13 +374,6 @@ class Book:
             AUTHOR_LIGHT_PURPLE,
             AUTHOR_LIGHT_GRAY,
         ]
-        self.add_authors_sheet()
-        self.add_authors_files_sheet()
-        self.add_files_authors_sheet()
-        self.add_files_sheet()
-        if not blame_skip:
-            self.add_blame_sheets()
-        self.close()
 
         self.add_format("align_left", {"align": "left"})
         self.add_format("align_right", {"align": "right"})
@@ -390,7 +383,7 @@ class Book:
             {"bg_color": WHITE, "border": 1, "border_color": ROW_WHITE_BORDER},
         )
         self.add_format(
-            "row_lightgreen",
+            "row_light_green",
             {
                 "bg_color": ROW_LIGHT_GREEN,
                 "border": 1,
@@ -418,6 +411,14 @@ class Book:
             )
 
         Path(self.outfile).unlink(missing_ok=True)
+
+        self.add_authors_sheet()
+        self.add_authors_files_sheet()
+        self.add_files_authors_sheet()
+        self.add_files_sheet()
+        if not blame_skip:
+            self.add_blame_sheets()
+        self.close()
 
     def add_format(self, format_name: str, format_spec: FormatSpec) -> None:
         excel_format = self.workbook.add_format(format_spec)

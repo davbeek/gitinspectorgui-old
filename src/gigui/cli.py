@@ -7,7 +7,7 @@ from pathlib import Path
 
 from gigui import gitinspector
 from gigui._logging import add_cli_handler, set_logging_level_from_verbosity
-from gigui.args_settings_keys import Args, CLIArgs, Settings, SettingsFile
+from gigui.args_settings import Args, CLIArgs, Settings, SettingsFile
 from gigui.cli_arguments import define_arguments
 from gigui.constants import DEFAULT_EXTENSIONS, DEFAULT_FORMAT
 from gigui.gui.psg import run as run_gui
