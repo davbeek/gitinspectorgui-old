@@ -239,7 +239,7 @@ class StatsTables:
     ) -> None:
         """
         Calculate the percentage of insertions and lines for each author or file.
-        The percentages are stored in the stat objects from the af2pfstat dictionary.
+        The percentages are stored in the stat objects from the af2pf_stat dictionary.
         This dictionary is edited in place and serves as input and output.
         """
         for af in af2pf_stat.keys():  # af is either an author or fstr

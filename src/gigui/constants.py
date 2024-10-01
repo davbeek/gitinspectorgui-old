@@ -43,7 +43,7 @@ DEFAULT_EXTENSIONS = [
 ]
 
 # Output settings webview viewer
-WEBVIEW_WIDTH = 1200
+WEBVIEW_WIDTH = 1400
 WEBVIEW_HEIGHT = 800
 
 # Output settings web browser

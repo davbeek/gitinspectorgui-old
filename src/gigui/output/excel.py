@@ -124,12 +124,12 @@ class TableSheet(Sheet):
 
         self.head2col: dict[str, int] = {}
         self.head2format_name: dict[str, str] = {}
-        self.head2width: dict[str, int] = {}
 
-        self.worksheet.set_zoom(ZOOM_LEVEL)
-        self.head2width |= {
+        self.head2width: dict[str, int] = {
             "ID": 4,
         }
+
+        self.worksheet.set_zoom(ZOOM_LEVEL)
         self.head2format_name["ID"] = "align_left"
 
     def create_header(self) -> list[dict[str, str]]:
@@ -348,12 +348,12 @@ class BlameSheet(TableSheet):
         self.add_table(header)
 
         self.set_excel_column_formats()
-        # Override font of Code column to default font by using default header format
-        self.worksheet.write(
-            0, self.head2col["Code"], "Code", self.formats["header_format"]
-        )
-        # Override right alignment of SHA column with left alignment for header
-        self.worksheet.write(0, self.head2col["SHA"], "SHA", self.formats["align_left"])
+
+        # Override font of Code column to default font by setting the format to None
+        for col_name in ["SHA", "Code"]:
+            self.worksheet.write(
+                0, self.head2col[col_name], col_name, self.formats["clear"]
+            )
 
         self.set_conditional_author_formats()
 
@@ -380,7 +380,8 @@ class Book:
             AUTHOR_LIGHT_GRAY,
         ]
 
-        self.add_format("header_format", {"bold": True})
+        # Remove all formatting, so that the default format is used.
+        self.add_format("clear", {})
 
         self.add_format("align_left", {"align": "left"})
         self.add_format("align_right", {"align": "right"})

@@ -8,7 +8,6 @@
     //  - trailing: Render only trailing whitespace characters.
     //  - all
     "editor.formatOnSave": true,
-    "editor.renderWhitespace": "boundary",
     "editor.rulers": [
         88,
     ],
