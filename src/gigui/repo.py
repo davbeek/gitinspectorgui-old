@@ -113,6 +113,15 @@ class GIRepo:
             self.stat_tables.calculate_percentages(
                 self.author2pstat, total_insertions, total_lines
             )
+            for _, fstr2fstat in self.author2fstr2fstat.items():
+                self.stat_tables.calculate_percentages(
+                    fstr2fstat, total_insertions, total_lines
+                )
+            for _, author2fstat in self.fstr2author2fstat.items():
+                self.stat_tables.calculate_percentages(
+                    author2fstat, total_insertions, total_lines
+                )
+
             return True
         finally:
             self.stats_reader.git_repo.close()
@@ -227,16 +236,19 @@ class StatsTables:
         af2pf_stat: dict[AuthorOrFileStr, PersonStatOrFileStat],
         total_insertions: int,
         total_lines: int,
-    ) -> dict[AuthorOrFileStr, PersonStatOrFileStat]:
-        afs = af2pf_stat.keys()
-        for af in afs:  # af is either an author or fstr
+    ) -> None:
+        """
+        Calculate the percentage of insertions and lines for each author or file.
+        The percentages are stored in the stat objects from the af2pfstat dictionary.
+        This dictionary is edited in place and serves as input and output.
+        """
+        for af in af2pf_stat.keys():  # af is either an author or fstr
             af2pf_stat[af].stat.percent_insertions = divide_to_percentage(
                 af2pf_stat[af].stat.insertions, total_insertions
             )
             af2pf_stat[af].stat.percent_lines = divide_to_percentage(
                 af2pf_stat[af].stat.line_count, total_lines
             )
-        return af2pf_stat
 
 
 def get_repos(pathlike: PathLike, depth: int) -> list[list[GIRepo]]:
