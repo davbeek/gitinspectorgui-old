@@ -116,7 +116,8 @@ def get_is_comment_lines(
             if line_startswith_line_marker(extension, line):
                 is_comment_lines.append(True)
             elif line_startswith_start_marker(extension, line):
-                in_multiline_comment = True
+                if not line_endswith_end_marker(extension, line):
+                    in_multiline_comment = True
                 is_comment_lines.append(True)
             elif not marker_must_be_at_beginning(
                 extension

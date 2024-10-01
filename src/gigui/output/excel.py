@@ -325,11 +325,11 @@ class BlameSheet(TableSheet):
         for row, is_comment in zip(rows, is_comments):
             self.next_row()
             code_col: int = self.head2col["Code"]
+            self.write_row(row[:code_col])
             if is_comment:
-                self.write_row(row[:code_col])
-                self.write(row[code_col], self.formats["italic"])
+                self.write(row[code_col], self.formats["code_italic_format"])
             else:
-                self.write_row(row)
+                self.write(row[code_col], self.formats["code_format"])
 
         self.head2format_name |= {
             "Date": "date_format",
@@ -344,13 +344,18 @@ class BlameSheet(TableSheet):
             "Line": 6,
             "Code": 120,
         }
-        self.add_table(header)
-        self.set_excel_column_formats()
-        self.set_conditional_author_formats()
 
+        self.add_table(header)
+
+        self.set_excel_column_formats()
+        # Override font of Code column to default font by using default header format
+        self.worksheet.write(
+            0, self.head2col["Code"], "Code", self.formats["header_format"]
+        )
         # Override right alignment of SHA column with left alignment for header
-        col = self.head2col["SHA"]
-        self.worksheet.write(0, col, "SHA", self.formats["align_left"])
+        self.worksheet.write(0, self.head2col["SHA"], "SHA", self.formats["align_left"])
+
+        self.set_conditional_author_formats()
 
 
 class Book:
@@ -375,6 +380,8 @@ class Book:
             AUTHOR_LIGHT_GRAY,
         ]
 
+        self.add_format("header_format", {"bold": True})
+
         self.add_format("align_left", {"align": "left"})
         self.add_format("align_right", {"align": "right"})
 
@@ -397,11 +404,16 @@ class Book:
         self.add_format(
             "SHA_format", {"align": "right", "font_name": "Menlo", "font_size": "9.5"}
         )
-        self.add_format(
-            "code_format", {"font_name": "Menlo", "font_size": "9.5", "indent": 1}
-        )
+
+        code_format: dict[str, str | int | float] = {
+            "font_name": "Menlo",
+            "font_size": 9.5,
+            "indent": 1,
+        }
+        self.add_format("code_format", code_format)
+        self.add_format("code_italic_format", {**code_format, "italic": True})
+
         self.add_format("date_format", {"num_format": 14})
-        self.add_format("italic", {"italic": True})
 
         for c in self.author_colors:
             self.author_color_formats.append(

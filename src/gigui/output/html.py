@@ -145,29 +145,26 @@ class HTMLTable:
             table_row = (
                 f"<tr class='{bg_author_colors[(int(row[0]) % bg_colors_cnt)]}'>\n"
             )
-
-            if is_comment:
-                for i in range(0, len(row) - 1):
-                    data = row[i]
+            for i, data in enumerate(row):
+                head = header[i]
+                if head != "Code":
                     table_row += (
                         f"<td class='{header_class_dict[header[i]]}'>{data}</td>\n"
                     )
-                table_row += f"<td class='comment-col'>{row[-1]}</td>\n"
-            else:
-                row[7] = (
-                    str(row[7])
-                    .replace(" ", "&nbsp;")
-                    .replace("<", "&lt;")
-                    .replace(">", "&gt;")
-                    .replace('"', "&quot;")
-                )
-                for i, data in enumerate(row):
-                    head = header[i]
-                    new_data = self.empty_to_nbsp(data) if head == "Code" else data  # type: ignore
-                    table_row += (
-                        f"<td class='{header_class_dict[head]}'>{new_data}</td>\n"
+                else:  # head == "Code"
+                    new_data = (
+                        str(data)
+                        .replace(" ", "&nbsp;")
+                        .replace("<", "&lt;")
+                        .replace(">", "&gt;")
+                        .replace('"', "&quot;")
                     )
-
+                    if is_comment:
+                        table_row += f"<td class='comment-col'>{new_data}</td>\n"
+                    else:
+                        table_row += (
+                            f"<td class='{header_class_dict[head]}'>{new_data}</td>\n"
+                        )
             table_row += "</tr>\n"
 
             table += table_row
