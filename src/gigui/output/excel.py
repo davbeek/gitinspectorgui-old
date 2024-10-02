@@ -1,3 +1,4 @@
+import platform
 import sys
 from pathlib import Path
 
@@ -402,17 +403,33 @@ class Book:
             "num_format",
             {"num_format": "0"},
         )
-        self.add_format(
-            "SHA_format", {"align": "right", "font_name": "Menlo", "font_size": "9.5"}
-        )
 
-        code_format: dict[str, str | int | float] = {
-            "font_name": "Menlo",
-            "font_size": 9.5,
-            "indent": 1,
-        }
-        self.add_format("code_format", code_format)
-        self.add_format("code_italic_format", {**code_format, "italic": True})
+        fixed_width_font: dict[str, str | int | float]
+        match platform.system():
+            case "Windows":
+                fixed_width_font = {
+                    "font_name": "Consolas",
+                    "font_size": 10,
+                }
+            case "Darwin":
+                fixed_width_font = {
+                    "font_name": "Menlo",
+                    "font_size": 9.5,
+                }
+            case _:
+                fixed_width_font = {
+                    "font_name": "Liberation Mono, 'DejaVu Sans Mono', 'Ubuntu Mono', Courier New",
+                    "font_size": 9.5,
+                }
+
+        sha_format_spec = {**fixed_width_font, "align": "right"}
+        self.add_format("SHA_format", sha_format_spec)
+
+        code_format_spec = {**fixed_width_font, "indent": 1}
+        self.add_format("code_format", code_format_spec)
+        self.add_format(
+            "code_italic_format", {**fixed_width_font, "indent": 1, "italic": True}
+        )
 
         self.add_format("date_format", {"num_format": 14})
 
