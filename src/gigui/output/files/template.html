@@ -58,13 +58,14 @@
             padding-left: 8px;
         }
 
-        .number-col {
-            text-align: right;
-            padding-right: 8px;
-        }
-
         th {
             background-color: #CCFF99;
+            text-align: left;
+        }
+
+        td.number-col {
+            text-align: right;
+            padding-right: 8px;
         }
 
         .bg-th-green {
@@ -168,7 +169,7 @@
         }
 
         .sha-col {
-            width: 50px;
+            width: 60px;
         }
 
         .commit-number-col {
@@ -181,8 +182,13 @@
 
         td.code-col,
         td.comment-col {
-            font-family: "Menlo", "Courier", "monospace";
             width: 800px;
+        }
+
+        td.sha-col,
+        td.code-col,
+        td.comment-col {
+            font-family: "Menlo", "Courier", "monospace";
         }
 
         td.comment-col {
