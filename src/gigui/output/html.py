@@ -152,18 +152,22 @@ class HTMLTable:
                         f"<td class='{header_class_dict[header[i]]}'>{data}</td>\n"
                     )
                 else:  # head == "Code"
-                    new_data = (
-                        str(data)
-                        .replace(" ", "&nbsp;")
-                        .replace("<", "&lt;")
-                        .replace(">", "&gt;")
-                        .replace('"', "&quot;")
-                    )
+                    if data:
+                        data = (
+                            str(data)
+                            .replace(" ", "&nbsp;")
+                            .replace("<", "&lt;")
+                            .replace(">", "&gt;")
+                            .replace('"', "&quot;")
+                        )
+                    else:
+                        # empty line of code
+                        data = "&nbsp;"
                     if is_comment:
-                        table_row += f"<td class='comment-col'>{new_data}</td>\n"
+                        table_row += f"<td class='comment-col'>{data}</td>\n"
                     else:
                         table_row += (
-                            f"<td class='{header_class_dict[head]}'>{new_data}</td>\n"
+                            f"<td class='{header_class_dict[head]}'>{data}</td>\n"
                         )
             table_row += "</tr>\n"
 

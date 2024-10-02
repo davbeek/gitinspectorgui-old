@@ -155,7 +155,6 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
     )
     files_group.add_argument(
         "-f",
-        "--inc-files",
         "--include-files",
         action=SplitAppendArgs,
         metavar="PATTERNS",
