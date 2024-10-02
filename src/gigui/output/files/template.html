@@ -11,14 +11,30 @@
             font-size: 12px;
         }
 
+        td.sha-col,
+        td.code-col,
+        td.comment-col {
+            font-family: "Menlo", "Courier", "monospace";
+            font-size: 11px;
+        }
+
+
         table {
             table-layout: fixed;
+            /* borders of adjacent cells are collapsed into one */
+            border-collapse: collapse;
+        }
+
+        tr {
+            border-bottom: 1px solid lightgrey;
         }
 
         td {
             white-space: nowrap;
             overflow: hidden;
         }
+
+
 
         td.author-col,
         td.email-col,
@@ -28,9 +44,12 @@
         td.comment-col {
             display: block;
             text-overflow: ellipsis;
-            border-left: none;
-            border-right: none;
-            border-bottom: none;
+            border: none;
+        }
+
+        .author-col,
+        .file-col {
+            border: none
         }
 
         td.author-col:hover,
@@ -185,14 +204,15 @@
             width: 800px;
         }
 
-        td.sha-col,
-        td.code-col,
-        td.comment-col {
-            font-family: "Menlo", "Courier", "monospace";
-        }
-
         td.comment-col {
             font-style: italic;
+        }
+
+        td {
+            border-top: none;
+            border-bottom: none;
+            border-left: 1px solid lightgrey;
+            border-right: 1px solid lightgrey;
         }
     </style>
 </head>
