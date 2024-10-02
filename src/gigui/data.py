@@ -16,10 +16,10 @@ logger = logging.getLogger(__name__)
 NOW = int(time.time())  # current time as Unix timestamp in seconds since epoch
 
 
-# A MultiCommit holds the sum of commit data for commits that share the same person
+# A CommitGroup holds the sum of commit data for commits that share the same person
 # author and file name.
 @dataclass
-class MultiCommit:
+class CommitGroup:
     fstr: FileStr
     author: Author
     insertions: int
@@ -71,11 +71,11 @@ class Stat:
         self.date_sum = self.date_sum + other.date_sum
         self.line_count = self.line_count + other.line_count
 
-    def add_multicommit(self, multicommit: MultiCommit):
-        self.commits |= multicommit.commits
-        self.insertions += multicommit.insertions
-        self.deletions += multicommit.deletions
-        self.date_sum += multicommit.date_sum
+    def add_commit_group(self, commit_group: CommitGroup):
+        self.commits |= commit_group.commits
+        self.insertions += commit_group.insertions
+        self.deletions += commit_group.deletions
+        self.date_sum += commit_group.date_sum
 
     @staticmethod
     def timestamp_to_age(time_stamp: int) -> str:
@@ -125,9 +125,9 @@ class FileStat:
         if name not in self.names:
             self.names.append(name)
 
-    def add_multicommit(self, multicommit: MultiCommit) -> None:
-        self.add_name(multicommit.fstr)
-        self.stat.add_multicommit(multicommit)
+    def add_commit_group(self, commit_group: CommitGroup) -> None:
+        self.add_name(commit_group.fstr)
+        self.stat.add_commit_group(commit_group)
 
     @property
     def names_str(self) -> str:

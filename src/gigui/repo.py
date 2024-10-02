@@ -8,7 +8,7 @@ from git import InvalidGitRepositoryError, NoSuchPathError, PathLike, Repo
 
 from gigui.args_settings import Args
 from gigui.blame import BlameReader, BlameTables
-from gigui.data import FileStat, MultiCommit, Person, PersonsDB, PersonStat
+from gigui.data import CommitGroup, FileStat, Person, PersonsDB, PersonStat
 from gigui.stats_reader import StatsReader
 from gigui.typedefs import Author, FileStr
 from gigui.utils import divide_to_percentage, log
@@ -79,7 +79,7 @@ class GIRepo:
             # Set stats.author2fstr2fstat, the basis of all other stat tables
             self.author2fstr2fstat = self.stat_tables.get_author2fstr2fstat(
                 self.stats_reader.fstrs,
-                self.stats_reader.fstr2multicommits,
+                self.stats_reader.fstr2commit_groups,
                 self.stats_reader.persons_db,
             )
             if list(self.author2fstr2fstat.keys()) == ["*"]:
@@ -91,7 +91,7 @@ class GIRepo:
             )
 
             self.fstr2fstat = self.stat_tables.get_fstr2fstat(
-                self.author2fstr2fstat, self.stats_reader.fstr2multicommits
+                self.author2fstr2fstat, self.stats_reader.fstr2commit_groups
             )
             if list(self.fstr2fstat.keys()) == ["*"]:
                 return False
@@ -146,7 +146,7 @@ class StatsTables:
     @staticmethod
     def get_author2fstr2fstat(
         fstrs: list[FileStr],
-        fstr2mcommits: dict[FileStr, list[MultiCommit]],
+        fstr2commit_groups: dict[FileStr, list[CommitGroup]],
         persons_db: PersonsDB,
     ) -> dict[Author, dict[FileStr, FileStat]]:
         target: dict[Author, dict[FileStr, FileStat]] = {"*": {}}
@@ -156,19 +156,19 @@ class StatsTables:
             target[author]["*"] = FileStat("*")
         # Start with last commit and go back in time
         for fstr in fstrs:
-            for mcommit in fstr2mcommits[fstr]:
-                target["*"]["*"].stat.add_multicommit(mcommit)
-                author = persons_db.get_author(mcommit.author)
-                target[author]["*"].stat.add_multicommit(mcommit)
+            for commit_group in fstr2commit_groups[fstr]:
+                target["*"]["*"].stat.add_commit_group(commit_group)
+                author = persons_db.get_author(commit_group.author)
+                target[author]["*"].stat.add_commit_group(commit_group)
                 if fstr not in target[author]:
                     target[author][fstr] = FileStat(fstr)
-                target[author][fstr].add_multicommit(mcommit)
+                target[author][fstr].add_commit_group(commit_group)
         return target
 
     @staticmethod
     def get_fstr2fstat(
         author2fstr2fstat: dict[Author, dict[FileStr, FileStat]],
-        fstr2mcommits: dict[FileStr, list[MultiCommit]],
+        fstr2commit_group: dict[FileStr, list[CommitGroup]],
     ) -> dict[FileStr, FileStat]:
         source = author2fstr2fstat
         target: dict[FileStr, FileStat] = {}
@@ -184,9 +184,9 @@ class StatsTables:
                             target[fstr] = FileStat(fstr)
                         target[fstr].stat.add(fstat.stat)
         for fstr in fstrs:
-            for mcommit in fstr2mcommits[fstr]:
+            for commit_group in fstr2commit_group[fstr]:
                 # Order of names must correspond to the order of the commits
-                target[fstr].add_name(mcommit.fstr)
+                target[fstr].add_name(commit_group.fstr)
         return target
 
     @staticmethod
@@ -314,8 +314,8 @@ def subdirs_safe(pathlike: PathLike) -> list[Path]:
         if not is_dir_safe(pathlike):
             return []
         subs = os.listdir(pathlike)
-        subpaths = [Path(pathlike) / sub for sub in subs]
-        return [path for path in subpaths if is_dir_safe(path)]
+        sub_paths = [Path(pathlike) / sub for sub in subs]
+        return [path for path in sub_paths if is_dir_safe(path)]
     # Exception when the os does not allow to list the contents of the path dir:
     except PermissionError:
         logger.warning(f"Permission denied for path {str(pathlike)}")

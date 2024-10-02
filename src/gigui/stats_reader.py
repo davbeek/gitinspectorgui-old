@@ -8,7 +8,7 @@ from git import PathLike, Repo
 
 from gigui.args_settings import Args
 from gigui.blame import BlameReader, Commit
-from gigui.data import MultiCommit, Person, PersonsDB, RepoStats
+from gigui.data import CommitGroup, Person, PersonsDB, RepoStats
 from gigui.typedefs import Author, FileStr, Rev, SHAlong, SHAshort
 
 logger = logging.getLogger(__name__)
@@ -44,7 +44,7 @@ class StatsReader:
         # Dict of file names to their sizes:
         self.fstr2lines: dict[FileStr, int] = {}
 
-        self.fstr2multicommits: dict[FileStr, list[MultiCommit]] = {}
+        self.fstr2commit_groups: dict[FileStr, list[CommitGroup]] = {}
         self.stats = RepoStats()
         self.persons_db: PersonsDB = PersonsDB()
 
@@ -225,17 +225,17 @@ class StatsReader:
             fstrs = copy.deepcopy(self.fstrs)
             # Default sorting order ascending: from small to large, so the first element
             # is the smallest.
-            fstrs.sort(key=lambda x: len(self.fstr2multicommits[x]))
+            fstrs.sort(key=lambda x: len(self.fstr2commit_groups[x]))
             while fstrs:
                 fstr1 = fstrs.pop()
-                multicommits1 = self.fstr2multicommits[fstr1]
-                if not multicommits1:
+                commit_groups1 = self.fstr2commit_groups[fstr1]
+                if not commit_groups1:
                     continue
                 for fstr2 in fstrs:
-                    multicommits2 = self.fstr2multicommits[fstr2]
+                    commit_groups2 = self.fstr2commit_groups[fstr2]
                     i = -1
-                    while multicommits2 and multicommits1[i] == multicommits2[-1]:
-                        multicommits2.pop()
+                    while commit_groups2 and commit_groups1[i] == commit_groups2[-1]:
+                        commit_groups2.pop()
                         i -= 1
 
         if self.args.multi_thread:
@@ -245,11 +245,15 @@ class StatsReader:
             ]
             for future in as_completed(futures):
                 lines_str, fstr = future.result()
-                self.fstr2multicommits[fstr] = self._process_commit_lines_for(lines_str)
+                self.fstr2commit_groups[fstr] = self._process_commit_lines_for(
+                    lines_str
+                )
         else:  # single thread
             for fstr in self.fstrs:
                 lines_str, fstr = self._get_commit_lines_for(fstr)
-                self.fstr2multicommits[fstr] = self._process_commit_lines_for(lines_str)
+                self.fstr2commit_groups[fstr] = self._process_commit_lines_for(
+                    lines_str
+                )
         reduce_commits()
 
     def _get_commit_lines_for(self, fstr: FileStr) -> tuple[str, FileStr]:
@@ -277,8 +281,8 @@ class StatsReader:
         return lines_str, fstr
 
     # pylint: disable=too-many-locals
-    def _process_commit_lines_for(self, lines_str: str) -> list[MultiCommit]:
-        commits: list[MultiCommit] = []
+    def _process_commit_lines_for(self, lines_str: str) -> list[CommitGroup]:
+        commits: list[CommitGroup] = []
         lines = lines_str.splitlines()
         while lines:
             line = lines.pop(0)
@@ -349,7 +353,7 @@ class StatsReader:
                 commits[-1].insertions += insertions
                 commits[-1].deletions += deletions
             else:
-                commit = MultiCommit(
+                commit = CommitGroup(
                     date_sum=int(timestamp) * insertions,
                     author=author,
                     fstr=fstr,
