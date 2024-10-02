@@ -13,7 +13,6 @@ node_modules
 .pre-commit-config.yaml
 dist
 
-.vscode/launch.json
 .zshrc
 gitinspect.txt
 gitinspect.xlsx

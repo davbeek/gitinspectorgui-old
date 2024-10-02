@@ -1,0 +1,46 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python Debugger: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "justMyCode": false,
+            "console": "integratedTerminal",
+        },
+        {
+            "name": "gigui module",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "gigui",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
+            // "cwd": "${userHome}/1-repos/templates/1dh",
+            "args": [
+                // ".",
+                // "${workspaceFolder}",
+                "${workspaceFolder}/../../templates/1dh",
+                // "--gui",
+                // "--ex-author=Bert",
+                // "--ex-file=lib"
+                // "--scaled-percentages",
+                // "--ex-author=^(?!(Bert van Beek))",
+                // "--ex-author=bert"
+                // "--since=2024-06-01",
+                // "--async=2",
+                // "--dry-run=2",
+                // "-F=excel",
+                // "-F=html",
+                // "--include-files=output",
+                // "-e=html"
+                // "--multi-core",
+                // "--multi-thread",
+                // "--viewer=none",
+            ],
+        }
+    ]
+}
