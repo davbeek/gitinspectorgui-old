@@ -62,13 +62,21 @@ class HTMLTable:
         self.outfile = name
         self.subfolder = subfolder
 
-    def add_conditional_styles_table(
+    def add_authors_table(self) -> Html:
+        rows: list[Row] = self.out_rows.get_authors_stats_rows()
+        return self._add_conditional_styles_table(
+            self._insert_str_at(header_authors(), "Empty", 2),
+            self._insert_empties_at(rows, 2),
+            bg_author_colors,
+        )
+
+    def _add_conditional_styles_table(
         self, header: list[str], rows: list[Row], bg_colors: list[str]
     ) -> Html:
         bg_colors_cnt = len(bg_colors)
 
         table = "<table>\n"
-        table += self.add_header(header)
+        table += self._add_header(header)
 
         for row in rows:
             table_row = f"<tr class='{bg_colors[(int(row[0]) % bg_colors_cnt)]}'>\n"
@@ -80,10 +88,9 @@ class HTMLTable:
             table += table_row
 
         table += "</table>\n"
-
         return table
 
-    def add_header(self, headers: list[str]) -> str:
+    def _add_header(self, headers: list[str]) -> str:
         table_header = "<tr class=bg-th-green>\n"
         for col in headers:
             header_class = header_class_dict[col]
@@ -92,53 +99,42 @@ class HTMLTable:
         table_header += "</tr>\n"
         return table_header
 
-    def insert_str_at(self, lst: list[str], s: str, i: int) -> list[str]:
+    def _insert_str_at(self, lst: list[str], s: str, i: int) -> list[str]:
         return lst[:i] + [s] + lst[i:]
 
-    def insert_empties_at(self, rows: list[Row], i: int) -> list[Row]:
+    def _insert_empties_at(self, rows: list[Row], i: int) -> list[Row]:
         new_rows: list[Row] = []
         for row in rows:
-            new_row: Row = self.insert_str_at(row, "", i)  # type: ignore
+            new_row: Row = self._insert_str_at(row, "", i)  # type: ignore
             new_rows.append(new_row)
         return new_rows
 
-    def empty_to_nbsp(self, s: str) -> str:
-        return s if s.strip() else "&nbsp;"
-
-    def add_authors_table(self) -> Html:
-        rows: list[Row] = self.out_rows.get_authors_stats_rows()
-        return self.add_conditional_styles_table(
-            self.insert_str_at(header_authors(), "Empty", 2),
-            self.insert_empties_at(rows, 2),
-            bg_author_colors,
-        )
-
     def add_authors_files_table(self) -> Html:
         rows: list[Row] = self.out_rows.get_authors_files_stats_rows()
-        return self.add_conditional_styles_table(
-            self.insert_str_at(header_authors_files(), "Empty", 2),
-            self.insert_empties_at(rows, 2),
+        return self._add_conditional_styles_table(
+            self._insert_str_at(header_authors_files(), "Empty", 2),
+            self._insert_empties_at(rows, 2),
             bg_author_colors,
         )
 
     def add_files_authors_table(self) -> Html:
         rows: list[Row] = self.out_rows.get_files_authors_stats_rows()
-        return self.add_conditional_styles_table(
-            self.insert_str_at(header_files_authors(), "Empty", 2),
-            self.insert_empties_at(rows, 2),
+        return self._add_conditional_styles_table(
+            self._insert_str_at(header_files_authors(), "Empty", 2),
+            self._insert_empties_at(rows, 2),
             bg_author_colors,
         )
 
     def add_files_table(self) -> Html:
         rows: list[Row] = self.out_rows.get_files_stats_rows()
-        return self.add_conditional_styles_table(header_files(), rows, bg_row_colors)
+        return self._add_conditional_styles_table(header_files(), rows, bg_row_colors)
 
     def add_blame_table(self, rows_iscomments: tuple[list[Row], list[bool]]) -> Html:
         bg_colors_cnt = len(bg_author_colors)
         header = header_blames()
 
         table = "<table>\n"
-        table += self.add_header(header)
+        table += self._add_header(header)
 
         rows, is_comments = rows_iscomments
         for row, is_comment in zip(rows, is_comments):
@@ -208,32 +204,6 @@ class HTMLModifier:
     def __init__(self, html: Html) -> None:
         self.soup = BeautifulSoup(html, "html.parser")
 
-    def new_nav_tab(self, name: str) -> Tag:
-        nav_li = self.soup.new_tag("li", attrs={"class": "nav-item"})
-        nav_bt = self.soup.new_tag(
-            "button",
-            attrs={
-                "class": "nav-link",
-                "id": name + "-tab",
-                "data-bs-toggle": "tab",
-                "data-bs-target": "#" + name,
-            },
-        )
-        nav_bt.string = name
-        nav_li.append(nav_bt)
-        return nav_li
-
-    def new_tab_content(self, name: str) -> Tag:
-        div = self.soup.new_tag(
-            "div",
-            attrs={
-                "class": "tab-pane fade",
-                "id": name,
-            },
-        )
-        div.string = "__" + name + "__"
-        return div
-
     def add_blame_tables_to_html(
         self, blames_htmls: list[tuple[FileStr, Html]]
     ) -> Html:
@@ -264,6 +234,32 @@ class HTMLModifier:
                 )
 
         return str(self.soup)
+
+    def new_nav_tab(self, name: str) -> Tag:
+        nav_li = self.soup.new_tag("li", attrs={"class": "nav-item"})
+        nav_bt = self.soup.new_tag(
+            "button",
+            attrs={
+                "class": "nav-link",
+                "id": name + "-tab",
+                "data-bs-toggle": "tab",
+                "data-bs-target": "#" + name,
+            },
+        )
+        nav_bt.string = name
+        nav_li.append(nav_bt)
+        return nav_li
+
+    def new_tab_content(self, name: str) -> Tag:
+        div = self.soup.new_tag(
+            "div",
+            attrs={
+                "class": "tab-pane fade",
+                "id": name,
+            },
+        )
+        div.string = "__" + name + "__"
+        return div
 
 
 # pylint: disable=too-many-locals
