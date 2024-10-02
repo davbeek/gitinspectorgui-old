@@ -18,6 +18,8 @@ if (Test-Path $TARGET_DIR_FILE) {
 else {
     $APP_TARGET_DIR = "$ROOT_DIR/app/pyinstall-setup/"
 }
+# Use Invoke-Expression to expand the environment variable
+$APP_TARGET_DIR = Invoke-Expression "`"$APP_TARGET_DIR`""
 
 $TARGET = "$APP_TARGET_DIR$SETUP_FILE_BASE-$VERSION.exe"
 
