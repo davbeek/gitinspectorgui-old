@@ -53,7 +53,7 @@ def open_files(fstrs: list[str]):
                     )
 
                 # First argument "" is the title for the new command prompt window.
-                subprocess.run(["start", "", fstrs[0]], check=True)
+                subprocess.run(["start", "", fstrs[0]], check=True, shell=True)
 
             case _:
                 raise RuntimeError(f"Unknown platform {platform.system()}")
