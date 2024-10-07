@@ -54,7 +54,18 @@ bg_author_colors: list[str] = [
 bg_row_colors: list[str] = ["bg-row-light-green", "bg-white"]
 
 
-class HTMLTable:
+class HTMLTables:
+    def _add_header(self, headers: list[str]) -> str:
+        table_header = "<tr class=bg-th-green>\n"
+        for col in headers:
+            header_class = header_class_dict[col]
+            header_content = "" if col == "Empty" else col
+            table_header += f"<th class='{header_class}'>{header_content}</th>\n"
+        table_header += "</tr>\n"
+        return table_header
+
+
+class HTMLStatTables(HTMLTables):
     def __init__(
         self, name: FileStr, out_rows: TableStatsRows, subfolder: FileStr
     ) -> None:
@@ -69,6 +80,26 @@ class HTMLTable:
             self._insert_empties_at(rows, 2),
             bg_author_colors,
         )
+
+    def add_authors_files_table(self) -> Html:
+        rows: list[Row] = self.out_rows.get_authors_files_stats_rows()
+        return self._add_conditional_styles_table(
+            self._insert_str_at(header_authors_files(), "Empty", 2),
+            self._insert_empties_at(rows, 2),
+            bg_author_colors,
+        )
+
+    def add_files_authors_table(self) -> Html:
+        rows: list[Row] = self.out_rows.get_files_authors_stats_rows()
+        return self._add_conditional_styles_table(
+            self._insert_str_at(header_files_authors(), "Empty", 2),
+            self._insert_empties_at(rows, 2),
+            bg_author_colors,
+        )
+
+    def add_files_table(self) -> Html:
+        rows: list[Row] = self.out_rows.get_files_stats_rows()
+        return self._add_conditional_styles_table(header_files(), rows, bg_row_colors)
 
     def _add_conditional_styles_table(
         self, header: list[str], rows: list[Row], bg_colors: list[str]
@@ -90,15 +121,6 @@ class HTMLTable:
         table += "</table>\n"
         return table
 
-    def _add_header(self, headers: list[str]) -> str:
-        table_header = "<tr class=bg-th-green>\n"
-        for col in headers:
-            header_class = header_class_dict[col]
-            header_content = "" if col == "Empty" else col
-            table_header += f"<th class='{header_class}'>{header_content}</th>\n"
-        table_header += "</tr>\n"
-        return table_header
-
     def _insert_str_at(self, lst: list[str], s: str, i: int) -> list[str]:
         return lst[:i] + [s] + lst[i:]
 
@@ -109,25 +131,40 @@ class HTMLTable:
             new_rows.append(new_row)
         return new_rows
 
-    def add_authors_files_table(self) -> Html:
-        rows: list[Row] = self.out_rows.get_authors_files_stats_rows()
-        return self._add_conditional_styles_table(
-            self._insert_str_at(header_authors_files(), "Empty", 2),
-            self._insert_empties_at(rows, 2),
-            bg_author_colors,
+
+class HTMLBlameTables(HTMLTables):
+    def __init__(
+        self, name: FileStr, out_rows: TableStatsRows, subfolder: FileStr
+    ) -> None:
+        self.out_rows = out_rows
+        self.outfile = name
+        self.subfolder = subfolder
+
+    def add_blame_tables(
+        self,
+    ) -> list[tuple[FileStr, Html]]:
+        fstr2rows_iscomments: dict[FileStr, tuple[list[Row], list[bool]]]
+        fstr2rows_iscomments = self.out_rows.get_blames()
+        blame_html_tables: list[tuple[FileStr, Html]] = []
+
+        relative_fstrs = [
+            get_relative_fstr(fstr, self.subfolder)
+            for fstr in fstr2rows_iscomments.keys()
+        ]
+        relative_fstr2truncated = string2truncated(
+            relative_fstrs,
+            MAX_LENGTH_TAB_NAME,
         )
 
-    def add_files_authors_table(self) -> Html:
-        rows: list[Row] = self.out_rows.get_files_authors_stats_rows()
-        return self._add_conditional_styles_table(
-            self._insert_str_at(header_files_authors(), "Empty", 2),
-            self._insert_empties_at(rows, 2),
-            bg_author_colors,
-        )
+        for fstr, rel_fstr in zip(fstr2rows_iscomments.keys(), relative_fstrs):
+            blame_html_tables.append(
+                (
+                    relative_fstr2truncated[rel_fstr],
+                    self.add_blame_table(fstr2rows_iscomments[fstr]),
+                )
+            )
 
-    def add_files_table(self) -> Html:
-        rows: list[Row] = self.out_rows.get_files_stats_rows()
-        return self._add_conditional_styles_table(header_files(), rows, bg_row_colors)
+        return blame_html_tables
 
     def add_blame_table(self, rows_iscomments: tuple[list[Row], list[bool]]) -> Html:
         bg_colors_cnt = len(bg_author_colors)
@@ -172,32 +209,6 @@ class HTMLTable:
         table += "</table>\n"
 
         return table
-
-    def add_blame_tables(
-        self,
-    ) -> list[tuple[FileStr, Html]]:
-        fstr2rows_iscomments: dict[FileStr, tuple[list[Row], list[bool]]]
-        fstr2rows_iscomments = self.out_rows.get_blames()
-        blame_html_tables: list[tuple[FileStr, Html]] = []
-
-        relative_fstrs = [
-            get_relative_fstr(fstr, self.subfolder)
-            for fstr in fstr2rows_iscomments.keys()
-        ]
-        relative_fstr2truncated = string2truncated(
-            relative_fstrs,
-            MAX_LENGTH_TAB_NAME,
-        )
-
-        for fstr, rel_fstr in zip(fstr2rows_iscomments.keys(), relative_fstrs):
-            blame_html_tables.append(
-                (
-                    relative_fstr2truncated[rel_fstr],
-                    self.add_blame_table(fstr2rows_iscomments[fstr]),
-                )
-            )
-
-        return blame_html_tables
 
 
 class HTMLModifier:
@@ -278,9 +289,12 @@ def out_html(
     with open(html_path, "r", encoding="utf-8") as f:
         html_template = f.read()
 
+    html_table: HTMLStatTables
+    html_blame_table: HTMLBlameTables
+
     # Construct the file in memory and add the authors and files to it.
     out_rows = TableStatsRows(repo)
-    html_table = HTMLTable(outfilestr, out_rows, repo.args.subfolder)
+    html_table = HTMLStatTables(outfilestr, out_rows, repo.args.subfolder)
     authors_html = html_table.add_authors_table()
     authors_files_html = html_table.add_authors_files_table()
     files_authors_html = html_table.add_files_authors_table()
@@ -294,7 +308,8 @@ def out_html(
 
     # Add blame output if not skipped.
     if not blame_skip:
-        blames_htmls = html_table.add_blame_tables()
+        html_blame_table = HTMLBlameTables(outfilestr, out_rows, repo.args.subfolder)
+        blames_htmls = html_blame_table.add_blame_tables()
         html_modifier = HTMLModifier(html)
         html = html_modifier.add_blame_tables_to_html(blames_htmls)
 
