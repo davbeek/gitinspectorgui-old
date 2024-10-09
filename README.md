@@ -71,7 +71,12 @@ button will allow the GitinspectorGUI app to be executed.
 For CLI versions, you need to have a working Python installation, so that you
 can install GitinspectorGUI from PyPI via `pip install gitinspectorgui`. You can
 then execute the program by running `python -m gigui -h` to display the help
-info in the CLI. Note that the program name is gitinspectorgui in PyPI, but the
+info in the CLI.
+
+You also need to have a working Git program. For Windows, see the instructions
+under the [GUI](#gui) heading.
+
+Note that the program name is gitinspectorgui in PyPI, but the
 name of the actually installed Python package is the abbreviated form `gigui`.
 
 ## Documentation
