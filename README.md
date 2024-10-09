@@ -30,6 +30,17 @@ Download the gitinspectorgui-setup.exe file, execute it, and follow the
 on-screen installation instructions. The GitinspectorGUI executable will be
 available under the program group GitinspectorGUI.
 
+The GitinspectorGUI app is only about 18MB in size, but it requires Git for
+Windows to be installed on your computer. Git for Windows is around 375MB in
+size and can be downloaded from
+[git-scm.com](https://git-scm.com/downloads/win).
+
+Git for Windows presents numerous questions during installation. For users
+unfamiliar with Git, these questions might seem overwhelming. However, leaving
+all options at their default settings will ensure proper functionality. A
+drawback of using the default settings is that it may add extra context menu
+items in File Explorer and create a Git desktop icon.
+
 #### macOS
 
 Download the appropriate dmg file for your hardware. There are two versions for macOS:
