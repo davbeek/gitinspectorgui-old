@@ -31,6 +31,7 @@ header_class_dict: dict[str, str] = {
     "Insertions": "insertions-col number-col",
     "Stability": "stability-col number-col",
     "Commits": "commits-col number-col",
+    "Deletions": "deletions-col number-col",
     "Age Y:M:D": "age-col number-col",
     "Date": "date-col",
     "Message": "message-col",
@@ -94,7 +95,7 @@ class HTMLStatTables(HTMLTables):
         return self._add_conditional_styles_table(
             self._insert_str_at(header_files_authors(), "Empty", 2),
             self._insert_empties_at(rows, 2),
-            bg_author_colors,
+            bg_row_colors,
         )
 
     def add_files_table(self) -> Html:
