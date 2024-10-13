@@ -214,28 +214,37 @@
             border-left: 1px solid lightgrey;
             border-right: 1px solid lightgrey;
         }
+
+        .sticky {
+            background-color: white;
+            opacity: 1;
+            position: sticky;
+            top: 0;
+        }
     </style>
 </head>
 
 <body>
     <div style="margin-right: auto; margin-left: 0;">
-        <ul class="nav nav-tabs" id="stats-tabs" role="tablist">
-            <li class="nav-item">
-                <button class="nav-link active" id="authors-tab" data-bs-toggle="tab"
-                    data-bs-target="#authors">Authors</button>
-            </li>
-            <li class="nav-item">
-                <button class="nav-link" id="authors-files-tab" data-bs-toggle="tab"
-                    data-bs-target="#authors-files">Authors-Files</button>
-            </li>
-            <li class="nav-item">
-                <button class="nav-link" id="files-authors-tab" data-bs-toggle="tab"
-                    data-bs-target="#files-authors">Files-Authors</button>
-            </li>
-            <li class="nav-item">
-                <button class="nav-link" id="files-tab" data-bs-toggle="tab" data-bs-target="#files">Files</button>
-            </li>
-        </ul>
+        <div class="sticky">
+            <ul class="nav nav-tabs" id="stats-tabs" role="tablist">
+                <li class="nav-item">
+                    <button class="nav-link active" id="authors-tab" data-bs-toggle="tab"
+                        data-bs-target="#authors">Authors</button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" id="authors-files-tab" data-bs-toggle="tab"
+                        data-bs-target="#authors-files">Authors-Files</button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" id="files-authors-tab" data-bs-toggle="tab"
+                        data-bs-target="#files-authors">Files-Authors</button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" id="files-tab" data-bs-toggle="tab" data-bs-target="#files">Files</button>
+                </li>
+            </ul>
+        </div>
 
         <div class="tab-content" id="stats-content">
             <div class="tab-pane fade show active" id="authors">
