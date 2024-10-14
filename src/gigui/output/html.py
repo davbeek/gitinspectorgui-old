@@ -1,7 +1,6 @@
 from pathlib import Path
 
 from bs4 import BeautifulSoup, Tag
-from bs4.formatter import HTMLFormatter
 
 from gigui.output.outbase import (
     TableStatsRows,
@@ -317,5 +316,4 @@ def out_html(
 
     # Convert the table to text and return it.
     soup = BeautifulSoup(html, "html.parser")
-    indent4formatter = HTMLFormatter(indent=4)
-    return soup.prettify(formatter=indent4formatter)
+    return soup.prettify(formatter="html")
