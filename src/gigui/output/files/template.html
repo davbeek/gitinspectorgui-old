@@ -18,7 +18,6 @@
             font-size: 11px;
         }
 
-
         table {
             table-layout: fixed;
             /* borders of adjacent cells are collapsed into one */
@@ -33,8 +32,6 @@
             white-space: nowrap;
             overflow: hidden;
         }
-
-
 
         td.author-col,
         td.email-col,
@@ -227,7 +224,7 @@
 <body>
     <div style="margin-right: auto; margin-left: 0;">
         <div class="sticky">
-            <ul class="nav nav-tabs" id="stats-tabs" role="tablist">
+            <ul class="nav nav-tabs" id="stats-tabs">
                 <li class="nav-item">
                     <button class="nav-link active" id="authors-tab" data-bs-toggle="tab"
                         data-bs-target="#authors">Authors</button>
@@ -245,23 +242,13 @@
                 </li>
             </ul>
         </div>
-
         <div class="tab-content" id="stats-content">
-            <div class="tab-pane fade show active" id="authors">
-                __AUTHORS__
-            </div>
-            <div class="tab-pane fade" id="authors-files">
-                __AUTHORS_FILES__
-            </div>
-            <div class="tab-pane fade" id="files-authors">
-                __FILES_AUTHORS__
-            </div>
-            <div class="tab-pane fade" id="files">
-                __FILES__
-            </div>
+            <div class="tab-pane fade show active" id="authors"> __AUTHORS__ </div>
+            <div class="tab-pane fade" id="authors-files"> __AUTHORS_FILES__ </div>
+            <div class="tab-pane fade" id="files-authors"> __FILES_AUTHORS__ </div>
+            <div class="tab-pane fade" id="files"> __FILES__ </div>
         </div>
     </div>
-
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 
