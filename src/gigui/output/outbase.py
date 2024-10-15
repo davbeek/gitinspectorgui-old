@@ -22,8 +22,8 @@ def header_stat() -> list[str]:
     ] + (["Deletions", "Age Y:M:D"] if deletions else ["Age Y:M:D"])
 
 
-def header_authors() -> list[str]:
-    header_prefix = ["ID", "Author", "Email"]
+def header_authors(html: bool = True) -> list[str]:
+    header_prefix = ["ID", "Author"] + (["Empty", "Email"] if html else ["Email"])
     if scaled_percentages:
         return (
             header_prefix
@@ -37,18 +37,20 @@ def header_authors() -> list[str]:
                 "Stability",
                 "Commits",
             ]
-            + (["", "Age"] if deletions else ["Age"])
+            + (["Deletions", "Age"] if deletions else ["Age"])
         )
     else:
         return header_prefix + header_stat()
 
 
-def header_authors_files() -> list[str]:
-    return ["ID", "Author", "File"] + header_stat()
+def header_authors_files(html: bool = True) -> list[str]:
+    header_prefix = ["ID", "Author"] + (["Empty", "File"] if html else ["File"])
+    return header_prefix + header_stat()
 
 
-def header_files_authors() -> list[str]:
-    return ["ID", "File", "Author"] + header_stat()
+def header_files_authors(html: bool = True) -> list[str]:
+    header_prefix = ["ID", "File"] + (["Empty", "Author"] if html else ["Author"])
+    return header_prefix + header_stat()
 
 
 def header_files() -> list[str]:
@@ -110,14 +112,16 @@ class TableStatsRows:
             + ([stat.deletions, stat.age] if self.repo.args.deletions else [stat.age])
         )
 
-    def get_authors_stats_rows(self) -> list[Row]:
+    def get_authors_stats_rows(self, html: bool = True) -> list[Row]:
         a2p: dict[Author, PersonStat] = self.repo.author2pstat
         rows: list[Row] = []
         row: Row
         id_val: int = 0
         for author in self.get_authors_included():
             person = self.repo.get_person(author)
-            row = [id_val, person.authors_str, person.emails_str]
+            row = [id_val, person.authors_str] + (
+                ["", person.emails_str] if html else [person.emails_str]
+            )  # type: ignore
             row.extend(self.out_stat_values(a2p[author].stat, len(a2p)))
             rows.append(row)
             id_val += 1
@@ -137,10 +141,7 @@ class TableStatsRows:
             id_val += 1
         return rows
 
-    def get_blames(self) -> dict[FileStr, tuple[list[Row], list[bool]]]:
-        return self.repo.blame_tables.out_blames()  # type: ignore
-
-    def get_authors_files_stats_rows(self) -> list[Row]:
+    def get_authors_files_stats_rows(self, html: bool = True) -> list[Row]:
         a2f2f: dict[Author, dict[FileStr, FileStat]] = self.repo.author2fstr2fstat
         row: Row
         rows: list[Row] = []
@@ -155,12 +156,9 @@ class TableStatsRows:
             )
             for fstr in fstrs:
                 row = []
+                rel_fstr = a2f2f[author][fstr].relative_names_str(subfolder)
                 row.extend(
-                    [
-                        id_val,
-                        person.authors_str,
-                        a2f2f[author][fstr].relative_names_str(subfolder),
-                    ]
+                    [id_val, person.authors_str] + (["", rel_fstr] if html else [rel_fstr])  # type: ignore
                 )
                 stat = a2f2f[author][fstr].stat
                 row.extend(self.out_stat_values(stat))
@@ -168,7 +166,7 @@ class TableStatsRows:
             id_val += 1
         return rows
 
-    def get_files_authors_stats_rows(self) -> list[Row]:
+    def get_files_authors_stats_rows(self, html: bool = True) -> list[Row]:
         f2a2f: dict[FileStr, dict[Author, FileStat]] = self.repo.fstr2author2fstat
         row: Row
         rows: list[Row] = []
@@ -190,18 +188,19 @@ class TableStatsRows:
             )
             for author in authors:
                 row = []
+                authors_str = self.repo.get_person(author).authors_str
                 row.extend(
-                    [
-                        id_val,
-                        f2a2f[fstr][author].relative_names_str(subfolder),
-                        self.repo.get_person(author).authors_str,
-                    ]
+                    [id_val, f2a2f[fstr][author].relative_names_str(subfolder)]
+                    + (["", authors_str] if html else [authors_str])  # type: ignore
                 )
                 stat = f2a2f[fstr][author].stat
                 row.extend(self.out_stat_values(stat))
                 rows.append(row)
             id_val += 1
         return rows
+
+    def get_blames(self) -> dict[FileStr, tuple[list[Row], list[bool]]]:
+        return self.repo.blame_tables.out_blames()  # type: ignore
 
 
 def string2truncated(orgs: list[str], max_length: int) -> dict[str, str]:

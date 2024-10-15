@@ -209,7 +209,7 @@ def write_repo_output(  # pylint: disable=too-many-locals
     ):
         logfile(f"{outfile_name}.html")
         if args.dry_run == 0:
-            html_code = out_html(repo, outfilestr, args.blame_skip)
+            html_code = out_html(repo, args.blame_skip)
             with open(outfilestr + ".html", "w", encoding="utf-8") as f:
                 f.write(html_code)
 
@@ -230,7 +230,7 @@ def write_repo_output(  # pylint: disable=too-many-locals
     out_format = formats[0]
 
     if len_repos == 1 and out_format == "auto" and gui_window:
-        html_code = out_html(repo, outfilestr, args.blame_skip)
+        html_code = out_html(repo, args.blame_skip)
         gui_window.write_event_value(Keys.open_webview, (html_code, repo.name))
         return [], "", ("", "")
 
@@ -253,7 +253,7 @@ def get_output_file_and_webview_data(
             case "excel":
                 file_to_open = outfilestr + ".xlsx"
             case "auto":
-                html_code = out_html(repo, outfilestr, args.blame_skip)
+                html_code = out_html(repo, args.blame_skip)
                 webview_data = html_code, repo.name
     else:  # multiple repos
         if (
