@@ -12,12 +12,12 @@ from gigui.output.outbase import (
     string2truncated,
 )
 from gigui.repo import GIRepo
-from gigui.typedefs import FileStr, Html, Row
+from gigui.typedefs import Author, FileStr, Html, Row
 from gigui.utils import get_relative_fstr, log
 
 MAX_LENGTH_TAB_NAME = 40
 
-header_class_dict: dict[str, str] = {
+HEADER_CLASS_DICT: dict[str, str] = {
     "ID": "id_col",
     "Author": "author-col",
     "Empty": "empty-col",
@@ -41,7 +41,7 @@ header_class_dict: dict[str, str] = {
     "Code": "code-col",
 }
 
-bg_author_colors: list[str] = [
+BG_AUTHOR_COLORS: list[str] = [
     "bg-white",
     "bg-author-light-green",
     "bg-author-light-blue",
@@ -52,17 +52,26 @@ bg_author_colors: list[str] = [
     "bg-author-light-grey",
     "bg-row-light-green",
 ]
-bg_row_colors: list[str] = ["bg-row-light-green", "bg-white"]
+BG_ROW_COLORS: list[str] = ["bg-row-light-green", "bg-white"]
 
 
 class HTMLTables:
     def _add_header(self, headers: list[str]) -> str:
-        table_header = "<tr class=bg-th-green>\n"
+        table_header = "<tr class='bg-th-green'>\n"
         for col in headers:
-            header_class = header_class_dict[col]
+            header_class = HEADER_CLASS_DICT[col]
             header_content = "" if col == "Empty" else col
             table_header += f"<th class='{header_class}'>{header_content}</th>\n"
         table_header += "</tr>\n"
+        return table_header
+
+    def _add_header_list(self, headers: list[str]) -> list[Html]:
+        table_header: list[Html] = ["<tr class='bg-th-green'>\n"]
+        for col in headers:
+            header_class = HEADER_CLASS_DICT[col]
+            header_content = "" if col == "Empty" else col
+            table_header.append(f"<th class='{header_class}'>{header_content}</th>\n")
+        table_header.append("</tr>\n")
         return table_header
 
 
@@ -76,50 +85,108 @@ class HTMLStatTables(HTMLTables):
 
     def add_authors_table(self) -> Html:
         rows: list[Row] = self.out_rows.get_authors_stats_rows()
-        return self._add_conditional_styles_table(
+        return self._add_colored_rows_table(
             self._insert_str_at(header_authors(), "Empty", 2),
             self._insert_empties_at(rows, 2),
-            bg_author_colors,
+            BG_AUTHOR_COLORS,
         )
 
     def add_authors_files_table(self) -> Html:
         rows: list[Row] = self.out_rows.get_authors_files_stats_rows()
-        return self._add_conditional_styles_table(
+        return self._add_colored_rows_table(
             self._insert_str_at(header_authors_files(), "Empty", 2),
             self._insert_empties_at(rows, 2),
-            bg_author_colors,
+            BG_AUTHOR_COLORS,
         )
 
     def add_files_authors_table(self) -> Html:
         rows: list[Row] = self.out_rows.get_files_authors_stats_rows()
-        return self._add_conditional_styles_table(
+        return self._add_files_authors_table(
             self._insert_str_at(header_files_authors(), "Empty", 2),
             self._insert_empties_at(rows, 2),
-            bg_row_colors,
+            BG_ROW_COLORS,
+            BG_AUTHOR_COLORS,
         )
 
     def add_files_table(self) -> Html:
         rows: list[Row] = self.out_rows.get_files_stats_rows()
-        return self._add_conditional_styles_table(header_files(), rows, bg_row_colors)
+        return self._add_colored_rows_table(header_files(), rows, BG_ROW_COLORS)
 
-    def _add_conditional_styles_table(
+    def _add_colored_rows_table(
         self, header: list[str], rows: list[Row], bg_colors: list[str]
     ) -> Html:
-        bg_colors_cnt = len(bg_colors)
-
         table = "<table>\n"
         table += self._add_header(header)
 
         for row in rows:
-            table_row = f"<tr class='{bg_colors[(int(row[0]) % bg_colors_cnt)]}'>\n"
+            table_row = f"<tr class='{bg_colors[(int(row[0]) % len(bg_colors))]}'>\n"
             for i, data in enumerate(row):
-                table_row += f"<td class='{header_class_dict[header[i]]}'>{data}</td>\n"
+                table_row += f"<td class='{HEADER_CLASS_DICT[header[i]]}'>{data}</td>\n"
 
             table_row += "</tr>\n"
 
             table += table_row
 
         table += "</table>\n"
+        return table
+
+    def _add_files_authors_table(
+        self,
+        header: list[str],
+        rows: list[Row],
+        bg_row_colors: list[str],
+        bg_author_colors: list[str],
+    ) -> Html:
+        ID_COL: int = header.index("ID")  # = 0
+        FILE_COL: int = header.index("File")  # = 1
+        AUTHOR_COL: int = header.index(
+            "Author"
+        )  # = 3, because of empty row between File and Author!!
+
+        # Very confusing term: table_rows is a list of table tags, not rows.
+        # Switch to bs4 for better readability!!!!!!!!!!!!!!!
+        table_rows: list[Html]
+        classes: str
+        color_class: str
+        author: Author
+        author_index: int
+
+        table_rows = ["<table>\n"]
+        for header_col in self._add_header_list(header):
+            table_rows.append(header_col)
+
+        first_file = True
+        row_id = 0
+        for row in rows:
+            if row[ID_COL] != row_id:  # new ID value for new file
+                first_file = True
+                row_id = row[ID_COL]  # type: ignore
+            table_rows.append(
+                f"<tr class='{bg_row_colors[(int(row[ID_COL]) % len(bg_row_colors))]}'>\n"
+            )
+            author = row[AUTHOR_COL]  # type: ignore
+            author_index = self.out_rows.get_authors_included().index(author)
+
+            for i_col, data in enumerate(row):
+                if i_col == ID_COL:
+                    classes = HEADER_CLASS_DICT[header[i_col]]
+                    table_rows.append(f"<td class='{classes}'>{data}</td>\n")
+                elif i_col == FILE_COL and first_file:
+                    classes = HEADER_CLASS_DICT[header[i_col]]
+                    table_rows.append(f"<td class='{classes}'>{data}</td>\n")
+                    first_file = False
+                elif i_col == FILE_COL and not first_file:
+                    classes = HEADER_CLASS_DICT[header[i_col]]
+                    table_rows.append(f"<td class='{classes}'></td>\n")
+                else:
+                    color_class = bg_author_colors[author_index % len(bg_author_colors)]
+                    classes = f"{HEADER_CLASS_DICT[header[i_col]]} {color_class}"
+                    table_rows.append(f"<td class='{classes}'>{data}</td>\n")
+
+            table_rows.append("</tr>\n")
+
+        table_rows.append("</table>\n")
+        table = "".join(table_rows)
         return table
 
     def _insert_str_at(self, lst: list[str], s: str, i: int) -> list[str]:
@@ -168,7 +235,7 @@ class HTMLBlameTables(HTMLTables):
         return blame_html_tables
 
     def add_blame_table(self, rows_iscomments: tuple[list[Row], list[bool]]) -> Html:
-        bg_colors_cnt = len(bg_author_colors)
+        bg_colors_cnt = len(BG_AUTHOR_COLORS)
         header = header_blames()
 
         table = "<table>\n"
@@ -177,13 +244,13 @@ class HTMLBlameTables(HTMLTables):
         rows, is_comments = rows_iscomments
         for row, is_comment in zip(rows, is_comments):
             table_row = (
-                f"<tr class='{bg_author_colors[(int(row[0]) % bg_colors_cnt)]}'>\n"
+                f"<tr class='{BG_AUTHOR_COLORS[(int(row[0]) % bg_colors_cnt)]}'>\n"
             )
             for i, data in enumerate(row):
                 head = header[i]
                 if head != "Code":
                     table_row += (
-                        f"<td class='{header_class_dict[header[i]]}'>{data}</td>\n"
+                        f"<td class='{HEADER_CLASS_DICT[header[i]]}'>{data}</td>\n"
                     )
                 else:  # head == "Code"
                     if data:
@@ -201,7 +268,7 @@ class HTMLBlameTables(HTMLTables):
                         table_row += f"<td class='comment-col'>{data}</td>\n"
                     else:
                         table_row += (
-                            f"<td class='{header_class_dict[head]}'>{data}</td>\n"
+                            f"<td class='{HEADER_CLASS_DICT[head]}'>{data}</td>\n"
                         )
             table_row += "</tr>\n"
 
@@ -214,7 +281,7 @@ class HTMLBlameTables(HTMLTables):
 
 class HTMLModifier:
     def __init__(self, html: Html) -> None:
-        self.soup = BeautifulSoup(html, "html.parser")
+        self.soup = BeautifulSoup(html, "html5lib")
 
     def add_blame_tables_to_html(
         self, blames_htmls: list[tuple[FileStr, Html]]
