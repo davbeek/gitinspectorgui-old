@@ -55,8 +55,8 @@ BG_AUTHOR_COLORS: list[str] = [
 BG_ROW_COLORS: list[str] = ["bg-row-light-green", "bg-white"]
 
 
-class HTMLTables:
-    def _add_header(self, headers: list[str]) -> str:
+class HTMLTable:
+    def _get_header(self, headers: list[str]) -> str:
         table_header = "<tr class='bg-th-green'>\n"
         for col in headers:
             header_class = HEADER_CLASS_DICT[col]
@@ -65,7 +65,7 @@ class HTMLTables:
         table_header += "</tr>\n"
         return table_header
 
-    def _add_header_list(self, headers: list[str]) -> list[Html]:
+    def _get_header_list(self, headers: list[str]) -> list[Html]:
         table_header: list[Html] = ["<tr class='bg-th-green'>\n"]
         for col in headers:
             header_class = HEADER_CLASS_DICT[col]
@@ -75,7 +75,7 @@ class HTMLTables:
         return table_header
 
 
-class HTMLStatTables(HTMLTables):
+class HTMLStatTable(HTMLTable):
     def __init__(
         self, name: FileStr, out_rows: TableStatsRows, subfolder: FileStr
     ) -> None:
@@ -83,40 +83,40 @@ class HTMLStatTables(HTMLTables):
         self.outfile = name
         self.subfolder = subfolder
 
-    def add_authors_table(self) -> Html:
+    def get_authors_table(self) -> Html:
         rows: list[Row] = self.out_rows.get_authors_stats_rows()
-        return self._add_colored_rows_table(
+        return self._get_colored_rows_table(
             self._insert_str_at(header_authors(), "Empty", 2),
             self._insert_empties_at(rows, 2),
             BG_AUTHOR_COLORS,
         )
 
-    def add_authors_files_table(self) -> Html:
+    def get_authors_files_table(self) -> Html:
         rows: list[Row] = self.out_rows.get_authors_files_stats_rows()
-        return self._add_colored_rows_table(
+        return self._get_colored_rows_table(
             self._insert_str_at(header_authors_files(), "Empty", 2),
             self._insert_empties_at(rows, 2),
             BG_AUTHOR_COLORS,
         )
 
-    def add_files_authors_table(self) -> Html:
+    def get_files_authors_table(self) -> Html:
         rows: list[Row] = self.out_rows.get_files_authors_stats_rows()
-        return self._add_files_authors_table(
+        return self._get_files_authors_table(
             self._insert_str_at(header_files_authors(), "Empty", 2),
             self._insert_empties_at(rows, 2),
             BG_ROW_COLORS,
             BG_AUTHOR_COLORS,
         )
 
-    def add_files_table(self) -> Html:
+    def get_files_table(self) -> Html:
         rows: list[Row] = self.out_rows.get_files_stats_rows()
-        return self._add_colored_rows_table(header_files(), rows, BG_ROW_COLORS)
+        return self._get_colored_rows_table(header_files(), rows, BG_ROW_COLORS)
 
-    def _add_colored_rows_table(
+    def _get_colored_rows_table(
         self, header: list[str], rows: list[Row], bg_colors: list[str]
     ) -> Html:
         table = "<table>\n"
-        table += self._add_header(header)
+        table += self._get_header(header)
 
         for row in rows:
             table_row = f"<tr class='{bg_colors[(int(row[0]) % len(bg_colors))]}'>\n"
@@ -130,7 +130,7 @@ class HTMLStatTables(HTMLTables):
         table += "</table>\n"
         return table
 
-    def _add_files_authors_table(
+    def _get_files_authors_table(
         self,
         header: list[str],
         rows: list[Row],
@@ -152,7 +152,7 @@ class HTMLStatTables(HTMLTables):
         author_index: int
 
         table_rows = ["<table>\n"]
-        for header_col in self._add_header_list(header):
+        for header_col in self._get_header_list(header):
             table_rows.append(header_col)
 
         first_file = True
@@ -200,7 +200,7 @@ class HTMLStatTables(HTMLTables):
         return new_rows
 
 
-class HTMLBlameTables(HTMLTables):
+class HTMLBlameTable(HTMLTable):
     def __init__(
         self, name: FileStr, out_rows: TableStatsRows, subfolder: FileStr
     ) -> None:
@@ -208,7 +208,7 @@ class HTMLBlameTables(HTMLTables):
         self.outfile = name
         self.subfolder = subfolder
 
-    def add_blame_tables(
+    def get_blame_tables(
         self,
     ) -> list[tuple[FileStr, Html]]:
         fstr2rows_iscomments: dict[FileStr, tuple[list[Row], list[bool]]]
@@ -228,18 +228,18 @@ class HTMLBlameTables(HTMLTables):
             blame_html_tables.append(
                 (
                     relative_fstr2truncated[rel_fstr],
-                    self.add_blame_table(fstr2rows_iscomments[fstr]),
+                    self.get_blame_table(fstr2rows_iscomments[fstr]),
                 )
             )
 
         return blame_html_tables
 
-    def add_blame_table(self, rows_iscomments: tuple[list[Row], list[bool]]) -> Html:
+    def get_blame_table(self, rows_iscomments: tuple[list[Row], list[bool]]) -> Html:
         bg_colors_cnt = len(BG_AUTHOR_COLORS)
         header = header_blames()
 
         table = "<table>\n"
-        table += self._add_header(header)
+        table += self._get_header(header)
 
         rows, is_comments = rows_iscomments
         for row, is_comment in zip(rows, is_comments):
@@ -283,9 +283,7 @@ class HTMLModifier:
     def __init__(self, html: Html) -> None:
         self.soup = BeautifulSoup(html, "html5lib")
 
-    def add_blame_tables_to_html(
-        self, blames_htmls: list[tuple[FileStr, Html]]
-    ) -> Html:
+    def blame_tables_to_html(self, blames_htmls: list[tuple[FileStr, Html]]) -> Html:
         nav_ul = self.soup.find("ul", {"id": "stats-tabs"})
         tab_div = self.soup.find("div", {"class": "tab-content"})
         if nav_ul and tab_div:
@@ -357,16 +355,16 @@ def out_html(
     with open(html_path, "r", encoding="utf-8") as f:
         html_template = f.read()
 
-    html_table: HTMLStatTables
-    html_blame_table: HTMLBlameTables
+    html_table: HTMLStatTable
+    html_blame_table: HTMLBlameTable
 
     # Construct the file in memory and add the authors and files to it.
     out_rows = TableStatsRows(repo)
-    html_table = HTMLStatTables(outfilestr, out_rows, repo.args.subfolder)
-    authors_html = html_table.add_authors_table()
-    authors_files_html = html_table.add_authors_files_table()
-    files_authors_html = html_table.add_files_authors_table()
-    files_html = html_table.add_files_table()
+    html_table = HTMLStatTable(outfilestr, out_rows, repo.args.subfolder)
+    authors_html = html_table.get_authors_table()
+    authors_files_html = html_table.get_authors_files_table()
+    files_authors_html = html_table.get_files_authors_table()
+    files_html = html_table.get_files_table()
 
     html = html_template.replace("__TITLE__", f"{repo.name} viewer")
     html = html.replace("__AUTHORS__", authors_html)
@@ -376,10 +374,10 @@ def out_html(
 
     # Add blame output if not skipped.
     if not blame_skip:
-        html_blame_table = HTMLBlameTables(outfilestr, out_rows, repo.args.subfolder)
-        blames_htmls = html_blame_table.add_blame_tables()
+        html_blame_table = HTMLBlameTable(outfilestr, out_rows, repo.args.subfolder)
+        blames_htmls = html_blame_table.get_blame_tables()
         html_modifier = HTMLModifier(html)
-        html = html_modifier.add_blame_tables_to_html(blames_htmls)
+        html = html_modifier.blame_tables_to_html(blames_htmls)
 
     # Convert the table to text and return it.
     soup = BeautifulSoup(html, "html.parser")
