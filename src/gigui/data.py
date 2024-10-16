@@ -126,6 +126,7 @@ class FileStat:
             self.names.append(name)
 
     def add_commit_group(self, commit_group: CommitGroup) -> None:
+        assert commit_group.fstr != ""
         self.add_name(commit_group.fstr)
         self.stat.add_commit_group(commit_group)
 

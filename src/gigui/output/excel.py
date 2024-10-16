@@ -2,10 +2,10 @@ import platform
 import sys
 from pathlib import Path
 
-from xlsxwriter import Workbook
-from xlsxwriter.chart import Chart
-from xlsxwriter.workbook import Format as ExcelFormat
-from xlsxwriter.worksheet import Worksheet
+from xlsxwriter import Workbook  # type: ignore[import-untyped]
+from xlsxwriter.chart import Chart  # type: ignore[import-untyped]
+from xlsxwriter.workbook import Format as ExcelFormat  # type: ignore[import-untyped]
+from xlsxwriter.worksheet import Worksheet  # type: ignore[import-untyped]
 
 from gigui.output.outbase import (
     TableStatsRows,
@@ -455,29 +455,29 @@ class Book:
         self.formats[format_name] = excel_format
 
     def add_authors_sheet(self) -> None:
-        rows: list[Row] = self.out_rows.get_authors_stats_rows()
+        rows: list[Row] = self.out_rows.get_authors_stats_rows(html=False)
         AuthorsSheet(
             rows,
             self.workbook.add_chart({"type": "pie"}),  # type: ignore
-            header_authors(),
+            header_authors(html=False),
             self.workbook.add_worksheet("Authors"),
             self,
         )
 
     def add_authors_files_sheet(self) -> None:
-        rows: list[Row] = self.out_rows.get_authors_files_stats_rows()
+        rows: list[Row] = self.out_rows.get_authors_files_stats_rows(html=False)
         AuthorsFilesSheet(
             rows,
-            header_authors_files(),
+            header_authors_files(html=False),
             self.workbook.add_worksheet("Authors-Files"),
             self,
         )
 
     def add_files_authors_sheet(self) -> None:
-        rows: list[Row] = self.out_rows.get_files_authors_stats_rows()
+        rows: list[Row] = self.out_rows.get_files_authors_stats_rows(html=False)
         FilesAuthorsSheet(
             rows,
-            header_files_authors(),
+            header_files_authors(html=False),
             self.workbook.add_worksheet("Files-Authors"),
             self,
         )

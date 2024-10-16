@@ -59,10 +59,11 @@ class HTMLTable:
     def __init__(self) -> None:
         self.soup = BeautifulSoup("<table></table>", "html.parser")
         self.table: Tag = self.soup.table  # type: ignore
+        self.tbody: Tag = self.soup.new_tag("tbody")
 
     def _add_header(self, headers: list[str]) -> None:
         self.table.clear()  # remove all rows resulting from previous calls
-        thead = self.soup.new_tag("thead")
+        thead: Tag = self.soup.new_tag("thead")
         tr = self.soup.new_tag("tr")
         tr["class"] = "bg-th-green"
         thead.append(tr)
@@ -74,6 +75,7 @@ class HTMLTable:
             th.string = header_string
             thead.append(th)
         self.table.append(thead)
+        self.table.append(self.tbody)
 
 
 class HTMLStatTable(HTMLTable):
@@ -89,7 +91,7 @@ class HTMLStatTable(HTMLTable):
         for row in rows:
             tr = self.soup.new_tag("tr")
             tr["class"] = bg_colors[(int(row[0]) % len(bg_colors))]
-            self.table.append(tr)
+            self.tbody.append(tr)
             for i_col, data in enumerate(row):
                 td = self.soup.new_tag("td")
                 td["class"] = HEADER_CLASS_DICT[header[i_col]]
@@ -161,7 +163,7 @@ class HTMLFilesAuthorsTable(HTMLStatTable):
 
             tr = self.soup.new_tag("tr")
             tr["class"] = bg_row_colors[(int(row[ID_COL]) % len(bg_row_colors))]
-            self.table.append(tr)
+            self.tbody.append(tr)
 
             author = row[AUTHOR_COL]  # type: ignore
             author_index = self.out_rows.get_authors_included().index(author)
@@ -207,7 +209,7 @@ class HTMLBlameTable(HTMLTable):
         for row, is_comment in zip(rows, is_comments):
             tr = self.soup.new_tag("tr")
             tr["class"] = BG_AUTHOR_COLORS[(int(row[0]) % bg_colors_cnt)]
-            self.table.append(tr)
+            self.tbody.append(tr)
             for i_col, data in enumerate(row):
                 td = self.soup.new_tag("td")
                 head = col_header[i_col]
@@ -242,7 +244,7 @@ class HTMLBlameTables:
         self.subfolder = subfolder
         self.global_soup = global_soup
 
-    def run(self) -> None:
+    def add_tables(self) -> None:
         fstr2rows_iscomments: dict[FileStr, tuple[list[Row], list[bool]]]
         fstr2rows_iscomments = self.out_rows.get_blames()
 
@@ -306,7 +308,7 @@ def out_html(
     blame_skip: bool,
 ) -> Html:
     """
-    Generate an html file with analysis result of the provided repository.
+    Generate html with complete analysis results of the provided repository.
     """
 
     # Load the template file.
@@ -339,9 +341,10 @@ def out_html(
 
     # Add blame output if not skipped.
     if not blame_skip:
-        HTMLBlameTables(out_rows, repo.args.subfolder, soup).run()
+        HTMLBlameTables(out_rows, repo.args.subfolder, soup).add_tables()
 
     html: Html = soup.prettify(formatter="html")
+
     html = html.replace("&amp;nbsp;", "&nbsp;")
     html = html.replace("&amp;lt;", "&lt;")
     html = html.replace("&amp;gt;", "&gt;")
