@@ -97,11 +97,14 @@ class GIRepo:
                 self.author2fstr2fstat, self.stats_reader.fstr2commit_groups
             )
 
-            fstrs = self.stats_reader.fstrs
-            self.sorted_fstrs = sorted(
+            fstrs = self.fstr2fstat.keys()
+            self.sorted_star_fstrs = sorted(
                 fstrs, key=lambda x: self.fstr2fstat[x].stat.line_count, reverse=True
             )
-            self.sorted_star_fstrs = ["*"] + self.sorted_fstrs
+            if self.sorted_star_fstrs and self.sorted_star_fstrs[0] == "*":
+                self.sorted_fstrs = self.sorted_star_fstrs[1:]  # remove "*"
+            else:
+                self.sorted_fstrs = self.sorted_star_fstrs
 
             self.blame_tables.set_sorted_fstrs(self.sorted_fstrs)
 
