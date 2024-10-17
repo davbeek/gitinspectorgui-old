@@ -40,6 +40,9 @@ class GIRepo:
         self.fstr2author2fstat: dict[str, dict[str, FileStat]] = {}
         self.author2pstat: dict[str, PersonStat] = {}
 
+        self.sorted_fstrs: list[str]
+        self.sorted_star_fstrs: list[str]
+
     # Valid only after self.run has been called.
     @property
     def authors_included(self) -> list[Author]:
@@ -93,6 +96,15 @@ class GIRepo:
             self.fstr2fstat = self.stat_tables.get_fstr2fstat(
                 self.author2fstr2fstat, self.stats_reader.fstr2commit_groups
             )
+
+            fstrs = self.stats_reader.fstrs
+            self.sorted_fstrs = sorted(
+                fstrs, key=lambda x: self.fstr2fstat[x].stat.line_count, reverse=True
+            )
+            self.sorted_star_fstrs = ["*"] + self.sorted_fstrs
+
+            self.blame_tables.set_sorted_fstrs(self.sorted_fstrs)
+
             if list(self.fstr2fstat.keys()) == ["*"]:
                 return False
 

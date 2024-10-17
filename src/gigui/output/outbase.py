@@ -132,9 +132,7 @@ class TableStatsRows:
         rows: list[Row] = []
         row: Row
         id_val: int = 0
-        fstrs = list(f2f.keys())
-        fstrs = sorted(fstrs, key=lambda x: f2f[x].stat.line_count, reverse=True)
-        for fstr in fstrs:
+        for fstr in self.repo.sorted_star_fstrs:
             row = [id_val, f2f[fstr].relative_names_str(subfolder)]
             row.extend(self.out_stat_values(f2f[fstr].stat))
             rows.append(row)

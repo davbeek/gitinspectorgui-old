@@ -179,6 +179,7 @@ class BlameTables:
         self.fstrs = fstrs
         self.persons_db = persons_db
         self.fstr2blames = fstr2blames
+        self.sorted_fstrs: list[FileStr]
 
         # List of blame authors, so no filtering, ordered by highest blame line count.
         self._blame_authors: list[Author] = []
@@ -223,9 +224,12 @@ class BlameTables:
         self._blame_authors = authors
         return target
 
+    def set_sorted_fstrs(self, sorted_fstrs: list[FileStr]) -> None:
+        self.sorted_fstrs = sorted_fstrs
+
     def out_blames(self, html: bool) -> dict[FileStr, tuple[list[Row], list[bool]]]:
         fstr2rows_iscomments: dict[FileStr, tuple[list[Row], list[bool]]] = {}
-        for fstr in self.fstr2blames:
+        for fstr in self.sorted_fstrs:
             rows, iscomments = self._out_blames_fstr(fstr, html)
             if rows:
                 fstr2rows_iscomments[fstr] = rows, iscomments
