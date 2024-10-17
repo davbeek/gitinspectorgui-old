@@ -12,7 +12,7 @@ from gigui.data import FileStat, Person
 from gigui.keys import Keys
 from gigui.output import outbase
 from gigui.output.excel import Book
-from gigui.output.html import out_html
+from gigui.output.html import HTMLTable, out_html
 from gigui.output.outbase import TableStatsRows
 from gigui.repo import GIRepo, get_repos, total_len
 from gigui.typedefs import FileStr, Html
@@ -76,6 +76,7 @@ def main(args: Args, start_time: float, gui_window: sg.Window | None = None):
 def init_classes(args: Args):
     GIRepo.set_args(args)
     FileStat.show_renames = args.show_renames
+    HTMLTable.hide_blame_exclusions = args.hide_blame_exclusions
     Person.show_renames = args.show_renames
     Person.ex_author_patterns = args.ex_authors
     Person.ex_email_patterns = args.ex_emails

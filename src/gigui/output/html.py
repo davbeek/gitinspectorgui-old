@@ -56,6 +56,8 @@ BG_ROW_COLORS: list[str] = ["bg-row-light-green", "bg-white"]
 
 
 class HTMLTable:
+    hide_blame_exclusions: bool
+
     def __init__(self) -> None:
         self.soup = BeautifulSoup("<table></table>", "html.parser")
         self.table: Tag = self.soup.table  # type: ignore
@@ -73,6 +75,15 @@ class HTMLTable:
             th = self.soup.new_tag("th")
             th["class"] = header_class
             th.string = header_string
+            if header == "Code":
+                button = self.soup.new_tag("button")
+                button["class"] = "blame-exclusions-button"
+                if self.hide_blame_exclusions:
+                    button["data-state"] = "hide"
+                else:
+                    button["data-state"] = "show"
+                button.string = "Toggle blame exclusions"
+                th.append(button)
             thead.append(th)
         self.table.append(thead)
         self.table.append(self.tbody)
@@ -246,7 +257,7 @@ class HTMLBlameTables:
 
     def add_tables(self) -> None:
         fstr2rows_iscomments: dict[FileStr, tuple[list[Row], list[bool]]]
-        fstr2rows_iscomments = self.out_rows.get_blames()
+        fstr2rows_iscomments = self.out_rows.get_blames(html=True)
 
         relative_fstrs = [
             get_relative_fstr(fstr, self.subfolder)

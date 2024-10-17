@@ -8,7 +8,7 @@ from multiprocessing import Process
 from pathlib import Path
 from typing import Any
 
-import PySimpleGUI as sg
+import PySimpleGUI as sg  # type: ignore[import-untyped]
 
 from gigui import _logging, utils
 from gigui._logging import set_logging_level_from_verbosity

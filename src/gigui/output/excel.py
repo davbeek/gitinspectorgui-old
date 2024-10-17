@@ -509,7 +509,7 @@ class Book:
         self,
     ) -> None:
         fstr2rows_iscomments: dict[FileStr, tuple[list[Row], list[bool]]]
-        fstr2rows_iscomments = self.out_rows.get_blames()
+        fstr2rows_iscomments = self.out_rows.get_blames(html=False)
 
         relative_fstrs = [
             get_relative_fstr(fstr, self.subfolder)

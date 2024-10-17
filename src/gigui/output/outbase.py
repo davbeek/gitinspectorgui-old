@@ -199,8 +199,8 @@ class TableStatsRows:
             id_val += 1
         return rows
 
-    def get_blames(self) -> dict[FileStr, tuple[list[Row], list[bool]]]:
-        return self.repo.blame_tables.out_blames()  # type: ignore
+    def get_blames(self, html: bool) -> dict[FileStr, tuple[list[Row], list[bool]]]:
+        return self.repo.blame_tables.out_blames(html)  # type: ignore
 
 
 def string2truncated(orgs: list[str], max_length: int) -> dict[str, str]:

@@ -223,10 +223,10 @@ class BlameTables:
         self._blame_authors = authors
         return target
 
-    def out_blames(self) -> dict[FileStr, tuple[list[Row], list[bool]]]:
+    def out_blames(self, html: bool) -> dict[FileStr, tuple[list[Row], list[bool]]]:
         fstr2rows_iscomments: dict[FileStr, tuple[list[Row], list[bool]]] = {}
         for fstr in self.fstr2blames:
-            rows, iscomments = self._out_blames_fstr(fstr)
+            rows, iscomments = self._out_blames_fstr(fstr, html)
             if rows:
                 fstr2rows_iscomments[fstr] = rows, iscomments
             else:
@@ -234,7 +234,9 @@ class BlameTables:
         return fstr2rows_iscomments
 
     # pylint: disable=too-many-locals
-    def _out_blames_fstr(self, fstr: FileStr) -> tuple[list[Row], list[bool]]:
+    def _out_blames_fstr(
+        self, fstr: FileStr, html: bool
+    ) -> tuple[list[Row], list[bool]]:
         blames: list[Blame] = self.fstr2blames[fstr]
         rows: list[Row] = []
         is_comments: list[bool] = []
@@ -257,7 +259,7 @@ class BlameTables:
                 exclude_empty = line.strip() == "" and not self.args.empty_lines
                 exclude_author = author in self.persons_db.authors_excluded
                 exclude_line = exclude_comment or exclude_empty or exclude_author
-                if self.args.blame_omit_exclusions and exclude_line:
+                if self.args.hide_blame_exclusions and exclude_line and not html:
                     line_nr += 1
                 else:
                     row: Row = [

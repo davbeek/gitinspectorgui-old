@@ -114,9 +114,9 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
         help=hlp.scaled_percentages,
     )
     group_generation.add_argument(
-        "--blame-omit-exclusions",
+        "--hide-blame-exclusions",
         action=BooleanOptionalAction,
-        help=hlp.blame_omit_exclusions,
+        help=hlp.hide_blame_exclusions,
     )
     group_generation.add_argument(
         "--blame-skip",

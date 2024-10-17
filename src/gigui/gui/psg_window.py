@@ -301,8 +301,8 @@ def output_formats_frame() -> sg.Frame:
                                 key=keys.scaled_percentages,
                             ),
                             checkbox(
-                                "Blame omit exclusions",
-                                key=keys.blame_omit_exclusions,
+                                "Hide blame exclusions",
+                                key=keys.hide_blame_exclusions,
                             ),
                             checkbox(
                                 "Blame skip",
