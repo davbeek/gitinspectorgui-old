@@ -1,7 +1,7 @@
 import logging
-import re
 import time
 from dataclasses import dataclass, field
+from fnmatch import fnmatch
 from math import floor
 
 from gigui.typedefs import Author, Email, FileStr, Row, SHAshort
@@ -205,10 +205,7 @@ class Person:
         if (
             not self.filter_matched
             and not author_or_email == "*"
-            and any(
-                re.search(pattern, author_or_email, re.IGNORECASE)
-                for pattern in patterns
-            )
+            and any(fnmatch(author_or_email, pattern) for pattern in patterns)
         ):
             self.filter_matched = True
 

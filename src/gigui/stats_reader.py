@@ -1,7 +1,7 @@
 import copy
 import logging
-import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from fnmatch import fnmatch
 
 from git import Commit as GitCommit
 from git import PathLike, Repo
@@ -103,7 +103,7 @@ class StatsReader:
                     and blob.path.split(".")[-1] in self.args.extensions  # type: ignore
                     and not self.matches_ex_file(blob.path)  # type: ignore
                     and any(
-                        re.search(pattern, blob.path, re.IGNORECASE)  # type: ignore
+                        fnmatch(blob.path, pattern)  # type: ignore
                         for pattern in include_files
                     )
                 )
@@ -137,9 +137,7 @@ class StatsReader:
 
     # Returns True if file should be excluded
     def matches_ex_file(self, fstr: FileStr) -> bool:
-        return any(
-            re.search(pattern, fstr, re.IGNORECASE) for pattern in self.args.ex_files
-        )
+        return any(fnmatch(fstr, pattern) for pattern in self.args.ex_files)
 
     def _set_fstr2lines(self) -> None:
         self.fstr2lines["*"] = 0
@@ -188,10 +186,7 @@ class StatsReader:
                 continue
             timestamp = int(lines.pop(0))
             message = lines.pop(0)
-            if any(
-                re.search(pattern, message, re.IGNORECASE)
-                for pattern in self.args.ex_messages
-            ):
+            if any(fnmatch(message, pattern) for pattern in self.args.ex_messages):
                 ex_sha_shorts.add(sha_short)
                 continue
             author = lines.pop(0)

@@ -1,4 +1,4 @@
-import PySimpleGUI as sg
+import PySimpleGUI as sg  # type: ignore
 
 from gigui.constants import ENABLED_COLOR, OPTION_TITLE_WIDTH
 from gigui.tiphelp import Tip

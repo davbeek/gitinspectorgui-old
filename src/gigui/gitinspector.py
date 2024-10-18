@@ -1,10 +1,12 @@
+import glob
 import logging
+import os
 import platform
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from cProfile import Profile
 from pathlib import Path
 
-import PySimpleGUI as sg
+import PySimpleGUI as sg  # type: ignore
 
 from gigui.args_settings import AUTO, NONE, Args
 from gigui.constants import DEFAULT_FILE_BASE, DEFAULT_FORMAT, MAX_BROWSER_TABS
@@ -40,7 +42,8 @@ def main(args: Args, start_time: float, gui_window: sg.Window | None = None):
     init_classes(args)
     repo_lists: list[list[GIRepo]] = []
 
-    for fstr in args.input_fstrs:
+    fstrs = get_dir_matches(args.input_fstrs)
+    for fstr in fstrs:
         repo_lists.extend(get_repos(fstr, args.depth))
     len_repos = total_len(repo_lists)
     fix_ok = not (len_repos == 1 and args.fix == Keys.nofix)
@@ -83,6 +86,18 @@ def init_classes(args: Args):
     outbase.deletions = args.deletions
     outbase.scaled_percentages = args.scaled_percentages
     outbase.subfolder = args.subfolder
+
+
+# Normally, the input paths have already been expanded by the shell, but in case the
+# wildcard were protected in quotes, we expand them here.
+def get_dir_matches(input_fstrs: list[FileStr]) -> list[FileStr]:
+    matching_fstrs: list[FileStr] = []
+    for pattern in input_fstrs:
+        matches = glob.glob(pattern)
+        for match in matches:
+            if os.path.isdir(match) and match not in matching_fstrs:
+                matching_fstrs.append(match)
+    return matching_fstrs
 
 
 def process_repos_unicore(

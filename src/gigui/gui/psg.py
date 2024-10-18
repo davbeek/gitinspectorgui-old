@@ -26,18 +26,17 @@ from gigui.gui.psg_support import (
     enable_element,
     help_window,
     log,
-    paths_valid,
+    popup,
     popup_custom,
+    process_input_patterns,
     update_col_percent,
     update_column_height,
     update_outfile_str,
-    use_single_repo,
     window_state_from_settings,
 )
 from gigui.gui.psg_window import make_window
 from gigui.keys import Keys
 from gigui.tiphelp import Help, Tip
-from gigui.typedefs import FileStr
 from gigui.utils import open_webview, str_split_comma
 
 logger = logging.getLogger(__name__)
@@ -109,13 +108,9 @@ def run_inner(settings: Settings) -> bool:
                 update_col_percent(window, last_window_height, values[event], state)  # type: ignore
 
             case keys.execute:
-                execute(
-                    window,
-                    values,
-                    state.input_paths,
-                    state.input_valid,
-                    state.outfile_base,
-                )
+                # Update processing of input patterns because dir state may have changed
+                state = process_input_patterns(state, window[keys.input_fstrs], window)  # type: ignore
+                execute(window, values, state)
 
             case keys.clear:
                 window[keys.multiline].update(value="")  # type: ignore
@@ -180,37 +175,16 @@ def run_inner(settings: Settings) -> bool:
                 sg.cprint(message, text_color=color)
 
             case keys.input_fstrs:
-                input_string = values[event]
-
-                input_fstrs = str_split_comma(input_string)
-                input_paths = [Path(fstr) for fstr in input_fstrs]
-                input_valid = paths_valid(input_paths, window[event])  # type: ignore
-                state.input_fstrs = input_fstrs
-                state.input_paths = input_paths
-                state.input_valid = input_valid
-
-                if not input_valid:
-                    continue
-
-                update_outfile_str(window, state)
-                if use_single_repo(state.input_paths):
-                    enable_element(window[keys.nofix])  # type: ignore
-                    disable_element(window[keys.depth])  # type: ignore
-                else:  # multiple repos
-                    if state.fix == keys.nofix:
-                        window.Element(keys.nofix).Update(value=False)  # type: ignore
-                        window.Element(keys.prefix).Update(value=True)  # type: ignore
-                        state.fix = keys.prefix
-                    disable_element(window[keys.nofix])  # type: ignore
-                    enable_element(window[keys.depth])  # type: ignore
+                state.input_patterns = str_split_comma(values[event])
+                state = process_input_patterns(state, window[event], window)  # type: ignore
 
             case keys.outfile_base:
                 state.outfile_base = values[keys.outfile_base]
-                update_outfile_str(window, state)
+                update_outfile_str(state, window)
 
             case event if event in (keys.postfix, keys.prefix, keys.nofix):
                 state.fix = event
-                update_outfile_str(window, state)
+                update_outfile_str(state, window)
 
             case keys.auto:
                 if values[keys.auto] is True:
@@ -248,33 +222,23 @@ def run_inner(settings: Settings) -> bool:
 def execute(  # pylint: disable=too-many-branches
     window: sg.Window,
     values: dict,
-    input_paths: list[Path],
-    input_valid: bool,
-    outfile_base: FileStr,
+    state: GUIState,
 ) -> None:
-    def popup(title, message):
-        sg.popup(
-            title,
-            message,
-            keep_on_top=True,
-            text_color="black",
-            background_color="white",
-        )
 
     start_time = time.time()
     logger.info(f"{values = }")
 
     buttons = WindowButtons(window)
 
-    if not input_valid:
+    if state.input_patterns and not state.input_fstrs:
         popup("Error", "Input folder path not valid")
         return
 
-    if not input_paths:
+    if not state.input_patterns:
         popup("Error", "Input folder path empty")
         return
 
-    if not outfile_base:
+    if not state.outfile_base:
         popup("Error", "Output file base empty")
         return
 

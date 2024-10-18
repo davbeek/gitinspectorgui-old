@@ -1,8 +1,10 @@
+import glob
+import os
 import webbrowser
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-import PySimpleGUI as sg
+import PySimpleGUI as sg  # type: ignore
 
 from gigui.args_settings import AUTO, Settings
 from gigui.constants import (
@@ -18,7 +20,7 @@ from gigui.constants import (
 from gigui.keys import Keys
 from gigui.repo import is_git_repo
 from gigui.tiphelp import Help
-from gigui.typedefs import FileStr
+from gigui.typedefs import FilePattern, FileStr
 
 keys = Keys()
 
@@ -28,10 +30,10 @@ keys = Keys()
 @dataclass
 class GUIState:
     col_percent: int
+    input_patterns: list[FilePattern] = field(default_factory=list)
     input_fstrs: list[FileStr] = field(default_factory=list)
-    input_paths: list[Path] = field(default_factory=list)
+    input_repo_path: None | Path = None
     fix: str = keys.prefix
-    input_valid: bool = False
     outfile_base: str = DEFAULT_FILE_BASE
 
 
@@ -181,6 +183,16 @@ def help_window() -> None:
     window.close()
 
 
+def popup(title, message):
+    sg.popup(
+        title,
+        message,
+        keep_on_top=True,
+        text_color="black",
+        background_color="white",
+    )
+
+
 def popup_custom(title, message, user_input=None) -> str | None:
     layout = [[sg.Text(message, text_color="black", background_color="white")]]
     if user_input:
@@ -205,17 +217,14 @@ def use_single_repo(input_paths: list[Path]) -> bool:
 
 
 def update_outfile_str(
-    window: sg.Window,
     state: GUIState,
+    window: sg.Window,
 ) -> None:
     def get_outfile_str() -> str:
 
         def get_rename_file() -> str:
-            if not state.input_valid:
-                return ""
-
-            if use_single_repo(state.input_paths):
-                repo_name = state.input_paths[0].stem
+            if state.input_repo_path:
+                repo_name = state.input_repo_path.stem
             else:
                 repo_name = REPO_HINT
 
@@ -226,32 +235,75 @@ def update_outfile_str(
             else:  # fix == keys.nofix
                 return state.outfile_base
 
-        if state.input_fstrs:
-            if state.input_valid:
-                out_name = get_rename_file()
-                if use_single_repo(state.input_paths):
-                    return str(state.input_paths[0].parent) + "/" + out_name
-                else:
-                    return PARENT_HINT + out_name
-            else:
-                return ""
-        else:
+        if not state.input_patterns or not state.input_fstrs:
             return ""
+
+        out_name = get_rename_file()
+        if state.input_repo_path:
+            return str(state.input_repo_path.parent) + "/" + out_name
+        else:
+            return PARENT_HINT + out_name
 
     window[keys.outfile_path].update(value=get_outfile_str())  # type: ignore
 
 
-def paths_valid(paths: list[Path], sg_input: sg.Input, colored: bool = True) -> bool:
-    def path_exists_case_sensitive(p: Path) -> bool:
-        return p.exists() and str(p) in map(str, p.parent.iterdir())
+def process_input_patterns(
+    state: GUIState,
+    sg_input: sg.Input,
+    window: sg.Window,
+) -> GUIState:
+    if not state.input_patterns:
+        state.input_fstrs = []
+        state.input_repo_path = None
+        enable_element(window[keys.prefix])  # type: ignore
+        enable_element(window[keys.postfix])  # type: ignore
+        enable_element(window[keys.nofix])  # type: ignore
+        enable_element(window[keys.depth])  # type: ignore
+        update_outfile_str(state, window)
+        return state
 
-    def invalid_input(element: sg.Element) -> None:
+    matches = get_dir_matches(state.input_patterns, sg_input)  # type: ignore
+    state.input_fstrs = matches
+
+    if len(matches) == 1 and is_git_repo(matches[0]):
+        state.input_repo_path = Path(matches[0])
+        enable_element(window[keys.prefix])  # type: ignore
+        enable_element(window[keys.postfix])  # type: ignore
+        enable_element(window[keys.nofix])  # type: ignore
+        disable_element(window[keys.depth])  # type: ignore
+        update_outfile_str(state, window)
+        return state
+    else:
+        state.input_repo_path = None
+        enable_element(window[keys.prefix])  # type: ignore
+        enable_element(window[keys.postfix])  # type: ignore
+        disable_element(window[keys.nofix])  # type: ignore
+        enable_element(window[keys.depth])  # type: ignore
+        update_outfile_str(state, window)
+        return state
+
+
+def get_dir_matches(
+    patterns: list[FilePattern], sg_input: sg.Input, colored: bool = True
+) -> list[FileStr]:
+
+    def _invalid_input(element: sg.Element) -> None:
         element.update(background_color="#FD9292")
 
-    if all(path_exists_case_sensitive(path) for path in paths):
-        sg_input.update(background_color="#FFFFFF")
-        return True
-    else:
-        if colored:
-            invalid_input(sg_input)
-        return False
+    all_matches: list[FileStr] = []
+    for pattern in patterns:
+        matches: list[FileStr] = [
+            match for match in glob.glob(pattern) if os.path.isdir(match)
+        ]
+        if not matches:
+            if colored:
+                _invalid_input(sg_input)
+            return []
+        else:
+            all_matches.extend(matches)
+    sg_input.update(background_color="#FFFFFF")
+    unique_matches = []
+    for match in all_matches:
+        if match not in unique_matches:
+            unique_matches.append(match)
+    return unique_matches
