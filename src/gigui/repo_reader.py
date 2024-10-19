@@ -14,7 +14,7 @@ from gigui.typedefs import Author, FileStr, Rev, SHAlong, SHAshort
 logger = logging.getLogger(__name__)
 
 
-class StatsReader:
+class RepoReader:
     args: Args
 
     # Here the values of the --ex-revision parameter are stored as a set.

@@ -9,7 +9,7 @@ from git import InvalidGitRepositoryError, NoSuchPathError, PathLike, Repo
 from gigui.args_settings import Args
 from gigui.blame import BlameReader, BlameTables
 from gigui.data import CommitGroup, FileStat, Person, PersonsDB, PersonStat
-from gigui.stats_reader import StatsReader
+from gigui.repo_reader import RepoReader
 from gigui.typedefs import Author, FileStr
 from gigui.utils import divide_to_percentage, log
 
@@ -24,15 +24,15 @@ class GIRepo:
         self.location = str(location)
         self.pathstr = str(Path(location).resolve())
 
-        self.stats_reader = StatsReader(
+        self.repo_reader = RepoReader(
             name,
             location,
         )
 
-        self.stats_reader = StatsReader(self.name, self.location)
-        self.stat_tables = StatsTables()
-
+        self.repo_reader = RepoReader(self.name, self.location)
         self.blame_reader: BlameReader | None = None
+
+        self.stat_tables = StatTables()
         self.blame_tables: BlameTables | None = None
 
         self.author2fstr2fstat: dict[str, dict[str, FileStat]] = {}
@@ -57,19 +57,20 @@ class GIRepo:
         """
 
         try:
-            self.stats_reader.run(thread_executor)
+            self.repo_reader.run(thread_executor)
 
-            # Use results from stats_reader to initialize the other classes.
+            # Use results from repo_reader to initialize the other classes.
             self.blame_reader = BlameReader(
-                self.stats_reader.git_repo,
-                self.stats_reader.head_commit,
-                self.stats_reader.ex_sha_shorts,
-                self.stats_reader.fstrs,
-                self.stats_reader.persons_db,
+                self.repo_reader.git_repo,
+                self.repo_reader.head_commit,
+                self.repo_reader.ex_sha_shorts,
+                self.repo_reader.fstrs,
+                self.repo_reader.persons_db,
             )
+
             self.blame_tables = BlameTables(
-                self.stats_reader.fstrs,
-                self.stats_reader.persons_db,
+                self.repo_reader.fstrs,
+                self.repo_reader.persons_db,
                 self.blame_reader.fstr2blames,
             )
 
@@ -81,9 +82,9 @@ class GIRepo:
 
             # Set stats.author2fstr2fstat, the basis of all other stat tables
             self.author2fstr2fstat = self.stat_tables.get_author2fstr2fstat(
-                self.stats_reader.fstrs,
-                self.stats_reader.fstr2commit_groups,
-                self.stats_reader.persons_db,
+                self.repo_reader.fstrs,
+                self.repo_reader.fstr2commit_groups,
+                self.repo_reader.persons_db,
             )
             if list(self.author2fstr2fstat.keys()) == ["*"]:
                 return False
@@ -94,7 +95,7 @@ class GIRepo:
             )
 
             self.fstr2fstat = self.stat_tables.get_fstr2fstat(
-                self.author2fstr2fstat, self.stats_reader.fstr2commit_groups
+                self.author2fstr2fstat, self.repo_reader.fstr2commit_groups
             )
 
             fstrs = self.fstr2fstat.keys()
@@ -116,7 +117,7 @@ class GIRepo:
             )
 
             self.author2pstat = self.stat_tables.get_author2pstat(
-                self.author2fstr2fstat, self.stats_reader.persons_db
+                self.author2fstr2fstat, self.repo_reader.persons_db
             )
 
             total_insertions = self.author2pstat["*"].stat.insertions
@@ -139,23 +140,23 @@ class GIRepo:
 
             return True
         finally:
-            self.stats_reader.git_repo.close()
+            self.repo_reader.git_repo.close()
 
     @property
     def path(self) -> Path:
         return Path(self.pathstr)
 
     def get_person(self, author: Author) -> Person:
-        return self.stats_reader.get_person(author)
+        return self.repo_reader.get_person(author)
 
     @classmethod
     def set_args(cls, args: Args):
-        GIRepo.args = StatsReader.args = StatsTables.args = args
+        GIRepo.args = RepoReader.args = StatTables.args = args
         BlameReader.args = BlameTables.args = args
-        StatsReader.ex_revs = set(args.ex_revisions)
+        RepoReader.ex_revs = set(args.ex_revisions)
 
 
-class StatsTables:
+class StatTables:
     args: Args
 
     @staticmethod
