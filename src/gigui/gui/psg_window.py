@@ -55,7 +55,7 @@ def make_window() -> sg.Window:
 
     # create the window
     window = sg.Window(
-        "GitinspectorGUI",
+        "GitInspectorGUI",
         window_layout(),
         size=(WINDOW_SIZE_X, WINDOW_SIZE_Y),
         icon=get_icon(),
@@ -101,6 +101,7 @@ def window_layout() -> list[list[sg.Element] | list[sg.Column] | list[sg.Multili
                 [
                     [io_config_frame()],
                     [output_formats_frame()],
+                    [settings_frame()],
                     [general_config_frame()],
                     [analysis_options_frame()],
                     [exclusion_patterns_frame()],
@@ -152,29 +153,7 @@ def layout_top_row() -> list[sg.Column]:
                 [
                     button("Execute", keys.execute),
                     button("Clear", keys.clear),
-                    button("Show", keys.show, pad=((20, 3), 2)),
-                    button("Save", keys.save),
-                    sg.FileSaveAs(
-                        "Save As",
-                        key=keys.save_as,
-                        target=keys.save_as,
-                        file_types=(("JSON", "*.json"),),
-                        default_extension=".json",
-                        enable_events=True,
-                        initial_folder=str(SettingsFile.get_location()),
-                        pad=BUTTON_PADDING,
-                    ),
-                    sg.FileBrowse(
-                        "Load",
-                        key=keys.load,
-                        target=keys.load,
-                        file_types=(("JSON", "*.json"),),
-                        enable_events=True,
-                        initial_folder=str(SettingsFile.get_location().parent),
-                        pad=BUTTON_PADDING,
-                    ),
-                    button("Reset", keys.reset, pad=((3, 20), 2)),
-                    button("Help", keys.help),
+                    button("Help", keys.help, pad=((20, 3), 2)),
                     button("About", keys.about),
                     button("Exit", keys.exit),
                 ]
@@ -345,6 +324,44 @@ def output_formats_frame() -> sg.Frame:
                         ],
                     ],
                 ),
+            ],
+        ],
+    )
+
+
+def settings_frame() -> sg.Frame:
+    return frame(
+        "Settings",
+        layout=[
+            [
+                name_header("Settings file", ""),
+                input_box(
+                    keys.settings_file,
+                    size=15,
+                    disabled=True,
+                ),
+                button("Save", keys.save, pad=((5, 3), 0)),
+                sg.FileSaveAs(
+                    "Save As",
+                    key=keys.save_as,
+                    target=keys.save_as,
+                    file_types=(("JSON", "*.json"),),
+                    default_extension=".json",
+                    enable_events=True,
+                    initial_folder=str(SettingsFile.get_location()),
+                    pad=BUTTON_PADDING,
+                ),
+                sg.FileBrowse(
+                    "Load",
+                    key=keys.load,
+                    target=keys.load,
+                    file_types=(("JSON", "*.json"),),
+                    enable_events=True,
+                    initial_folder=str(SettingsFile.get_location().parent),
+                    pad=BUTTON_PADDING,
+                ),
+                button("Reset", keys.reset),
+                button("Toggle", keys.toggle_settings_file),
             ],
         ],
     )

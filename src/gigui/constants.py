@@ -2,10 +2,10 @@ import sys
 
 # GUI window settings
 WINDOW_SIZE_X = 660  # width of window
-WINDOW_SIZE_Y = 660  # height of window
+WINDOW_SIZE_Y = 720  # height of window
 
 if sys.platform == "darwin":
-    MAX_COL_HEIGHT = 460  # macOS, Macbook
+    MAX_COL_HEIGHT = 509  # macOS, Macbook
 else:
     MAX_COL_HEIGHT = 565  # Windows, Linux
 

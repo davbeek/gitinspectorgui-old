@@ -85,6 +85,8 @@ class Settings(Args):
     # object. It can be used as a starting point of settings. Therefore for each new
     # settings, a new object should be created.
 
+    gui_settings_full_path: bool = False
+
     def create_settings_file(self, settings_path: Path):
         settings_dict = asdict(self)
         with open(settings_path, "w", encoding="utf-8") as f:
@@ -265,6 +267,7 @@ class SettingsFile:
             "hide_blame_exclusions": {"type": "boolean"},
             "blame_skip": {"type": "boolean"},
             "show_renames": {"type": "boolean"},
+            "gui_settings_full_path": {"type": "boolean"},
             "subfolder": {"type": "string"},
             "deletions": {"type": "boolean"},
             "whitespace": {"type": "boolean"},
@@ -321,6 +324,10 @@ class SettingsFile:
         settings, _ = cls.load()
         if not utils.gui:
             settings.log()
+
+    @classmethod
+    def get_location_name(cls) -> str:
+        return cls.get_location().name
 
     @classmethod
     def load(cls) -> tuple[Settings, str]:

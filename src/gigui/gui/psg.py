@@ -32,6 +32,7 @@ from gigui.gui.psg_support import (
     update_col_percent,
     update_column_height,
     update_outfile_str,
+    update_settings_file_str,
     window_state_from_settings,
 )
 from gigui.gui.psg_window import make_window
@@ -115,11 +116,9 @@ def run_inner(settings: Settings) -> bool:
             case keys.clear:
                 window[keys.multiline].update(value="")  # type: ignore
 
-            case keys.show:
-                SettingsFile.show()
-
             case keys.save:
                 new_settings = Settings.from_values_dict(values)
+                new_settings.gui_settings_full_path = state.gui_settings_full_path
                 new_settings.save()
                 log("Settings saved to " + SettingsFile.get_settings_file())
 
@@ -127,6 +126,7 @@ def run_inner(settings: Settings) -> bool:
                 destination = values[keys.save_as]
                 new_settings = Settings.from_values_dict(values)
                 new_settings.save_as(destination)
+                update_settings_file_str(state.gui_settings_full_path, window)
                 log(f"Settings saved to {str(SettingsFile.get_location())}")
 
             case keys.load:
@@ -135,7 +135,7 @@ def run_inner(settings: Settings) -> bool:
                 new_settings, _ = SettingsFile.load_from(settings_file)
                 SettingsFile.set_location(settings_file)
                 window[keys.load].InitialFolder = settings_folder  # type: ignore
-                window_state_from_settings(window, new_settings)
+                update_settings_file_str(state.gui_settings_full_path, window)
                 log(f"Settings loaded from {settings_file}")
 
             case keys.reset:
@@ -149,6 +149,14 @@ def run_inner(settings: Settings) -> bool:
                     window.close()
                     recreate_window = True
                     break  # strangely enough also works without the break
+
+            case keys.toggle_settings_file:
+                state.gui_settings_full_path = not state.gui_settings_full_path
+                if state.gui_settings_full_path:
+                    update_settings_file_str(True, window)
+                    SettingsFile.show()
+                else:
+                    update_settings_file_str(False, window)
 
             case keys.help:
                 help_window()
@@ -254,6 +262,7 @@ def execute(  # pylint: disable=too-many-branches
             keys.until,
             keys.multi_thread,
             keys.multi_core,
+            keys.gui_settings_full_path,
         }:
             if value["type"] == "array":
                 setattr(args, key, str_split_comma(values[key]))  # type: ignore

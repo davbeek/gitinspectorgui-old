@@ -6,7 +6,7 @@ from pathlib import Path
 
 import PySimpleGUI as sg  # type: ignore
 
-from gigui.args_settings import AUTO, Settings
+from gigui.args_settings import AUTO, Settings, SettingsFile
 from gigui.constants import (
     AVAILABLE_FORMATS,
     DEFAULT_FILE_BASE,
@@ -35,6 +35,7 @@ class GUIState:
     input_repo_path: None | Path = None
     fix: str = keys.prefix
     outfile_base: str = DEFAULT_FILE_BASE
+    gui_settings_full_path: bool = False
 
 
 class WindowButtons:
@@ -44,7 +45,6 @@ class WindowButtons:
         self.buttons: list[str] = [
             keys.execute,
             keys.clear,
-            keys.show,
             keys.save,
             keys.save_as,
             keys.load,
@@ -80,6 +80,7 @@ def window_state_from_settings(window: sg.Window, settings: Settings) -> None:
         not in {
             keys.fix,
             keys.format,
+            keys.gui_settings_full_path,
             keys.profile,
             keys.multi_thread,
             keys.multi_core,
@@ -108,6 +109,11 @@ def window_state_from_settings(window: sg.Window, settings: Settings) -> None:
     window.write_event_value(keys.outfile_base, settings.outfile_base)
     window.write_event_value(keys.include_files, ".".join(settings.include_files))
     window.write_event_value(keys.verbosity, settings.verbosity)
+    if settings.gui_settings_full_path:
+        settings_fstr = str(SettingsFile.get_location())
+    else:
+        settings_fstr = SettingsFile.get_location().stem
+    window[keys.settings_file].update(value=settings_fstr)  # type: ignore
 
 
 def disable_element(ele: sg.Element) -> None:
@@ -245,6 +251,17 @@ def update_outfile_str(
             return PARENT_HINT + out_name
 
     window[keys.outfile_path].update(value=get_outfile_str())  # type: ignore
+
+
+def update_settings_file_str(
+    full_path: bool,
+    window: sg.Window,
+) -> None:
+    if full_path:
+        file_string = str(SettingsFile.get_location())
+    else:
+        file_string = SettingsFile.get_location().stem
+    window[keys.settings_file].update(value=file_string)  # type: ignore
 
 
 def process_input_patterns(
