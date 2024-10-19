@@ -166,7 +166,10 @@ def help_window() -> None:
             help_text(txt_start),
             hyperlink_text(url),
             help_text(txt_end),
-        ]
+        ],
+        [sg.VPush()],  # Add vertical space
+        [sg.VPush()],  # Add vertical space
+        [sg.Column([[sg.Button("OK", key="OK_BUTTON")]], justification="center")],
     ]
 
     window = sg.Window(
@@ -176,11 +179,10 @@ def help_window() -> None:
         keep_on_top=True,
         background_color="white",
     )
-    assert window is not None
 
     while True:
         event, _ = window.read()  # type: ignore
-        if event == sg.WINDOW_CLOSED:
+        if event == sg.WINDOW_CLOSED or event == "OK_BUTTON":
             break
         if event.startswith("URL "):
             url = event.split(" ")[1]

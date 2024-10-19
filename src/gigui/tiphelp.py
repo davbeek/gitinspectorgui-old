@@ -48,6 +48,7 @@ class Tip:
         "Omit from blame output: comments, empty lines and author lines that are excluded"
     )
     blame_skip: str = "Do not generate blame worksheets or blame tabs"
+    settings_file: str = "Settings file name or full path"
     subfolder: str = "Restrict analysis to a subfolder of the repository"
     file_options: str = (
         'For file selection, the file pattern for "Show files" has priority '
@@ -134,7 +135,7 @@ class Help(Tip):
     help_doc: tuple[str, str, str] = (
         "For online documentation see <",
         "https://gitinspectorgui.readthedocs.io",
-        ">.",
+        ">",
     )
 
     # Mutually exclusive settings
@@ -151,8 +152,9 @@ class Help(Tip):
     )
     about: str = "Output license information."
     about_info: str = (
-        f"GitinspectorGUI version {get_version()}, available under the MIT license. It uses "
-        "the PyPI pysimplegui-4-foss LGPL licensed version of the PySimpleGUI project."
+        f"GitinspectorGUI version {get_version()}. It utilizes the PySimpleGUI "
+        "project, specifically the PyPI pysimplegui-4-foss version, which is licensed "
+        "under the LGPL."
     )
     # Input
     input_fstrs: str = """
