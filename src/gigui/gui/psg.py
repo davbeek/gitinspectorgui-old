@@ -135,6 +135,7 @@ def run_inner(settings: Settings) -> bool:
                 new_settings, _ = SettingsFile.load_from(settings_file)
                 SettingsFile.set_location(settings_file)
                 window[keys.load].InitialFolder = settings_folder  # type: ignore
+                window_state_from_settings(window, new_settings)
                 update_settings_file_str(state.gui_settings_full_path, window)
                 log(f"Settings loaded from {settings_file}")
 
