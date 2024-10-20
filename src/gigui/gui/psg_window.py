@@ -4,7 +4,7 @@ import logging
 import sys
 from pathlib import Path
 
-import PySimpleGUI as sg
+import PySimpleGUI as sg  # type: ignore
 
 from gigui._logging import add_gui_handler
 from gigui.args_settings import AUTO, VIEWER_CHOICES, SettingsFile

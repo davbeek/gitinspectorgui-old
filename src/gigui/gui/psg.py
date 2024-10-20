@@ -57,7 +57,7 @@ def run(settings: Settings) -> None:
 # pylint: disable=too-many-locals disable=too-many-branches disable=too-many-statements
 def run_inner(settings: Settings) -> bool:
     logger.info(f"{settings = }")
-    state: GUIState = GUIState(settings.col_percent)
+    state: GUIState = GUIState(settings.col_percent, settings.gui_settings_full_path)
     utils.gui = True
 
     # Is set to True when handling "Reset settings file" menu item

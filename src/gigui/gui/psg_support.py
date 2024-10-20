@@ -30,12 +30,12 @@ keys = Keys()
 @dataclass
 class GUIState:
     col_percent: int
+    gui_settings_full_path: bool
     input_patterns: list[FilePattern] = field(default_factory=list)
     input_fstrs: list[FileStr] = field(default_factory=list)
     input_repo_path: None | Path = None
     fix: str = keys.prefix
     outfile_base: str = DEFAULT_FILE_BASE
-    gui_settings_full_path: bool = False
 
 
 class WindowButtons:
