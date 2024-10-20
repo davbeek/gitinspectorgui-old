@@ -1,13 +1,15 @@
 import sys
 
-# GUI window settings
-WINDOW_SIZE_X = 660  # width of window
-WINDOW_SIZE_Y = 720  # height of window
-
 if sys.platform == "darwin":
-    MAX_COL_HEIGHT = 509  # macOS, Macbook
+    # macOS, Macbook Pro 16
+    MAX_COL_HEIGHT = 509  # height op settings column
+    WINDOW_SIZE_Y = 720  # height of GUI window
+    WINDOW_SIZE_X = 660  # width of GUI window
 else:
-    MAX_COL_HEIGHT = 565  # Windows, Linux
+    # Windows, Linux
+    MAX_COL_HEIGHT = 526  # height op settings column
+    WINDOW_SIZE_Y = 740  # height of window
+    WINDOW_SIZE_X = 670  # width of window
 
 WINDOW_HEIGHT_CORR = 45  # height correction: height of command buttons + title bar
 INIT_COL_PERCENT = 75  # ratio of other layout vs multiline, default 4 : 1
