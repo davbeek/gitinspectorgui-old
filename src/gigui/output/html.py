@@ -79,12 +79,19 @@ class HTMLTable:
             th.string = header_string
             if header == "Code":
                 button = self.soup.new_tag("button")
-                button["class"] = "blame-exclusions-button"
                 if self.hide_blame_exclusions:
-                    button["data-state"] = "hide"
+                    button["class"] = "blame-exclusions-button pressed"
                 else:
-                    button["data-state"] = "show"
-                button.string = "Toggle blame exclusions"
+                    button["class"] = "blame-exclusions-button"
+                button.string = "Hide blame exclusions"
+                th.append(button)
+
+                button = self.soup.new_tag("button")
+                if self.empty_lines:  # include and show empty lines
+                    button["class"] = "blame-empty-lines-button"
+                else:
+                    button["class"] = "blame-empty-lines-button pressed"
+                button.string = "Hide empty lines"
                 th.append(button)
             thead.append(th)
         self.table.append(thead)

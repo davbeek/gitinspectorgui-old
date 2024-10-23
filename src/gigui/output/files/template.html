@@ -124,7 +124,8 @@
             background-color: #D3D3D3;
         }
 
-        .blame-exclusions-button {
+        .blame-exclusions-button,
+        .blame-empty-lines-button {
             background-color: #D9FFB3;
             margin-left: 20px;
         }
@@ -217,6 +218,13 @@
             border-right: 1px solid lightgrey;
         }
 
+        .pressed {
+            border-top: 2px solid grey;
+            border-left: 2px solid grey;
+            border-bottom: 2px solid white;
+            border-right: 2px solid white;
+        }
+
         .sticky {
             background-color: white;
             opacity: 1;
@@ -256,6 +264,8 @@
         </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Script to adjust header row position based on tab row height -->
     <script>
         window.addEventListener('load', function () {
             var tabRow = document.getElementById('tabRow');
@@ -266,38 +276,45 @@
             });
         });
     </script>
+
     <script>
-        document.querySelectorAll('.blame-exclusions-button').forEach(button => {
-            const state = button.getAttribute('data-state');
-            const table = button.closest('.tab-pane').querySelector('table');
-            const rows = table.querySelectorAll('tr');
+        document.addEventListener("DOMContentLoaded", function () {
+            const updateRowsVisibility = () => {
+                document.querySelectorAll('.tab-pane').forEach(tabPane => {
+                    const table = tabPane.querySelector('table');
+                    const rows = table.querySelectorAll('tr');
+                    const blameExclusionsButton = tabPane.querySelector('.blame-exclusions-button');
+                    const blameEmptyLinesButton = tabPane.querySelector('.blame-empty-lines-button');
+                    const isBlameExclusionsPressed = blameExclusionsButton ? blameExclusionsButton.classList.contains('pressed') : false;
+                    const isBlameEmptyLinesPressed = blameEmptyLinesButton ? blameEmptyLinesButton.classList.contains('pressed') : false;
 
-            // Set initial button text based on state
-            button.textContent = state === 'show' ? 'Hide blame exclusions' : 'Show blame exclusions';
+                    rows.forEach(row => {
+                        const codeCell = row.querySelector('.code-col');
+                        const firstCell = row.cells[0];
+                        const secondCell = row.cells[1];
+                        const isEmptyLine = codeCell && codeCell.textContent.trim() === '';
+                        const isExcludedAuthor = firstCell && secondCell && firstCell.textContent.trim() === '0' && !secondCell.textContent.includes('*');
 
-            if (state === 'hide') {
-                rows.forEach(row => {
-                    const firstCell = row.cells[0];
-                    const secondCell = row.cells[1];
-                    if (firstCell && secondCell && firstCell.textContent.trim() === '0' && !secondCell.textContent.includes('*')) {
-                        row.style.display = 'none';
-                    }
+                        if (isExcludedAuthor && isBlameExclusionsPressed) {
+                            row.style.display = 'none';
+                        } else if (isEmptyLine && isBlameEmptyLinesPressed) {
+                            row.style.display = 'none';
+                        } else {
+                            row.style.display = '';
+                        }
+                    });
                 });
-            }
-
-            button.onclick = function () {
-                const state = button.getAttribute('data-state');
-                rows.forEach(row => {
-                    const firstCell = row.cells[0];
-                    const secondCell = row.cells[1];
-                    if (firstCell && secondCell && firstCell.textContent.trim() === '0' && !secondCell.textContent.includes('*')) {
-                        row.style.display = state === 'show' ? 'none' : '';
-                    }
-                });
-
-                button.setAttribute('data-state', state === 'show' ? 'hide' : 'show');
-                button.textContent = state === 'show' ? 'Show blame exclusions' : 'Hide blame exclusions';
             };
+
+            document.querySelectorAll('.blame-empty-lines-button, .blame-exclusions-button').forEach(button => {
+                // Set initial state based on the presence of the 'pressed' class
+                updateRowsVisibility();
+
+                button.onclick = function () {
+                    button.classList.toggle('pressed');
+                    updateRowsVisibility();
+                };
+            });
         });
     </script>
 </body>
