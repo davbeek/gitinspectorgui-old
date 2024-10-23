@@ -124,11 +124,6 @@
             background-color: #D3D3D3;
         }
 
-        .blame-exclusions-button,
-        .blame-empty-lines-button {
-            background-color: #D9FFB3;
-            margin-left: 20px;
-        }
 
         .id_col {
             width: 20px;
@@ -218,11 +213,22 @@
             border-right: 1px solid lightgrey;
         }
 
+        .blame-exclusions-button,
+        .blame-empty-lines-button,
+        .hide-colors-button {
+            background-color: #D9FFB3;
+            margin-left: 20px;
+        }
+
         .pressed {
             border-top: 2px solid grey;
             border-left: 2px solid grey;
             border-bottom: 2px solid white;
             border-right: 2px solid white;
+        }
+
+        .hide-colors {
+            background-color: #FFFFFF !important;
         }
 
         .sticky {
@@ -277,17 +283,21 @@
         });
     </script>
 
+    <!-- Script to handle buttons -->
     <script>
         document.addEventListener("DOMContentLoaded", function () {
-            const updateRowsVisibility = () => {
-                document.querySelectorAll('.tab-pane').forEach(tabPane => {
-                    const table = tabPane.querySelector('table');
-                    const rows = table.querySelectorAll('tr');
-                    const blameExclusionsButton = tabPane.querySelector('.blame-exclusions-button');
-                    const blameEmptyLinesButton = tabPane.querySelector('.blame-empty-lines-button');
-                    const isBlameExclusionsPressed = blameExclusionsButton ? blameExclusionsButton.classList.contains('pressed') : false;
-                    const isBlameEmptyLinesPressed = blameEmptyLinesButton ? blameEmptyLinesButton.classList.contains('pressed') : false;
 
+            const updateRows = () => {
+                document.querySelectorAll('table').forEach(table => {
+                    const exclusionsButton = table.querySelector('.blame-exclusions-button');
+                    const emptyLinesButton = table.querySelector('.blame-empty-lines-button');
+                    const hideColorsButton = table.querySelector('.hide-colors-button');
+
+                    const isExclusionsPressed = exclusionsButton ? exclusionsButton.classList.contains('pressed') : false;
+                    const isEmptyLinesPressed = emptyLinesButton ? emptyLinesButton.classList.contains('pressed') : false;
+                    const isHideColorsPressed = hideColorsButton ? hideColorsButton.classList.contains('pressed') : false;
+
+                    const rows = table.querySelectorAll('tbody tr');
                     rows.forEach(row => {
                         const codeCell = row.querySelector('.code-col');
                         const firstCell = row.cells[0];
@@ -295,24 +305,27 @@
                         const isEmptyLine = codeCell && codeCell.textContent.trim() === '';
                         const isExcludedAuthor = firstCell && secondCell && firstCell.textContent.trim() === '0' && !secondCell.textContent.includes('*');
 
-                        if (isExcludedAuthor && isBlameExclusionsPressed) {
-                            row.style.display = 'none';
-                        } else if (isEmptyLine && isBlameEmptyLinesPressed) {
-                            row.style.display = 'none';
+                        row.style.display = (isExcludedAuthor && isExclusionsPressed)
+                            || (isEmptyLine && isEmptyLinesPressed) ? 'none' : '';
+
+                        if (isHideColorsPressed) {
+                            row.classList.add('hide-colors');
                         } else {
-                            row.style.display = '';
+                            row.classList.remove('hide-colors');
                         }
                     });
                 });
             };
 
-            document.querySelectorAll('.blame-empty-lines-button, .blame-exclusions-button').forEach(button => {
-                // Set initial state based on the presence of the 'pressed' class
-                updateRowsVisibility();
+            document.querySelectorAll('.blame-empty-lines-button, .blame-exclusions-button, .hide-colors-button').forEach(button => {
+                if (!button.classList.contains('hide-colors-button')) {
+                    // Set initial state based on the presence of the 'pressed' class
+                    updateRows()
+                };
 
                 button.onclick = function () {
                     button.classList.toggle('pressed');
-                    updateRowsVisibility();
+                    updateRows();
                 };
             });
         });

@@ -93,6 +93,11 @@ class HTMLTable:
                     button["class"] = "blame-empty-lines-button pressed"
                 button.string = "Hide empty lines"
                 th.append(button)
+
+                button = self.soup.new_tag("button")
+                button["class"] = "hide-colors-button"
+                button.string = "Hide colors"
+                th.append(button)
             thead.append(th)
         self.table.append(thead)
         self.table.append(self.tbody)
