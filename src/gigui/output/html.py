@@ -66,6 +66,7 @@ class HTMLTable:
     def _add_header(self, headers: list[str]) -> None:
         self.table.clear()  # remove all rows resulting from previous calls
         thead: Tag = self.soup.new_tag("thead")
+        thead["class"] = "sticky headerRow"
         tr = self.soup.new_tag("tr")
         tr["class"] = "bg-th-green"
         thead.append(tr)

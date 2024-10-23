@@ -222,13 +222,14 @@
             opacity: 1;
             position: sticky;
             top: 0;
+            z-index: 1;
         }
     </style>
 </head>
 
 <body>
     <div style="margin-right: auto; margin-left: 0;">
-        <div class="sticky">
+        <div class="sticky" id="tabRow">
             <ul class="nav nav-tabs" id="tab-buttons">
                 <li class="nav-item">
                     <button class="nav-link active" id="authors-tab" data-bs-toggle="tab"
@@ -255,6 +256,16 @@
         </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        window.addEventListener('load', function () {
+            var tabRow = document.getElementById('tabRow');
+            var headerRows = document.querySelectorAll('.headerRow');
+            var tabRowHeight = tabRow.offsetHeight;
+            headerRows.forEach(function (headerRow) {
+                headerRow.style.top = tabRowHeight + 'px';
+            });
+        });
+    </script>
     <script>
         document.querySelectorAll('.blame-exclusions-button').forEach(button => {
             const state = button.getAttribute('data-state');
