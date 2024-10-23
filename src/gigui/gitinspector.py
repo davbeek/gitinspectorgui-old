@@ -80,6 +80,7 @@ def init_classes(args: Args):
     GIRepo.set_args(args)
     FileStat.show_renames = args.show_renames
     HTMLTable.hide_blame_exclusions = args.hide_blame_exclusions
+    HTMLTable.empty_lines = args.empty_lines
     Person.show_renames = args.show_renames
     Person.ex_author_patterns = args.ex_authors
     Person.ex_email_patterns = args.ex_emails

@@ -57,6 +57,7 @@ BG_ROW_COLORS: list[str] = ["bg-row-light-green", "bg-white"]
 
 class HTMLTable:
     hide_blame_exclusions: bool
+    empty_lines: bool
 
     def __init__(self) -> None:
         self.soup = BeautifulSoup("<table></table>", "html.parser")

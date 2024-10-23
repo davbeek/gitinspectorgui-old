@@ -262,12 +262,15 @@ class BlameTables:
                 exclude_comment = is_comment and not self.args.comments
                 exclude_empty = line.strip() == "" and not self.args.empty_lines
                 exclude_author = author in self.persons_db.authors_excluded
-                exclude_line = exclude_comment or exclude_empty or exclude_author
-                if self.args.hide_blame_exclusions and exclude_line and not html:
+                if (
+                    self.args.hide_blame_exclusions
+                    and not html
+                    and (exclude_comment or exclude_empty or exclude_author)
+                ):
                     line_nr += 1
                 else:
                     row: Row = [
-                        0 if exclude_line else author2nr[author],
+                        0 if exclude_comment or exclude_author else author2nr[author],
                         author,
                         b.date.strftime("%Y-%m-%d"),
                         b.message,
