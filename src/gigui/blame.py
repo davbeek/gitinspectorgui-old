@@ -227,10 +227,12 @@ class BlameTables:
     def set_sorted_fstrs(self, sorted_fstrs: list[FileStr]) -> None:
         self.sorted_fstrs = sorted_fstrs
 
-    def out_blames(self, html: bool) -> dict[FileStr, tuple[list[Row], list[bool]]]:
+    def get_fstr2blame_rows(
+        self, html: bool
+    ) -> dict[FileStr, tuple[list[Row], list[bool]]]:
         fstr2rows_iscomments: dict[FileStr, tuple[list[Row], list[bool]]] = {}
         for fstr in self.sorted_fstrs:
-            rows, iscomments = self._out_blames_fstr(fstr, html)
+            rows, iscomments = self._get_blame_rows(fstr, html)
             if rows:
                 fstr2rows_iscomments[fstr] = rows, iscomments
             else:
@@ -238,7 +240,7 @@ class BlameTables:
         return fstr2rows_iscomments
 
     # pylint: disable=too-many-locals
-    def _out_blames_fstr(
+    def _get_blame_rows(
         self, fstr: FileStr, html: bool
     ) -> tuple[list[Row], list[bool]]:
         blames: list[Blame] = self.fstr2blames[fstr]

@@ -2,8 +2,12 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup, Tag
 
-from gigui.output.outbase import (
-    TableStatsRows,
+from gigui.output.shared import (
+    AuthorsFilesRowTable,
+    AuthorsRowTable,
+    FilesAuthorsRowTable,
+    FilesRowTable,
+    get_blames,
     header_authors,
     header_authors_files,
     header_blames,
@@ -55,9 +59,10 @@ BG_AUTHOR_COLORS: list[str] = [
 BG_ROW_COLORS: list[str] = ["bg-row-light-green", "bg-white"]
 
 
-class HTMLTable:
+class TableSoup:
     hide_blame_exclusions: bool
     empty_lines: bool
+    subfolder: FileStr
 
     def __init__(self) -> None:
         self.soup = BeautifulSoup("<table></table>", "html.parser")
@@ -103,17 +108,14 @@ class HTMLTable:
         self.table.append(self.tbody)
 
 
-class HTMLStatTable(HTMLTable):
-    def __init__(self, out_rows: TableStatsRows, subfolder: FileStr) -> None:
+class StatTableSoup(TableSoup):
+    def __init__(self) -> None:
         super().__init__()
-        self.out_rows = out_rows
-        self.subfolder = subfolder
+        self.rows: list[Row]  # to be set by child classes
 
-    def _add_colored_rows_table(
-        self, header: list[str], rows: list[Row], bg_colors: list[str]
-    ) -> None:
+    def _add_colored_rows_table(self, header: list[str], bg_colors: list[str]) -> None:
         self._add_header(header)
-        for row in rows:
+        for row in self.rows:
             tr = self.soup.new_tag("tr")
             tr["class"] = bg_colors[(int(row[0]) % len(bg_colors))]
             self.tbody.append(tr)
@@ -127,46 +129,35 @@ class HTMLStatTable(HTMLTable):
                 tr.append(td)
 
 
-class HTMLAuthorsTable(HTMLStatTable):
-    def get_table(self) -> Tag:
-        rows: list[Row] = self.out_rows.get_authors_stats_rows()
+class AuthorsTableSoup(StatTableSoup):
+    def get_table(self, repo: GIRepo) -> Tag:
+        self.rows: list[Row] = AuthorsRowTable(repo).get_rows()
         self._add_colored_rows_table(
             header_authors(),
-            rows,
             BG_AUTHOR_COLORS,
         )
         return self.table
 
 
-class HTMLAuthorsFilesTable(HTMLStatTable):
-    def get_table(self) -> Tag:
-        rows: list[Row] = self.out_rows.get_authors_files_stats_rows()
+class AuthorsFilesTableSoup(StatTableSoup):
+    def get_table(self, repo: GIRepo) -> Tag:
+        self.rows: list[Row] = AuthorsFilesRowTable(repo).get_rows()
         self._add_colored_rows_table(
             header_authors_files(),
-            rows,
             BG_AUTHOR_COLORS,
         )
         return self.table
 
 
-class HTMLFilesAuthorsTable(HTMLStatTable):
-    def get_table(self) -> Tag:
-        rows: list[Row] = self.out_rows.get_files_authors_stats_rows()
-        self._add_files_authors_table(
-            header_files_authors(),
-            rows,
-            BG_ROW_COLORS,
-            BG_AUTHOR_COLORS,
-        )
-        return self.table
+class FilesAuthorsTableSoup(StatTableSoup):
+    def get_table(self, repo: GIRepo) -> Tag:
+        row_table = FilesAuthorsRowTable(repo)
+        self.rows: list[Row] = row_table.get_rows()
+        authors_included = row_table.get_authors_included()
 
-    def _add_files_authors_table(
-        self,
-        header: list[str],
-        rows: list[Row],
-        bg_row_colors: list[str],
-        bg_author_colors: list[str],
-    ) -> None:
+        header: list[str] = header_files_authors()
+
+        # pylint: disable=invalid-name
         ID_COL: int = header.index("ID")  # = 0
         FILE_COL: int = header.index("File")  # = 1
         AUTHOR_COL: int = header.index(
@@ -181,17 +172,17 @@ class HTMLFilesAuthorsTable(HTMLStatTable):
 
         first_file = True
         row_id = 0
-        for row in rows:
+        for row in self.rows:
             if row[ID_COL] != row_id:  # new ID value for new file
                 first_file = True
                 row_id = row[ID_COL]  # type: ignore
 
             tr = self.soup.new_tag("tr")
-            tr["class"] = bg_row_colors[(int(row[ID_COL]) % len(bg_row_colors))]
+            tr["class"] = BG_ROW_COLORS[(int(row[ID_COL]) % len(BG_ROW_COLORS))]
             self.tbody.append(tr)
 
             author = row[AUTHOR_COL]  # type: ignore
-            author_index = self.out_rows.get_authors_included().index(author)
+            author_index = authors_included.index(author)
 
             for i_col, data in enumerate(row):
                 td = self.soup.new_tag("td")
@@ -206,25 +197,21 @@ class HTMLFilesAuthorsTable(HTMLStatTable):
                     td["class"] = HEADER_CLASS_DICT[header[i_col]]
                     td.string = ""
                 else:
-                    color_class = bg_author_colors[author_index % len(bg_author_colors)]
+                    color_class = BG_AUTHOR_COLORS[author_index % len(BG_AUTHOR_COLORS)]
                     td["class"] = f"{HEADER_CLASS_DICT[header[i_col]]} {color_class}"
                     td.string = str(data)
                 tr.append(td)
-
-
-class HTMLFilesTable(HTMLStatTable):
-    def get_table(self) -> Tag:
-        rows: list[Row] = self.out_rows.get_files_stats_rows()
-        self._add_colored_rows_table(header_files(), rows, BG_ROW_COLORS)
         return self.table
 
 
-class HTMLBlameTable(HTMLTable):
-    def __init__(self, out_rows: TableStatsRows, subfolder: FileStr) -> None:
-        super().__init__()
-        self.out_rows = out_rows
-        self.subfolder = subfolder
+class FilesTableSoup(StatTableSoup):
+    def get_table(self, repo: GIRepo) -> Tag:
+        self.rows: list[Row] = FilesRowTable(repo).get_rows()
+        self._add_colored_rows_table(header_files(), BG_ROW_COLORS)
+        return self.table
 
+
+class BlameTableSoup(TableSoup):
     def get_table(self, rows_iscomments: tuple[list[Row], list[bool]]) -> Tag:
         col_header = header_blames()
         self._add_header(col_header)
@@ -261,17 +248,16 @@ class HTMLBlameTable(HTMLTable):
         return self.table
 
 
-class HTMLBlameTables:
-    def __init__(
-        self, out_rows: TableStatsRows, subfolder: FileStr, global_soup: BeautifulSoup
-    ) -> None:
-        self.out_rows = out_rows
-        self.subfolder = subfolder
+class BlameTablesSoup:
+    subfolder: FileStr
+
+    def __init__(self, repo: GIRepo, global_soup: BeautifulSoup) -> None:
+        self.repo: GIRepo = repo
         self.global_soup = global_soup
 
     def add_tables(self) -> None:
         fstr2rows_iscomments: dict[FileStr, tuple[list[Row], list[bool]]]
-        fstr2rows_iscomments = self.out_rows.get_blames(html=True)
+        fstr2rows_iscomments = get_blames(self.repo, html=True)
 
         relative_fstrs = [
             get_relative_fstr(fstr, self.subfolder)
@@ -288,21 +274,20 @@ class HTMLBlameTables:
         for fstr, rel_fstr in zip(fstr2rows_iscomments.keys(), relative_fstrs):
             rel_fstr_truncated: FileStr = relative_fstr2truncated[rel_fstr]
 
-            blame_table = HTMLBlameTable(self.out_rows, self.subfolder)
+            blame_table = BlameTableSoup()
             table = blame_table.get_table(fstr2rows_iscomments[fstr])
 
-            nav_ul.append(self._new_nav_tab(rel_fstr_truncated, self.global_soup))
+            nav_ul.append(self._new_nav_tab(rel_fstr_truncated))
             tab_div.append(
                 self._new_tab_content(
                     rel_fstr_truncated,
                     table,
-                    self.global_soup,
                 )
             )
 
-    def _new_nav_tab(self, rel_fstr: FileStr, soup: BeautifulSoup) -> Tag:
-        nav_li = soup.new_tag("li", attrs={"class": "nav-item"})
-        nav_bt = soup.new_tag(
+    def _new_nav_tab(self, rel_fstr: FileStr) -> Tag:
+        nav_li = self.global_soup.new_tag("li", attrs={"class": "nav-item"})
+        nav_bt = self.global_soup.new_tag(
             "button",
             attrs={
                 "class": "nav-link",
@@ -315,8 +300,8 @@ class HTMLBlameTables:
         nav_li.append(nav_bt)
         return nav_li
 
-    def _new_tab_content(self, fstr: FileStr, table: Tag, soup: BeautifulSoup) -> Tag:
-        div = soup.new_tag(
+    def _new_tab_content(self, fstr: FileStr, table: Tag) -> Tag:
+        div = self.global_soup.new_tag(
             "div",
             attrs={
                 "class": "tab-pane fade",
@@ -328,7 +313,7 @@ class HTMLBlameTables:
 
 
 # pylint: disable=too-many-locals
-def out_html(
+def get_repo_html(
     repo: GIRepo,
     blame_skip: bool,
 ) -> Html:
@@ -343,30 +328,25 @@ def out_html(
         html_template = f.read()
 
     soup = BeautifulSoup(html_template, "html.parser")
+
     title_tag: Tag = soup.find(name="title")  # type: ignore
     title_tag.string = f"{repo.name} viewer"
 
-    out_rows = TableStatsRows(repo)
-
-    authors_table = HTMLAuthorsTable(out_rows, repo.args.subfolder)
     authors_tag: Tag = soup.find(id="authors")  # type: ignore
-    authors_tag.append(authors_table.get_table())
+    authors_tag.append(AuthorsTableSoup().get_table(repo))
 
-    authors_files_table = HTMLAuthorsFilesTable(out_rows, repo.args.subfolder)
     authors_files_tag: Tag = soup.find(id="authors-files")  # type: ignore
-    authors_files_tag.append(authors_files_table.get_table())
+    authors_files_tag.append(AuthorsFilesTableSoup().get_table(repo))
 
-    files_authors_table = HTMLFilesAuthorsTable(out_rows, repo.args.subfolder)
     files_authors_tag: Tag = soup.find(id="files-authors")  # type: ignore
-    files_authors_tag.append(files_authors_table.get_table())
+    files_authors_tag.append(FilesAuthorsTableSoup().get_table(repo))
 
-    files_table = HTMLFilesTable(out_rows, repo.args.subfolder)
     files_tag: Tag = soup.find(id="files")  # type: ignore
-    files_tag.append(files_table.get_table())
+    files_tag.append(FilesTableSoup().get_table(repo))
 
     # Add blame output if not skipped.
     if not blame_skip:
-        HTMLBlameTables(out_rows, repo.args.subfolder, soup).add_tables()
+        BlameTablesSoup(repo, soup).add_tables()
 
     html: Html = soup.prettify(formatter="html")
 

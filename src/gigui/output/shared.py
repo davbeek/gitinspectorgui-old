@@ -77,9 +77,10 @@ def percentage_to_out(percentage: float) -> int | str:
         return round(percentage)
 
 
-class TableStatsRows:
+class RowTable:
     def __init__(self, repo: GIRepo):
         self.repo = repo
+        self.rows: list[Row] = []
 
     # Return a sorted list of authors occurring in the stats outputs, so these are
     # filtered authors.
@@ -89,7 +90,7 @@ class TableStatsRows:
         authors = sorted(authors, key=lambda x: a2p[x].stat.line_count, reverse=True)
         return authors
 
-    def out_stat_values(self, stat: Stat, nr_authors: int = 2) -> list[Any]:
+    def _get_stat_values(self, stat: Stat, nr_authors: int = 2) -> list[Any]:
         return (
             [
                 percentage_to_out(stat.percent_lines),
@@ -112,34 +113,26 @@ class TableStatsRows:
             + ([stat.deletions, stat.age] if self.repo.args.deletions else [stat.age])
         )
 
-    def get_authors_stats_rows(self, html: bool = True) -> list[Row]:
+
+class AuthorsRowTable(RowTable):
+    def get_rows(self, html: bool = True) -> list[Row]:
         a2p: dict[Author, PersonStat] = self.repo.author2pstat
-        rows: list[Row] = []
         row: Row
+        rows: list[Row] = []
         id_val: int = 0
         for author in self.get_authors_included():
             person = self.repo.get_person(author)
             row = [id_val, person.authors_str] + (
                 ["", person.emails_str] if html else [person.emails_str]
             )  # type: ignore
-            row.extend(self.out_stat_values(a2p[author].stat, len(a2p)))
+            row.extend(self._get_stat_values(a2p[author].stat, len(a2p)))
             rows.append(row)
             id_val += 1
         return rows
 
-    def get_files_stats_rows(self) -> list[Row]:
-        f2f: dict[FileStr, FileStat] = self.repo.fstr2fstat
-        rows: list[Row] = []
-        row: Row
-        id_val: int = 0
-        for fstr in self.repo.sorted_star_fstrs:
-            row = [id_val, f2f[fstr].relative_names_str(subfolder)]
-            row.extend(self.out_stat_values(f2f[fstr].stat))
-            rows.append(row)
-            id_val += 1
-        return rows
 
-    def get_authors_files_stats_rows(self, html: bool = True) -> list[Row]:
+class AuthorsFilesRowTable(RowTable):
+    def get_rows(self, html: bool = True) -> list[Row]:
         a2f2f: dict[Author, dict[FileStr, FileStat]] = self.repo.author2fstr2fstat
         row: Row
         rows: list[Row] = []
@@ -156,15 +149,18 @@ class TableStatsRows:
                 row = []
                 rel_fstr = a2f2f[author][fstr].relative_names_str(subfolder)
                 row.extend(
-                    [id_val, person.authors_str] + (["", rel_fstr] if html else [rel_fstr])  # type: ignore
+                    [id_val, person.authors_str]
+                    + (["", rel_fstr] if html else [rel_fstr])  # type: ignore
                 )
                 stat = a2f2f[author][fstr].stat
-                row.extend(self.out_stat_values(stat))
+                row.extend(self._get_stat_values(stat))
                 rows.append(row)
             id_val += 1
         return rows
 
-    def get_files_authors_stats_rows(self, html: bool = True) -> list[Row]:
+
+class FilesAuthorsRowTable(RowTable):
+    def get_rows(self, html: bool = True) -> list[Row]:
         f2a2f: dict[FileStr, dict[Author, FileStat]] = self.repo.fstr2author2fstat
         row: Row
         rows: list[Row] = []
@@ -192,13 +188,28 @@ class TableStatsRows:
                     + (["", authors_str] if html else [authors_str])  # type: ignore
                 )
                 stat = f2a2f[fstr][author].stat
-                row.extend(self.out_stat_values(stat))
+                row.extend(self._get_stat_values(stat))
                 rows.append(row)
             id_val += 1
         return rows
 
-    def get_blames(self, html: bool) -> dict[FileStr, tuple[list[Row], list[bool]]]:
-        return self.repo.blame_tables.out_blames(html)  # type: ignore
+
+class FilesRowTable(RowTable):
+    def get_rows(self) -> list[Row]:
+        f2f: dict[FileStr, FileStat] = self.repo.fstr2fstat
+        rows: list[Row] = []
+        row: Row
+        id_val: int = 0
+        for fstr in self.repo.sorted_star_fstrs:
+            row = [id_val, f2f[fstr].relative_names_str(subfolder)]
+            row.extend(self._get_stat_values(f2f[fstr].stat))
+            rows.append(row)
+            id_val += 1
+        return rows
+
+
+def get_blames(repo: GIRepo, html: bool) -> dict[FileStr, tuple[list[Row], list[bool]]]:
+    return repo.blame_tables.get_fstr2blame_rows(html)  # type: ignore
 
 
 def string2truncated(orgs: list[str], max_length: int) -> dict[str, str]:

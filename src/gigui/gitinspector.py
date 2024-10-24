@@ -12,10 +12,9 @@ from gigui.args_settings import AUTO, NONE, Args
 from gigui.constants import DEFAULT_FILE_BASE, DEFAULT_FORMAT, MAX_BROWSER_TABS
 from gigui.data import FileStat, Person
 from gigui.keys import Keys
-from gigui.output import outbase
+from gigui.output import shared
 from gigui.output.excel import Book
-from gigui.output.html import HTMLTable, out_html
-from gigui.output.outbase import TableStatsRows
+from gigui.output.html import BlameTablesSoup, TableSoup, get_repo_html
 from gigui.repo import GIRepo, get_repos, total_len
 from gigui.typedefs import FileStr, Html
 from gigui.utils import (
@@ -79,14 +78,18 @@ def main(args: Args, start_time: float, gui_window: sg.Window | None = None):
 def init_classes(args: Args):
     GIRepo.set_args(args)
     FileStat.show_renames = args.show_renames
-    HTMLTable.hide_blame_exclusions = args.hide_blame_exclusions
-    HTMLTable.empty_lines = args.empty_lines
+    TableSoup.hide_blame_exclusions = args.hide_blame_exclusions
+    TableSoup.empty_lines = args.empty_lines
+    TableSoup.subfolder = args.subfolder
+    BlameTablesSoup.subfolder = args.subfolder
+    Book.subfolder = args.subfolder
+    Book.blame_skip = args.blame_skip
     Person.show_renames = args.show_renames
     Person.ex_author_patterns = args.ex_authors
     Person.ex_email_patterns = args.ex_emails
-    outbase.deletions = args.deletions
-    outbase.scaled_percentages = args.scaled_percentages
-    outbase.subfolder = args.subfolder
+    shared.deletions = args.deletions
+    shared.scaled_percentages = args.scaled_percentages
+    shared.subfolder = args.subfolder
 
 
 # Normally, the input paths have already been expanded by the shell, but in case the
@@ -216,8 +219,7 @@ def write_repo_output(  # pylint: disable=too-many-locals
     if "excel" in formats:
         logfile(f"{outfile_name}.xlsx")
         if args.dry_run == 0:
-            out_rows = TableStatsRows(repo)
-            Book(outfilestr, out_rows, repo.args.subfolder, args.blame_skip)
+            Book(outfilestr, repo)
 
     # Write the HTML file if requested.
     if "html" in formats or (
@@ -226,7 +228,7 @@ def write_repo_output(  # pylint: disable=too-many-locals
     ):
         logfile(f"{outfile_name}.html")
         if args.dry_run == 0:
-            html_code = out_html(repo, args.blame_skip)
+            html_code = get_repo_html(repo, args.blame_skip)
             with open(outfilestr + ".html", "w", encoding="utf-8") as f:
                 f.write(html_code)
 
@@ -247,7 +249,7 @@ def write_repo_output(  # pylint: disable=too-many-locals
     out_format = formats[0]
 
     if len_repos == 1 and out_format == "auto" and gui_window:
-        html_code = out_html(repo, args.blame_skip)
+        html_code = get_repo_html(repo, args.blame_skip)
         gui_window.write_event_value(Keys.open_webview, (html_code, repo.name))
         return [], "", ("", "")
 
@@ -270,7 +272,7 @@ def get_output_file_and_webview_data(
             case "excel":
                 file_to_open = outfilestr + ".xlsx"
             case "auto":
-                html_code = out_html(repo, args.blame_skip)
+                html_code = get_repo_html(repo, args.blame_skip)
                 webview_data = html_code, repo.name
     else:  # multiple repos
         if (
