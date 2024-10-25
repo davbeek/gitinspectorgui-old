@@ -84,7 +84,7 @@ class TableSoup:
             th.string = header_string
             if header == "Code":
                 button = self.soup.new_tag("button")
-                if self.hide_blame_exclusions:
+                if self.blame_hide_exclusions:
                     button["class"] = "blame-exclusions-button pressed"
                 else:
                     button["class"] = "blame-exclusions-button"

@@ -114,14 +114,19 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
         help=hlp.scaled_percentages,
     )
     group_generation.add_argument(
-        "--hide-blame-exclusions",
+        "--blame-hide-exclusions",
         action=BooleanOptionalAction,
-        help=hlp.hide_blame_exclusions,
+        help=hlp.blame_hide_exclusions,
     )
     group_generation.add_argument(
         "--blame-skip",
         action=BooleanOptionalAction,
         help=hlp.blame_skip,
+    )
+    group_generation.add_argument(
+        "--blame-history",
+        action=BooleanOptionalAction,
+        help=hlp.blame_history,
     )
     group_generation.add_argument(
         "--viewer",

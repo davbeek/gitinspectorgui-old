@@ -44,10 +44,11 @@ class Tip:
         "Show percentages that are scaled (multiplied) by the number of authors in "
         "the repository"
     )
-    hide_blame_exclusions: str = (
+    blame_hide_exclusions: str = (
         "Omit from blame output: comments, empty lines and author lines that are excluded"
     )
     blame_skip: str = "Do not generate blame worksheets or blame tabs"
+    blame_history: str = "Generate blame table per commit"
     settings_file: str = "Settings file name or full path"
     subfolder: str = "Restrict analysis to a subfolder of the repository"
     file_options: str = (

@@ -84,6 +84,7 @@ def init_classes(args: Args):
     BlameTablesSoup.subfolder = args.subfolder
     Book.subfolder = args.subfolder
     Book.blame_skip = args.blame_skip
+    Book.blame_history = args.blame_history
     Person.show_renames = args.show_renames
     Person.ex_author_patterns = args.ex_authors
     Person.ex_email_patterns = args.ex_emails

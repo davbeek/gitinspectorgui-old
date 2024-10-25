@@ -281,7 +281,7 @@ def output_formats_frame() -> sg.Frame:
                             ),
                             checkbox(
                                 "Hide blame exclusions",
-                                key=keys.hide_blame_exclusions,
+                                key=keys.blame_hide_exclusions,
                             ),
                             checkbox(
                                 "Blame skip",
@@ -320,6 +320,10 @@ def output_formats_frame() -> sg.Frame:
                             spinbox(
                                 keys.dry_run,
                                 list(range(3)),
+                            ),
+                            checkbox(
+                                "Blame history",
+                                key=keys.blame_history,
                             ),
                         ],
                     ],

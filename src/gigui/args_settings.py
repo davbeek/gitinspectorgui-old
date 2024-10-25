@@ -45,8 +45,9 @@ class Args:
     depth: int = SUBDIR_NESTING_DEPTH
     format: list[str] = field(default_factory=lambda: [AUTO])
     scaled_percentages: bool = False
-    hide_blame_exclusions: bool = False
+    blame_hide_exclusions: bool = False
     blame_skip: bool = False
+    blame_history: bool = False
     subfolder: str = ""
     n_files: int = DEFAULT_N_FILES
     include_files: list[str] = field(default_factory=list)
@@ -264,8 +265,9 @@ class SettingsFile:
             "scaled_percentages": {"type": "boolean"},
             "n_files": {"type": "integer"},
             "include_files": {"type": "array", "items": {"type": "string"}},
-            "hide_blame_exclusions": {"type": "boolean"},
+            "blame_hide_exclusions": {"type": "boolean"},
             "blame_skip": {"type": "boolean"},
+            "blame_history": {"type": "boolean"},
             "show_renames": {"type": "boolean"},
             "gui_settings_full_path": {"type": "boolean"},
             "subfolder": {"type": "string"},
