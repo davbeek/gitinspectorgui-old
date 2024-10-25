@@ -2,21 +2,19 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup, Tag
 
-from gigui.output.shared import (
-    AuthorsFilesRowTable,
-    AuthorsRowTable,
-    FilesAuthorsRowTable,
-    FilesRowTable,
-    get_blames,
+from gigui.output.shared_blame import BlameRows, header_blames, string2truncated
+from gigui.output.shared_stat import (
+    AuthorsFilesTableRows,
+    AuthorsTableRows,
+    FilesAuthorsTableRows,
+    FilesTableRows,
     header_authors,
     header_authors_files,
-    header_blames,
     header_files,
     header_files_authors,
-    string2truncated,
 )
 from gigui.repo import GIRepo
-from gigui.typedefs import Author, FileStr, Html, Row
+from gigui.typedefs import Author, FileStr, Html, Row, RowsBools
 from gigui.utils import get_relative_fstr
 
 MAX_LENGTH_TAB_NAME = 40
@@ -60,7 +58,7 @@ BG_ROW_COLORS: list[str] = ["bg-row-light-green", "bg-white"]
 
 
 class TableSoup:
-    hide_blame_exclusions: bool
+    blame_hide_exclusions: bool
     empty_lines: bool
     subfolder: FileStr
 
@@ -131,7 +129,7 @@ class StatTableSoup(TableSoup):
 
 class AuthorsTableSoup(StatTableSoup):
     def get_table(self, repo: GIRepo) -> Tag:
-        self.rows: list[Row] = AuthorsRowTable(repo).get_rows()
+        self.rows: list[Row] = AuthorsTableRows(repo).get_rows()
         self._add_colored_rows_table(
             header_authors(),
             BG_AUTHOR_COLORS,
@@ -141,7 +139,7 @@ class AuthorsTableSoup(StatTableSoup):
 
 class AuthorsFilesTableSoup(StatTableSoup):
     def get_table(self, repo: GIRepo) -> Tag:
-        self.rows: list[Row] = AuthorsFilesRowTable(repo).get_rows()
+        self.rows: list[Row] = AuthorsFilesTableRows(repo).get_rows()
         self._add_colored_rows_table(
             header_authors_files(),
             BG_AUTHOR_COLORS,
@@ -151,9 +149,9 @@ class AuthorsFilesTableSoup(StatTableSoup):
 
 class FilesAuthorsTableSoup(StatTableSoup):
     def get_table(self, repo: GIRepo) -> Tag:
-        row_table = FilesAuthorsRowTable(repo)
+        row_table = FilesAuthorsTableRows(repo)
         self.rows: list[Row] = row_table.get_rows()
-        authors_included = row_table.get_authors_included()
+        authors_included: list[Author] = row_table.get_authors_included()
 
         header: list[str] = header_files_authors()
 
@@ -206,19 +204,19 @@ class FilesAuthorsTableSoup(StatTableSoup):
 
 class FilesTableSoup(StatTableSoup):
     def get_table(self, repo: GIRepo) -> Tag:
-        self.rows: list[Row] = FilesRowTable(repo).get_rows()
+        self.rows: list[Row] = FilesTableRows(repo).get_rows()
         self._add_colored_rows_table(header_files(), BG_ROW_COLORS)
         return self.table
 
 
 class BlameTableSoup(TableSoup):
-    def get_table(self, rows_iscomments: tuple[list[Row], list[bool]]) -> Tag:
+    def get_table(self, rows_iscomments: RowsBools) -> Tag:
         col_header = header_blames()
         self._add_header(col_header)
 
         bg_colors_cnt = len(BG_AUTHOR_COLORS)
-        rows, is_comments = rows_iscomments
-        for row, is_comment in zip(rows, is_comments):
+        rows, iscomments = rows_iscomments
+        for row, is_comment in zip(rows, iscomments):
             tr = self.soup.new_tag("tr")
             tr["class"] = BG_AUTHOR_COLORS[(int(row[0]) % bg_colors_cnt)]
             self.tbody.append(tr)
@@ -256,8 +254,8 @@ class BlameTablesSoup:
         self.global_soup = global_soup
 
     def add_tables(self) -> None:
-        fstr2rows_iscomments: dict[FileStr, tuple[list[Row], list[bool]]]
-        fstr2rows_iscomments = get_blames(self.repo, html=True)
+        fstr2rows_iscomments: dict[FileStr, RowsBools]
+        fstr2rows_iscomments = BlameRows(self.repo).get_fstr2blame_rows(html=True)
 
         relative_fstrs = [
             get_relative_fstr(fstr, self.subfolder)
@@ -274,8 +272,7 @@ class BlameTablesSoup:
         for fstr, rel_fstr in zip(fstr2rows_iscomments.keys(), relative_fstrs):
             rel_fstr_truncated: FileStr = relative_fstr2truncated[rel_fstr]
 
-            blame_table = BlameTableSoup()
-            table = blame_table.get_table(fstr2rows_iscomments[fstr])
+            table = BlameTableSoup().get_table(fstr2rows_iscomments[fstr])
 
             nav_ul.append(self._new_nav_tab(rel_fstr_truncated))
             tab_div.append(

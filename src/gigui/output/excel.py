@@ -7,17 +7,16 @@ from xlsxwriter.chart import Chart  # type: ignore[import-untyped]
 from xlsxwriter.workbook import Format as ExcelFormat  # type: ignore[import-untyped]
 from xlsxwriter.worksheet import Worksheet  # type: ignore[import-untyped]
 
-from gigui.output.shared import (
-    AuthorsFilesRowTable,
-    AuthorsRowTable,
-    FilesRowTable,
-    get_blames,
+from gigui.output.shared_blame import BlameRows, header_blames, string2truncated
+from gigui.output.shared_stat import (
+    AuthorsFilesTableRows,
+    AuthorsTableRows,
+    FilesAuthorsTableRows,
+    FilesTableRows,
     header_authors,
     header_authors_files,
-    header_blames,
     header_files,
     header_files_authors,
-    string2truncated,
 )
 from gigui.repo import GIRepo
 from gigui.typedefs import FileStr, Row
@@ -365,6 +364,7 @@ class BlameSheet(TableSheet):
 
 class Book:
     blame_skip: bool
+    blame_history: bool
     subfolder: str
 
     def __init__(self, name: str, repo: GIRepo):
@@ -459,7 +459,7 @@ class Book:
         self.formats[format_name] = excel_format
 
     def add_authors_sheet(self) -> None:
-        rows: list[Row] = AuthorsRowTable(self.repo).get_rows(html=False)
+        rows: list[Row] = AuthorsTableRows(self.repo).get_rows(html=False)
         AuthorsSheet(
             rows,
             self.workbook.add_chart({"type": "pie"}),  # type: ignore
@@ -469,7 +469,7 @@ class Book:
         )
 
     def add_authors_files_sheet(self) -> None:
-        rows: list[Row] = AuthorsFilesRowTable(self.repo).get_rows(html=False)
+        rows: list[Row] = AuthorsFilesTableRows(self.repo).get_rows(html=False)
         AuthorsFilesSheet(
             rows,
             header_authors_files(html=False),
@@ -478,7 +478,7 @@ class Book:
         )
 
     def add_files_authors_sheet(self) -> None:
-        rows: list[Row] = AuthorsRowTable(self.repo).get_rows(html=False)
+        rows: list[Row] = FilesAuthorsTableRows(self.repo).get_rows(html=False)
         FilesAuthorsSheet(
             rows,
             header_files_authors(html=False),
@@ -487,7 +487,7 @@ class Book:
         )
 
     def add_files_sheet(self) -> None:
-        rows: list[Row] = FilesRowTable(self.repo).get_rows()
+        rows: list[Row] = FilesTableRows(self.repo).get_rows()
         FilesSheet(
             rows,
             header_files(),
@@ -513,7 +513,7 @@ class Book:
         self,
     ) -> None:
         fstr2rows_iscomments: dict[FileStr, tuple[list[Row], list[bool]]]
-        fstr2rows_iscomments = get_blames(self.repo, html=False)
+        fstr2rows_iscomments = BlameRows(self.repo).get_fstr2blame_rows(html=False)
 
         relative_fstrs = [
             get_relative_fstr(fstr, self.subfolder)

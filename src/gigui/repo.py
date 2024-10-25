@@ -7,7 +7,7 @@ from typing import TypeVar
 from git import InvalidGitRepositoryError, NoSuchPathError, PathLike, Repo
 
 from gigui.args_settings import Args
-from gigui.blame import BlameReader, BlameTables
+from gigui.blame_reader import BlameReader
 from gigui.data import CommitGroup, FileStat, Person, PersonsDB, PersonStat
 from gigui.repo_reader import RepoReader
 from gigui.typedefs import Author, FileStr
@@ -33,7 +33,6 @@ class GIRepo:
         self.blame_reader: BlameReader | None = None
 
         self.stat_tables = StatTables()
-        self.blame_tables: BlameTables | None = None
 
         self.author2fstr2fstat: dict[str, dict[str, FileStat]] = {}
         self.fstr2fstat: dict[str, FileStat] = {}
@@ -68,12 +67,6 @@ class GIRepo:
                 self.repo_reader.persons_db,
             )
 
-            self.blame_tables = BlameTables(
-                self.repo_reader.fstrs,
-                self.repo_reader.persons_db,
-                self.blame_reader.fstr2blames,
-            )
-
             # This calculates all blames but also adds the author and email of
             # each blame to the persons list. This is necessary, because the blame
             # functionality can have another way to set/get the author and email of a
@@ -90,7 +83,7 @@ class GIRepo:
                 return False
 
             # Update author2fstr2fstat with line counts for each author.
-            self.author2fstr2fstat = self.blame_tables.update_author2fstr2fstat(
+            self.author2fstr2fstat = self.blame_reader.update_author2fstr2fstat(
                 self.author2fstr2fstat
             )
 
@@ -106,8 +99,6 @@ class GIRepo:
                 self.sorted_fstrs = self.sorted_star_fstrs[1:]  # remove "*"
             else:
                 self.sorted_fstrs = self.sorted_star_fstrs
-
-            self.blame_tables.set_sorted_fstrs(self.sorted_fstrs)
 
             if list(self.fstr2fstat.keys()) == ["*"]:
                 return False
@@ -149,11 +140,14 @@ class GIRepo:
     def get_person(self, author: Author) -> Person:
         return self.repo_reader.get_person(author)
 
+    def get_sorted_fstrs(self) -> list[str]:
+        return self.sorted_fstrs
+
     @classmethod
     def set_args(cls, args: Args):
         GIRepo.args = RepoReader.args = StatTables.args = args
-        BlameReader.args = BlameTables.args = args
         RepoReader.ex_revs = set(args.ex_revisions)
+        BlameReader.args = args
 
 
 class StatTables:

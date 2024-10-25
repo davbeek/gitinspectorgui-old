@@ -7,9 +7,9 @@ from git import Commit as GitCommit
 from git import PathLike, Repo
 
 from gigui.args_settings import Args
-from gigui.blame import BlameReader, Commit
+from gigui.blame_reader import BlameReader, Commit
 from gigui.data import CommitGroup, Person, PersonsDB, RepoStats
-from gigui.typedefs import Author, FileStr, Rev, SHAlong, SHAshort
+from gigui.typedefs import Author, FileStr, Rev, SHALong, SHAShort
 
 logger = logging.getLogger(__name__)
 
@@ -32,11 +32,11 @@ class RepoReader:
         # is sorted by commit date.
         self.commits: list[Commit]
         self.head_commit: GitCommit
-        self.sha2commit: dict[SHAshort | SHAlong, Commit] = {}
+        self.sha2commit: dict[SHAShort | SHALong, Commit] = {}
 
         # Set of short SHAs of commits in the repo that are excluded by the
         # --ex-revision parameter together with the --ex-message parameter.
-        self.ex_sha_shorts: set[SHAshort] = set()
+        self.ex_sha_shorts: set[SHAShort] = set()
 
         # List of files from the top commit of the repo:
         self.fstrs: list[FileStr] = []
@@ -156,9 +156,9 @@ class RepoReader:
 
     def _get_commits_first_pass(self) -> None:
         commits: list[Commit] = []
-        ex_sha_shorts: set[SHAshort] = set()
-        sha_short: SHAshort
-        sha_long: SHAlong
+        ex_sha_shorts: set[SHAShort] = set()
+        sha_short: SHAShort
+        sha_long: SHALong
 
         # %H: commit hash long (SHAlong)
         # %h: commit hash long (SHAshort)

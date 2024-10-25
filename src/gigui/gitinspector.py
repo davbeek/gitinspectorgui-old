@@ -12,9 +12,10 @@ from gigui.args_settings import AUTO, NONE, Args
 from gigui.constants import DEFAULT_FILE_BASE, DEFAULT_FORMAT, MAX_BROWSER_TABS
 from gigui.data import FileStat, Person
 from gigui.keys import Keys
-from gigui.output import shared
+from gigui.output import shared_stat
 from gigui.output.excel import Book
 from gigui.output.html import BlameTablesSoup, TableSoup, get_repo_html
+from gigui.output.shared_blame import BlameRows
 from gigui.repo import GIRepo, get_repos, total_len
 from gigui.typedefs import FileStr, Html
 from gigui.utils import (
@@ -78,7 +79,8 @@ def main(args: Args, start_time: float, gui_window: sg.Window | None = None):
 def init_classes(args: Args):
     GIRepo.set_args(args)
     FileStat.show_renames = args.show_renames
-    TableSoup.hide_blame_exclusions = args.hide_blame_exclusions
+    BlameRows.args = args
+    TableSoup.blame_hide_exclusions = args.blame_hide_exclusions
     TableSoup.empty_lines = args.empty_lines
     TableSoup.subfolder = args.subfolder
     BlameTablesSoup.subfolder = args.subfolder
@@ -88,9 +90,9 @@ def init_classes(args: Args):
     Person.show_renames = args.show_renames
     Person.ex_author_patterns = args.ex_authors
     Person.ex_email_patterns = args.ex_emails
-    shared.deletions = args.deletions
-    shared.scaled_percentages = args.scaled_percentages
-    shared.subfolder = args.subfolder
+    shared_stat.deletions = args.deletions
+    shared_stat.scaled_percentages = args.scaled_percentages
+    shared_stat.subfolder = args.subfolder
 
 
 # Normally, the input paths have already been expanded by the shell, but in case the
