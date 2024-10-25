@@ -55,8 +55,6 @@
         "black"
     ],
     //
-    "mypy-type-checker.cwd": "${fileDirname}",
-    //
     "[python]": {
         "editor.defaultFormatter": "ms-python.black-formatter",
         "editor.formatOnSave": true,

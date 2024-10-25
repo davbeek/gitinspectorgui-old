@@ -444,6 +444,7 @@ disable=raw-checker-failed,
         logging-fstring-interpolation, # W1203
         no-else-return, # R1705
         too-few-public-methods, #
+        undefined-variable, # E0602
 
 # Enable the message, report, category or checker with the given id(s). You can
 # either give multiple identifier separated by comma (,) or put this option
