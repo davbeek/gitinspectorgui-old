@@ -55,7 +55,7 @@ class RepoReader:
     def git(self):
         return self.git_repo.git
 
-    def run(self, thread_executor: ThreadPoolExecutor):
+    def run(self, thread_executor: ThreadPoolExecutor) -> None:
         self._set_head_commit()
 
         # Set list top level fstrs (based on until par and allowed file extensions)
@@ -93,7 +93,7 @@ class RepoReader:
         show_n_files = self.args.n_files
         matches: list[FileStr]
         if not include_files:
-            matches = self.get_biggest_worktree_files(show_n_files)
+            matches = self._get_biggest_worktree_files(show_n_files)
         else:  # Get files matching file pattern
             matches = [
                 blob.path  # type: ignore
@@ -101,7 +101,7 @@ class RepoReader:
                 if (
                     blob.type == "blob"  # type: ignore
                     and blob.path.split(".")[-1] in self.args.extensions  # type: ignore
-                    and not self.matches_ex_file(blob.path)  # type: ignore
+                    and not self._matches_ex_file(blob.path)  # type: ignore
                     and any(
                         fnmatch(blob.path, pattern)  # type: ignore
                         for pattern in include_files
@@ -113,7 +113,7 @@ class RepoReader:
     # Get the n biggest files in the worktree that:
     # - match the required extensions
     # - are not excluded
-    def get_biggest_worktree_files(self, n: int) -> list[FileStr]:
+    def _get_biggest_worktree_files(self, n: int) -> list[FileStr]:
         # Get the files with their file sizes that match the required extensions
         def get_worktree_files_sizes() -> list[tuple[FileStr, int]]:
             return [
@@ -131,12 +131,12 @@ class RepoReader:
         )
         sorted_files = [file_size[0] for file_size in sorted_files_sizes]
         sorted_files_filtered = [
-            f for f in sorted_files if (not self.matches_ex_file(f))
+            f for f in sorted_files if (not self._matches_ex_file(f))
         ]
         return sorted_files_filtered[0:n]
 
     # Returns True if file should be excluded
-    def matches_ex_file(self, fstr: FileStr) -> bool:
+    def _matches_ex_file(self, fstr: FileStr) -> bool:
         return any(fnmatch(fstr, pattern) for pattern in self.args.ex_files)
 
     def _set_fstr2lines(self) -> None:

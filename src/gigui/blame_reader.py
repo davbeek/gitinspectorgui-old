@@ -41,40 +41,119 @@ class Blame:
     lines: BlameLines
 
 
-class BlameReader:
+class BlameBaseReader:
     args: Args
 
-    # pylint: disable=too-many-arguments disable=too-many-positional-arguments
     def __init__(
         self,
         git_repo: Repo,
-        head_commit: GitCommit,
         ex_sha_shorts: set[SHAShort],
         fstrs: list[FileStr],
         persons_db: PersonsDB,
     ):
         self.git_repo = git_repo
-        self.head_commit = head_commit
         self.ex_sha_shorts = ex_sha_shorts
         self.fstrs = fstrs
         self.persons_db = persons_db
 
-        self.fstr2blames: dict[FileStr, list[Blame]] = {}
-
-        self.sha_long2nr: dict[SHALong, int] = self._set_sha_long2nr()
-
         # List of blame authors, so no filtering, ordered by highest blame line count.
         self.blame_authors: list[Author] = []
+
+        self.fstr2blames: dict[FileStr, list[Blame]] = {}
+
+        # Set of all commit SHAs to commit numbers. The commits have been added in
+        # reverse order, so starting with the initial commit with nr 1.
+        self.sha2nr: dict[SHALong, int] = {}
+        self._set_sha2nr()
+
+    # Need to number the complete list of all commits, because even when --since
+    # severely restricts the number of commits to analyse, the result of git blame
+    # always needs a commit that changed the file in question, even when there is no
+    # such commit that satisfies the --since criterion.
+    def _set_sha2nr(self) -> None:
+        c: GitCommit
+        i: int
+        commits = list(self.git_repo.iter_commits())
+        i = len(commits)
+        for c in commits:
+            self.sha2nr[c.hexsha] = i
+            i -= 1
+
+    def _get_git_blames_for(
+        self, fstr: FileStr, root_sha: SHALong
+    ) -> tuple[GitBlames, FileStr]:
+        copy_move_int2opts: dict[int, list[str]] = {
+            0: [],
+            1: ["-M"],
+            2: ["-C"],
+            3: ["-C", "-C"],
+            4: ["-C", "-C", "-C"],
+        }
+        blame_opts: list[str] = copy_move_int2opts[self.args.copy_move]
+        if self.args.since:
+            blame_opts.append(f"--since={self.args.since}")
+        if not self.args.whitespace:
+            blame_opts.append("-w")
+        for rev in self.ex_sha_shorts:
+            blame_opts.append(f"--ignore-rev={rev}")
+        working_dir = self.git_repo.working_dir
+        ignore_revs_path = Path(working_dir) / "_git-blame-ignore-revs.txt"
+        if ignore_revs_path.exists():
+            blame_opts.append(f"--ignore-revs-file={str(ignore_revs_path)}")
+
+        # Run the git command to get the blames for the file.
+        git_blames: GitBlames = self.git_repo.blame(
+            root_sha, fstr, rev_opts=blame_opts
+        )  # type: ignore
+        return git_blames, fstr
+
+    def _process_git_blames(self, fstr: FileStr, git_blames: GitBlames) -> list[Blame]:
+        blames: list[Blame] = []
+        dot_ext = Path(fstr).suffix
+        extension = dot_ext[1:] if dot_ext else ""
+        in_multi_comment = False
+        for b in git_blames:  # type: ignore
+            c: GitCommit = b[0]  # type: ignore
+
+            author = c.author.name  # type: ignore
+            email = c.author.email  # type: ignore
+            self.persons_db.add_person(author, email)
+
+            nr = self.sha2nr[c.hexsha]  # type: ignore
+            lines: BlameLines = b[1]  # type: ignore
+            is_comment_lines: list[bool]
+            is_comment_lines, _ = get_is_comment_lines(
+                extension, lines, in_multi_comment
+            )
+            blame: Blame = Blame(
+                author,  # type: ignore
+                email,  # type: ignore
+                c.committed_datetime,  # type: ignore
+                c.message,  # type: ignore
+                c.hexsha,  # type: ignore
+                nr,  # commit number
+                is_comment_lines,
+                lines,  # type: ignore
+            )
+            blames.append(blame)
+        return blames
+
+
+class BlameReader(BlameBaseReader):
+    def __init__(self, head_sha: SHALong, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.head_sha: SHALong = head_sha
 
     # Set the fstr2blames dictionary, but also add the author and email of each
     # blame to the persons list. This is necessary, because the blame functionality
     # can have another way to set/get the author and email of a commit.
-    def run(self, thread_executor: ThreadPoolExecutor):
+    def run(self, thread_executor: ThreadPoolExecutor) -> None:
         git_blames: GitBlames
         blames: list[Blame]
         if self.args.multi_thread:
+
             futures = [
-                thread_executor.submit(self._get_git_blames_for, fstr)
+                thread_executor.submit(self._get_git_blames_for, fstr, self.head_sha)
                 for fstr in self.fstrs
             ]
             for future in as_completed(futures):
@@ -83,7 +162,7 @@ class BlameReader:
                 self.fstr2blames[fstr] = blames
         else:  # single thread
             for fstr in self.fstrs:
-                git_blames, fstr = self._get_git_blames_for(fstr)
+                git_blames, fstr = self._get_git_blames_for(fstr, self.head_sha)
                 blames = self._process_git_blames(fstr, git_blames)
                 self.fstr2blames[fstr] = blames  # type: ignore
 
@@ -91,8 +170,10 @@ class BlameReader:
         # the authors of the blames with the possibly newly found persons
         fstr2blames: dict[FileStr, list[Blame]] = {}
         for fstr in self.fstrs:
+            # fstr2blames will be the new value of self.fstr2blames
             fstr2blames[fstr] = []
             for blame in self.fstr2blames[fstr]:
+                # update author
                 blame.author = self.persons_db.get_author(blame.author)
                 fstr2blames[fstr].append(blame)
         self.fstr2blames = fstr2blames
@@ -137,190 +218,37 @@ class BlameReader:
         self.blame_authors = authors
         return target
 
-    # Need to number the complete list of all commits, because even when --since
-    # severely restricts the number of commits to analyse, the result of git blame
-    # always needs a commit that changed the file in question, even when there is no
-    # such commit that satisfies the --since criterion.
-    def _set_sha_long2nr(self) -> dict[SHALong, int]:
-        c: GitCommit
-        sha_long2nr: dict[SHALong, int] = {}
-        i = 1
-        for c in self.git_repo.iter_commits(reverse=True):
-            sha_long2nr[c.hexsha] = i
-            i += 1
-        return sha_long2nr
 
-    def _get_git_blames_for(
-        self, fstr: FileStr, root_sha: SHALong = ""
-    ) -> tuple[GitBlames, FileStr]:
-        copy_move_int2opts: dict[int, list[str]] = {
-            0: [],
-            1: ["-M"],
-            2: ["-C"],
-            3: ["-C", "-C"],
-            4: ["-C", "-C", "-C"],
-        }
-        blame_opts: list[str] = copy_move_int2opts[self.args.copy_move]
-        if self.args.since:
-            blame_opts.append(f"--since={self.args.since}")
-        if not self.args.whitespace:
-            blame_opts.append("-w")
-        for rev in self.ex_sha_shorts:
-            blame_opts.append(f"--ignore-rev={rev}")
-        working_dir = self.git_repo.working_dir
-        ignore_revs_path = Path(working_dir) / "_git-blame-ignore-revs.txt"
-        if ignore_revs_path.exists():
-            blame_opts.append(f"--ignore-revs-file={str(ignore_revs_path)}")
-
-        root_sha = root_sha if root_sha else self.head_commit.hexsha
-        # Run the git command to get the blames for the file.
-        git_blames: GitBlames = self.git_repo.blame(
-            root_sha, fstr, rev_opts=blame_opts
-        )  # type: ignore
-        return git_blames, fstr
-
-    def _process_git_blames(self, fstr: FileStr, git_blames: GitBlames) -> list[Blame]:
-        blames: list[Blame] = []
-        dot_ext = Path(fstr).suffix
-        extension = dot_ext[1:] if dot_ext else ""
-        in_multi_comment = False
-        for b in git_blames:  # type: ignore
-            c: GitCommit = b[0]  # type: ignore
-
-            author = c.author.name  # type: ignore
-            email = c.author.email  # type: ignore
-            self.persons_db.add_person(author, email)
-
-            nr = self.sha_long2nr[c.hexsha]  # type: ignore
-            lines: BlameLines = b[1]  # type: ignore
-            is_comment_lines: list[bool]
-            is_comment_lines, _ = get_is_comment_lines(
-                extension, lines, in_multi_comment
-            )
-            blame: Blame = Blame(
-                author,  # type: ignore
-                email,  # type: ignore
-                c.committed_datetime,  # type: ignore
-                c.message,  # type: ignore
-                c.hexsha,  # type: ignore
-                nr,  # commit number
-                is_comment_lines,
-                lines,  # type: ignore
-            )
-            blames.append(blame)
-        return blames
-
-
-class BlameMultiRootReader:
+class BlameHistoryReader(BlameBaseReader):
     args: Args
 
     # pylint: disable=too-many-arguments disable=too-many-positional-arguments
     def __init__(
         self,
-        git_repo: Repo,
-        ex_sha_shorts: set[SHAShort],
+        fstr2blames: dict[FileStr, list[Blame]],
         fstr2shas: dict[FileStr, list[SHALong]],
-        persons_db: PersonsDB,
+        *args,
+        **kwargs,
     ):
-        self.git_repo: Repo = git_repo
-        self.ex_sha_shorts: set[SHAShort] = ex_sha_shorts
+        super().__init__(*args, **kwargs)
+        self.fstr2blames: dict[FileStr, list[Blame]] = fstr2blames
         self.fstr2shas: dict[FileStr, list[SHALong]] = fstr2shas
-        self.persons_db: PersonsDB = persons_db
 
         self.fstr2sha2blames: dict[FileStr, dict[SHALong, list[Blame]]] = {}
+        self.run()
 
-        self.sha_long2nr: dict[SHALong, int] = self._set_sha_long2nr()
-
-    # Set the fstr2blames dictionary, but also add the author and email of each
-    # blame to the persons list. This is necessary, because the blame functionality
-    # can have another way to set/get the author and email of a commit.
-    def run(self):
+    def run(self) -> None:
         git_blames: GitBlames
         blames: list[Blame]
+
         for fstr in self.fstrs:
-            git_blames, fstr = self._get_git_blames_for(fstr)
-            blames = self._process_git_blames(fstr, git_blames)
-            self.fstr2blames[fstr] = blames  # type: ignore
+            head_sha = self.fstr2shas[fstr][-1]
+            self.fstr2sha2blames[fstr][head_sha] = self.fstr2blames[fstr]
+            for sha in self.fstr2shas[fstr]:
+                git_blames, fstr = self._get_git_blames_for(fstr, sha)
+                blames = self._process_git_blames(fstr, git_blames)
+                self.fstr2sha2blames[fstr][sha] = blames
 
-        # New authors and emails may have been found in the blames, so update
-        # the authors of the blames with the possibly newly found persons
-        fstr2blames: dict[FileStr, list[Blame]] = {}
-        for fstr in self.fstrs:
-            fstr2blames[fstr] = []
-            for blame in self.fstr2blames[fstr]:
-                blame.author = self.persons_db.get_author(blame.author)
-                fstr2blames[fstr].append(blame)
-        self.fstr2blames = fstr2blames
-
-    # Need to number the complete list of all commits, because even when --since
-    # severely restricts the number of commits to analyse, the result of git blame
-    # always needs a commit that changed the file in question, even when there is no
-    # such commit that satisfies the --since criterion.
-    def _set_sha_long2nr(self) -> dict[SHALong, int]:
-        c: GitCommit
-        sha_long2nr: dict[SHALong, int] = {}
-        i = 1
-        for c in self.git_repo.iter_commits(reverse=True):
-            sha_long2nr[c.hexsha] = i
-            i += 1
-        return sha_long2nr
-
-    def _get_git_blames_for(
-        self, fstr: FileStr, root_commit: SHALong = ""
-    ) -> tuple[GitBlames, FileStr]:
-        copy_move_int2opts: dict[int, list[str]] = {
-            0: [],
-            1: ["-M"],
-            2: ["-C"],
-            3: ["-C", "-C"],
-            4: ["-C", "-C", "-C"],
-        }
-        blame_opts: list[str] = copy_move_int2opts[self.args.copy_move]
-        if self.args.since:
-            blame_opts.append(f"--since={self.args.since}")
-        if not self.args.whitespace:
-            blame_opts.append("-w")
-        for rev in self.ex_sha_shorts:
-            blame_opts.append(f"--ignore-rev={rev}")
-        working_dir = self.git_repo.working_dir
-        ignore_revs_path = Path(working_dir) / "_git-blame-ignore-revs.txt"
-        if ignore_revs_path.exists():
-            blame_opts.append(f"--ignore-revs-file={str(ignore_revs_path)}")
-
-        root_commit = self.head_commit.hexsha
-        # Run the git command to get the blames for the file.
-        git_blames: GitBlames = self.git_repo.blame(
-            root_commit, fstr, rev_opts=blame_opts
-        )  # type: ignore
-        return git_blames, fstr
-
-    def _process_git_blames(self, fstr: FileStr, git_blames: GitBlames) -> list[Blame]:
-        blames: list[Blame] = []
-        dot_ext = Path(fstr).suffix
-        extension = dot_ext[1:] if dot_ext else ""
-        in_multi_comment = False
-        for b in git_blames:  # type: ignore
-            c: GitCommit = b[0]  # type: ignore
-
-            author = c.author.name  # type: ignore
-            email = c.author.email  # type: ignore
-            self.persons_db.add_person(author, email)
-
-            nr = self.sha_long2nr[c.hexsha]  # type: ignore
-            lines: BlameLines = b[1]  # type: ignore
-            is_comment_lines: list[bool]
-            is_comment_lines, _ = get_is_comment_lines(
-                extension, lines, in_multi_comment
-            )
-            blame: Blame = Blame(
-                author,  # type: ignore
-                email,  # type: ignore
-                c.committed_datetime,  # type: ignore
-                c.message,  # type: ignore
-                c.hexsha,  # type: ignore
-                nr,  # commit number
-                is_comment_lines,
-                lines,  # type: ignore
-            )
-            blames.append(blame)
-        return blames
+        # Assume that no new authors are found when using earlier root commit_shas, so
+        # do not update authors of the blames with the possibly newly found persons as
+        # in BlameReader.run().

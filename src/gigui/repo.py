@@ -7,10 +7,10 @@ from typing import TypeVar
 from git import InvalidGitRepositoryError, NoSuchPathError, PathLike, Repo
 
 from gigui.args_settings import Args
-from gigui.blame_reader import BlameReader
+from gigui.blame_reader import Blame, BlameHistoryReader, BlameReader
 from gigui.data import CommitGroup, FileStat, Person, PersonsDB, PersonStat
 from gigui.repo_reader import RepoReader
-from gigui.typedefs import Author, FileStr
+from gigui.typedefs import Author, FileStr, SHALong
 from gigui.utils import divide_to_percentage, log
 
 logger = logging.getLogger(__name__)
@@ -30,7 +30,8 @@ class GIRepo:
         )
 
         self.repo_reader = RepoReader(self.name, self.location)
-        self.blame_reader: BlameReader | None = None
+        self.blame_reader: BlameReader
+        self.blame_history_reader: BlameHistoryReader
 
         self.stat_tables = StatTables()
 
@@ -39,8 +40,10 @@ class GIRepo:
         self.fstr2author2fstat: dict[str, dict[str, FileStat]] = {}
         self.author2pstat: dict[str, PersonStat] = {}
 
-        self.sorted_fstrs: list[str]
-        self.sorted_star_fstrs: list[str]
+        # Valid only after self.run has been called. This call calculates the sorted
+        # versions of self.fstrs and self.star_fstrs.
+        self.fstrs: list[str]
+        self.star_fstrs: list[str]
 
     # Valid only after self.run has been called.
     @property
@@ -55,83 +58,101 @@ class GIRepo:
             bool: True after successful execution, False if no stats have been found.
         """
 
+        success: bool
+        fstr2shas: dict[FileStr, list[SHALong]] = {}
         try:
-            self.repo_reader.run(thread_executor)
-
-            # Use results from repo_reader to initialize the other classes.
-            self.blame_reader = BlameReader(
-                self.repo_reader.git_repo,
-                self.repo_reader.head_commit,
-                self.repo_reader.ex_sha_shorts,
-                self.repo_reader.fstrs,
-                self.repo_reader.persons_db,
-            )
-
-            # This calculates all blames but also adds the author and email of
-            # each blame to the persons list. This is necessary, because the blame
-            # functionality can have another way to set/get the author and email of a
-            # commit.
-            self.blame_reader.run(thread_executor)
-
-            # Set stats.author2fstr2fstat, the basis of all other stat tables
-            self.author2fstr2fstat = self.stat_tables.get_author2fstr2fstat(
-                self.repo_reader.fstrs,
-                self.repo_reader.fstr2commit_groups,
-                self.repo_reader.persons_db,
-            )
-            if list(self.author2fstr2fstat.keys()) == ["*"]:
+            success = self._run_blame_no_history(thread_executor)
+            if not success:
                 return False
-
-            # Update author2fstr2fstat with line counts for each author.
-            self.author2fstr2fstat = self.blame_reader.update_author2fstr2fstat(
-                self.author2fstr2fstat
-            )
-
-            self.fstr2fstat = self.stat_tables.get_fstr2fstat(
-                self.author2fstr2fstat, self.repo_reader.fstr2commit_groups
-            )
-
-            fstrs = self.fstr2fstat.keys()
-            self.sorted_star_fstrs = sorted(
-                fstrs, key=lambda x: self.fstr2fstat[x].stat.line_count, reverse=True
-            )
-            if self.sorted_star_fstrs and self.sorted_star_fstrs[0] == "*":
-                self.sorted_fstrs = self.sorted_star_fstrs[1:]  # remove "*"
-            else:
-                self.sorted_fstrs = self.sorted_star_fstrs
-
-            if list(self.fstr2fstat.keys()) == ["*"]:
-                return False
-
-            self.fstr2author2fstat = self.stat_tables.get_fstr2author2fstat(
-                self.author2fstr2fstat
-            )
-
-            self.author2pstat = self.stat_tables.get_author2pstat(
-                self.author2fstr2fstat, self.repo_reader.persons_db
-            )
-
-            total_insertions = self.author2pstat["*"].stat.insertions
-            total_lines = self.author2pstat["*"].stat.line_count
-
-            self.stat_tables.calculate_percentages(
-                self.fstr2fstat, total_insertions, total_lines
-            )
-            self.stat_tables.calculate_percentages(
-                self.author2pstat, total_insertions, total_lines
-            )
-            for _, fstr2fstat in self.author2fstr2fstat.items():
-                self.stat_tables.calculate_percentages(
-                    fstr2fstat, total_insertions, total_lines
+            if self.args.blame_history:
+                fstr2shas = self.get_fstr2shas()
+                self.blame_history_reader = BlameHistoryReader(
+                    self.blame_reader.fstr2blames,
+                    fstr2shas,
+                    self.repo_reader.git_repo,
+                    self.repo_reader.ex_sha_shorts,
+                    self.blame_reader.fstrs,
+                    self.repo_reader.persons_db,
                 )
-            for _, author2fstat in self.fstr2author2fstat.items():
-                self.stat_tables.calculate_percentages(
-                    author2fstat, total_insertions, total_lines
-                )
-
             return True
         finally:
             self.repo_reader.git_repo.close()
+
+    def _run_blame_no_history(self, thread_executor: ThreadPoolExecutor) -> bool:
+        self.repo_reader.run(thread_executor)
+
+        # Use results from repo_reader to initialize the other classes.
+        self.blame_reader = BlameReader(
+            self.repo_reader.head_commit.hexsha,
+            self.repo_reader.git_repo,
+            self.repo_reader.ex_sha_shorts,
+            self.repo_reader.fstrs,
+            self.repo_reader.persons_db,
+        )
+
+        # This calculates all blames but also adds the author and email of
+        # each blame to the persons list. This is necessary, because the blame
+        # functionality can have another way to set/get the author and email of a
+        # commit.
+        self.blame_reader.run(thread_executor)
+
+        # Set stats.author2fstr2fstat, the basis of all other stat tables
+        self.author2fstr2fstat = self.stat_tables.get_author2fstr2fstat(
+            self.repo_reader.fstrs,
+            self.repo_reader.fstr2commit_groups,
+            self.repo_reader.persons_db,
+        )
+        if list(self.author2fstr2fstat.keys()) == ["*"]:
+            return False
+
+        # Update author2fstr2fstat with line counts for each author.
+        self.author2fstr2fstat = self.blame_reader.update_author2fstr2fstat(
+            self.author2fstr2fstat
+        )
+
+        self.fstr2fstat = self.stat_tables.get_fstr2fstat(
+            self.author2fstr2fstat, self.repo_reader.fstr2commit_groups
+        )
+
+        # Set self.fstrs and self.star_fstrs and sort by line count
+        fstrs = self.fstr2fstat.keys()
+        self.star_fstrs = sorted(
+            fstrs, key=lambda x: self.fstr2fstat[x].stat.line_count, reverse=True
+        )
+        if self.star_fstrs and self.star_fstrs[0] == "*":
+            self.fstrs = self.star_fstrs[1:]  # remove "*"
+        else:
+            self.fstrs = self.star_fstrs
+
+        if list(self.fstr2fstat.keys()) == ["*"]:
+            return False
+
+        self.fstr2author2fstat = self.stat_tables.get_fstr2author2fstat(
+            self.author2fstr2fstat
+        )
+
+        self.author2pstat = self.stat_tables.get_author2pstat(
+            self.author2fstr2fstat, self.repo_reader.persons_db
+        )
+
+        total_insertions = self.author2pstat["*"].stat.insertions
+        total_lines = self.author2pstat["*"].stat.line_count
+
+        self.stat_tables.calculate_percentages(
+            self.fstr2fstat, total_insertions, total_lines
+        )
+        self.stat_tables.calculate_percentages(
+            self.author2pstat, total_insertions, total_lines
+        )
+        for _, fstr2fstat in self.author2fstr2fstat.items():
+            self.stat_tables.calculate_percentages(
+                fstr2fstat, total_insertions, total_lines
+            )
+        for _, author2fstat in self.fstr2author2fstat.items():
+            self.stat_tables.calculate_percentages(
+                author2fstat, total_insertions, total_lines
+            )
+        return True
 
     @property
     def path(self) -> Path:
@@ -141,7 +162,17 @@ class GIRepo:
         return self.repo_reader.get_person(author)
 
     def get_sorted_fstrs(self) -> list[str]:
-        return self.sorted_fstrs
+        return self.fstrs
+
+    def get_fstr2shas(self) -> dict[FileStr, list[SHALong]]:
+        fstr2shas: dict[str, list[SHALong]] = {}
+        for fstr in self.fstrs:
+            blames: list[Blame] = self.blame_reader.fstr2blames[fstr]
+            shas = {blame.sha_long for blame in blames}
+            fstr2shas[fstr] = sorted(
+                shas, key=lambda sha: self.blame_reader.sha2nr[sha], reverse=True
+            )
+        return fstr2shas
 
     @classmethod
     def set_args(cls, args: Args):

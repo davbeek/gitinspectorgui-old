@@ -30,8 +30,8 @@ class BlameRows:
         self.fstr2blames: dict[FileStr, list[Blame]] = repo.blame_reader.fstr2blames  # type: ignore
         self.blame_authors: list[Author] = repo.blame_reader.blame_authors  # type: ignore
         self.persons_db: PersonsDB = repo.repo_reader.persons_db
-        self.sorted_fstrs = self.repo.sorted_fstrs
-        self.sorted_star_fstrs = self.repo.sorted_star_fstrs
+        self.sorted_fstrs = self.repo.fstrs
+        self.sorted_star_fstrs = self.repo.star_fstrs
 
     def get_fstr2blame_rows(
         self, html: bool

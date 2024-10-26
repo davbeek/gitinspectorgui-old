@@ -186,7 +186,7 @@ class FilesTableRows(TableRows):
         rows: list[Row] = []
         row: Row
         id_val: int = 0
-        for fstr in self.repo.sorted_star_fstrs:
+        for fstr in self.repo.star_fstrs:
             row = [id_val, f2f[fstr].relative_names_str(subfolder)]
             row.extend(self._get_stat_values(f2f[fstr].stat))
             rows.append(row)

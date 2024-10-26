@@ -18,4 +18,4 @@ type BlameLines = list[BlameLine]  # type: ignore
 # Each two-element list contains a GitCommit followed by a list of Blame lines
 type GitBlames = list[list[GitCommit | BlameLines]]  # type: ignore
 
-type RowsBools = tuple[list[Row], list[bool]]
+type RowsBools = tuple[list[Row], list[bool]]  # type: ignore
