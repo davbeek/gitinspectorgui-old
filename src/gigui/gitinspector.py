@@ -12,10 +12,10 @@ from gigui.args_settings import AUTO, NONE, Args
 from gigui.constants import DEFAULT_FILE_BASE, DEFAULT_FORMAT, MAX_BROWSER_TABS
 from gigui.data import FileStat, Person
 from gigui.keys import Keys
-from gigui.output import shared_stat
+from gigui.output import stat_rows
+from gigui.output.blame_rows import BlameRows
 from gigui.output.excel import Book
 from gigui.output.html import BlameTablesSoup, TableSoup, get_repo_html
-from gigui.output.shared_blame import BlameRows
 from gigui.repo import GIRepo, get_repos, total_len
 from gigui.typedefs import FileStr, Html
 from gigui.utils import (
@@ -90,9 +90,9 @@ def init_classes(args: Args):
     Person.show_renames = args.show_renames
     Person.ex_author_patterns = args.ex_authors
     Person.ex_email_patterns = args.ex_emails
-    shared_stat.deletions = args.deletions
-    shared_stat.scaled_percentages = args.scaled_percentages
-    shared_stat.subfolder = args.subfolder
+    stat_rows.deletions = args.deletions
+    stat_rows.scaled_percentages = args.scaled_percentages
+    stat_rows.subfolder = args.subfolder
 
 
 # Normally, the input paths have already been expanded by the shell, but in case the

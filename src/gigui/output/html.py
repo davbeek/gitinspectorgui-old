@@ -2,8 +2,8 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup, Tag
 
-from gigui.output.shared_blame import BlameRows, header_blames, string2truncated
-from gigui.output.shared_stat import (
+from gigui.output.blame_rows import BlameRows, header_blames, string2truncated
+from gigui.output.stat_rows import (
     AuthorsFilesTableRows,
     AuthorsTableRows,
     FilesAuthorsTableRows,

@@ -7,8 +7,8 @@ from xlsxwriter.chart import Chart  # type: ignore[import-untyped]
 from xlsxwriter.workbook import Format as ExcelFormat  # type: ignore[import-untyped]
 from xlsxwriter.worksheet import Worksheet  # type: ignore[import-untyped]
 
-from gigui.output.shared_blame import BlameRows, header_blames, string2truncated
-from gigui.output.shared_stat import (
+from gigui.output.blame_rows import BlameRows, header_blames, string2truncated
+from gigui.output.stat_rows import (
     AuthorsFilesTableRows,
     AuthorsTableRows,
     FilesAuthorsTableRows,
