@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 
 from git import Commit as GitCommit
-from git import Repo
+from git import GitCommandError, Repo
 
 from gigui.args_settings import Args
 from gigui.comment import get_is_comment_lines
@@ -102,9 +102,7 @@ class BlameBaseReader:
             blame_opts.append(f"--ignore-revs-file={str(ignore_revs_path)}")
 
         # Run the git command to get the blames for the file.
-        git_blames: GitBlames = self.git_repo.blame(
-            root_sha, fstr, rev_opts=blame_opts
-        )  # type: ignore
+        git_blames: GitBlames = self._run_git_command(root_sha, fstr, blame_opts)
         return git_blames, fstr
 
     def _process_git_blames(self, fstr: FileStr, git_blames: GitBlames) -> list[Blame]:
@@ -137,6 +135,17 @@ class BlameBaseReader:
             )
             blames.append(blame)
         return blames
+
+    def _run_git_command(
+        self,
+        root_sha: SHALong,
+        fstr: FileStr,
+        blame_opts: list[str],
+    ) -> GitBlames:
+        git_blames: GitBlames = self.git_repo.blame(
+            root_sha, fstr, rev_opts=blame_opts
+        )  # type: ignore
+        return git_blames
 
 
 class BlameReader(BlameBaseReader):
@@ -226,14 +235,17 @@ class BlameHistoryReader(BlameBaseReader):
     def __init__(
         self,
         fstr2blames: dict[FileStr, list[Blame]],
+        fstr2fstat: dict[FileStr, FileStat],
         fstr2shas: dict[FileStr, list[SHALong]],
         *args,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self.fstr2blames: dict[FileStr, list[Blame]] = fstr2blames
+        self.fstr2fstat: dict[FileStr, FileStat] = fstr2fstat
         self.fstr2shas: dict[FileStr, list[SHALong]] = fstr2shas
 
+        self.fstr_names: list[FileStr]
         self.fstr2sha2blames: dict[FileStr, dict[SHALong, list[Blame]]] = {}
         self.run()
 
@@ -242,13 +254,32 @@ class BlameHistoryReader(BlameBaseReader):
         blames: list[Blame]
 
         for fstr in self.fstrs:
-            head_sha = self.fstr2shas[fstr][-1]
+            self.fstr_names = self.fstr2fstat[fstr].names[:]  # make a copy
+            head_sha = self.fstr2shas[fstr][0]
+            self.fstr2sha2blames[fstr] = {}
             self.fstr2sha2blames[fstr][head_sha] = self.fstr2blames[fstr]
-            for sha in self.fstr2shas[fstr]:
-                git_blames, fstr = self._get_git_blames_for(fstr, sha)
+            shas = self.fstr2shas[fstr]
+            for sha in shas:
+                git_blames, _ = self._get_git_blames_for(fstr, sha)
                 blames = self._process_git_blames(fstr, git_blames)
                 self.fstr2sha2blames[fstr][sha] = blames
 
         # Assume that no new authors are found when using earlier root commit_shas, so
         # do not update authors of the blames with the possibly newly found persons as
         # in BlameReader.run().
+
+    def _run_git_command(
+        self,
+        root_sha: SHALong,
+        fstr: FileStr,  # not used here
+        blame_opts: list[str],
+    ) -> GitBlames:
+        while True:
+            try:
+                git_blames: GitBlames = self.git_repo.blame(
+                    root_sha, self.fstr_names[0], rev_opts=blame_opts
+                )  # type: ignore
+                break  # Exit the loop if no exception is raised
+            except GitCommandError:
+                self.fstr_names.pop(0)
+        return git_blames

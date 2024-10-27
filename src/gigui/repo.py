@@ -7,7 +7,7 @@ from typing import TypeVar
 from git import InvalidGitRepositoryError, NoSuchPathError, PathLike, Repo
 
 from gigui.args_settings import Args
-from gigui.blame_reader import Blame, BlameHistoryReader, BlameReader
+from gigui.blame_reader import Blame, BlameBaseReader, BlameHistoryReader, BlameReader
 from gigui.data import CommitGroup, FileStat, Person, PersonsDB, PersonStat
 from gigui.repo_reader import RepoReader
 from gigui.typedefs import Author, FileStr, SHALong
@@ -68,6 +68,7 @@ class GIRepo:
                 fstr2shas = self.get_fstr2shas()
                 self.blame_history_reader = BlameHistoryReader(
                     self.blame_reader.fstr2blames,
+                    self.fstr2fstat,
                     fstr2shas,
                     self.repo_reader.git_repo,
                     self.repo_reader.ex_sha_shorts,
@@ -178,7 +179,7 @@ class GIRepo:
     def set_args(cls, args: Args):
         GIRepo.args = RepoReader.args = StatTables.args = args
         RepoReader.ex_revs = set(args.ex_revisions)
-        BlameReader.args = args
+        BlameBaseReader.args = args
 
 
 class StatTables:
