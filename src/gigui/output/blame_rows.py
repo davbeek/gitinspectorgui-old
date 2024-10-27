@@ -33,22 +33,8 @@ class BlameRows:
         self.sorted_fstrs = self.repo.fstrs
         self.sorted_star_fstrs = self.repo.star_fstrs
 
-    def get_fstr2blame_rows(
-        self, html: bool
-    ) -> dict[FileStr, tuple[list[Row], list[bool]]]:
-        fstr2rows_iscomments: dict[FileStr, tuple[list[Row], list[bool]]] = {}
-        for fstr in self.sorted_fstrs:
-            rows, iscomments = self._get_blame_rows(fstr, html)
-            if rows:
-                fstr2rows_iscomments[fstr] = rows, iscomments
-            else:
-                log(f"No blame output matching filters found for file {fstr}")
-        return fstr2rows_iscomments
-
     # pylint: disable=too-many-locals
-    def _get_blame_rows(
-        self, fstr: FileStr, html: bool
-    ) -> tuple[list[Row], list[bool]]:
+    def get_blame_rows(self, fstr: FileStr, html: bool) -> tuple[list[Row], list[bool]]:
         blames: list[Blame] = self.fstr2blames[fstr]
         rows: list[Row] = []
         is_comments: list[bool] = []

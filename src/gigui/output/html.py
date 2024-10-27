@@ -15,7 +15,7 @@ from gigui.output.stat_rows import (
 )
 from gigui.repo import GIRepo
 from gigui.typedefs import Author, FileStr, Html, Row, RowsBools
-from gigui.utils import get_relative_fstr
+from gigui.utils import get_relative_fstr, log
 
 MAX_LENGTH_TAB_NAME = 40
 
@@ -210,12 +210,19 @@ class FilesTableSoup(StatTableSoup):
 
 
 class BlameTableSoup(TableSoup):
-    def get_table(self, rows_iscomments: RowsBools) -> Tag:
+    def get_table(self, fstr: FileStr, repo: GIRepo) -> Tag | None:
+        rows: list[Row]
+        iscomments: list[bool]
+
+        rows, iscomments = BlameRows(repo).get_blame_rows(fstr, html=True)
+        if not rows:
+            log(f"No blame output matching filters found for file {fstr}")
+            return None
+
         col_header = header_blames()
         self._add_header(col_header)
 
         bg_colors_cnt = len(BG_AUTHOR_COLORS)
-        rows, iscomments = rows_iscomments
         for row, is_comment in zip(rows, iscomments):
             tr = self.soup.new_tag("tr")
             tr["class"] = BG_AUTHOR_COLORS[(int(row[0]) % bg_colors_cnt)]
@@ -254,31 +261,30 @@ class BlameTablesSoup:
         self.global_soup = global_soup
 
     def add_tables(self) -> None:
-        fstr2rows_iscomments: dict[FileStr, RowsBools]
-        fstr2rows_iscomments = BlameRows(self.repo).get_fstr2blame_rows(html=True)
+        fstr2table: dict[FileStr, Tag] = {}
+        nav_ul: Tag = self.global_soup.find(id="tab-buttons")  # type: ignore
+        tab_div: Tag = self.global_soup.find(id="tab-contents")  # type: ignore
+
+        for fstr in self.repo.fstrs:
+            table = BlameTableSoup().get_table(fstr, self.repo)
+            if table:
+                fstr2table[fstr] = table
 
         relative_fstrs = [
-            get_relative_fstr(fstr, self.subfolder)
-            for fstr in fstr2rows_iscomments.keys()
+            get_relative_fstr(fstr, self.subfolder) for fstr in fstr2table
         ]
         relative_fstr2truncated = string2truncated(
             relative_fstrs,
             MAX_LENGTH_TAB_NAME,
         )
 
-        nav_ul: Tag = self.global_soup.find(id="tab-buttons")  # type: ignore
-        tab_div: Tag = self.global_soup.find(id="tab-contents")  # type: ignore
-
-        for fstr, rel_fstr in zip(fstr2rows_iscomments.keys(), relative_fstrs):
+        for fstr, rel_fstr in zip(fstr2table, relative_fstrs):
             rel_fstr_truncated: FileStr = relative_fstr2truncated[rel_fstr]
-
-            table = BlameTableSoup().get_table(fstr2rows_iscomments[fstr])
-
             nav_ul.append(self._new_nav_tab(rel_fstr_truncated))
             tab_div.append(
                 self._new_tab_content(
                     rel_fstr_truncated,
-                    table,
+                    fstr2table[fstr],
                 )
             )
 
