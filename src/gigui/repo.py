@@ -45,6 +45,9 @@ class GIRepo:
         self.fstrs: list[str]
         self.star_fstrs: list[str]
 
+        # Valid only after self.run has been called with option --blame-history.
+        self.fstr2shas: dict[str, list[SHALong]]
+
     # Valid only after self.run has been called.
     @property
     def authors_included(self) -> list[Author]:
@@ -59,17 +62,16 @@ class GIRepo:
         """
 
         success: bool
-        fstr2shas: dict[FileStr, list[SHALong]] = {}
         try:
             success = self._run_blame_no_history(thread_executor)
             if not success:
                 return False
             if self.args.blame_history:
-                fstr2shas = self.get_fstr2shas()
+                self.fstr2shas = self.get_fstr2shas()
                 self.blame_history_reader = BlameHistoryReader(
                     self.blame_reader.fstr2blames,
                     self.fstr2fstat,
-                    fstr2shas,
+                    self.fstr2shas,
                     self.repo_reader.git_repo,
                     self.repo_reader.ex_sha_shorts,
                     self.blame_reader.fstrs,

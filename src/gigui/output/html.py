@@ -2,7 +2,12 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup, Tag
 
-from gigui.output.blame_rows import BlameRows, header_blames, string2truncated
+from gigui.output.blame_rows import (
+    BlameHistoryRows,
+    BlameRows,
+    header_blames,
+    string2truncated,
+)
 from gigui.output.stat_rows import (
     AuthorsFilesTableRows,
     AuthorsTableRows,
@@ -14,7 +19,7 @@ from gigui.output.stat_rows import (
     header_files_authors,
 )
 from gigui.repo import GIRepo
-from gigui.typedefs import Author, FileStr, Html, Row, RowsBools
+from gigui.typedefs import Author, FileStr, Html, Row, SHALong
 from gigui.utils import get_relative_fstr, log
 
 MAX_LENGTH_TAB_NAME = 40
@@ -62,7 +67,9 @@ class TableSoup:
     empty_lines: bool
     subfolder: FileStr
 
-    def __init__(self) -> None:
+    def __init__(self, repo: GIRepo) -> None:
+        self.repo: GIRepo = repo
+
         self.soup = BeautifulSoup("<table></table>", "html.parser")
         self.table: Tag = self.soup.table  # type: ignore
         self.tbody: Tag = self.soup.new_tag("tbody")
@@ -106,9 +113,45 @@ class TableSoup:
         self.table.append(self.tbody)
 
 
+class BlameBaseTableSoup(TableSoup):
+    def get_table(self, rows: list[Row], iscomments: list[bool]) -> Tag:
+        col_header = header_blames()
+        self._add_header(col_header)
+
+        bg_colors_cnt = len(BG_AUTHOR_COLORS)
+        for row, is_comment in zip(rows, iscomments):
+            tr = self.soup.new_tag("tr")
+            tr["class"] = BG_AUTHOR_COLORS[(int(row[0]) % bg_colors_cnt)]
+            self.tbody.append(tr)
+            for i_col, data in enumerate(row):
+                td = self.soup.new_tag("td")
+                head = col_header[i_col]
+                if head != "Code":
+                    td["class"] = HEADER_CLASS_DICT[col_header[i_col]]
+                else:  # head == "Code"
+                    if data:
+                        data = (
+                            str(data)
+                            .replace(" ", "&nbsp;")
+                            .replace("<", "&lt;")
+                            .replace(">", "&gt;")
+                            .replace('"', "&quot;")
+                        )
+                    else:
+                        # empty line of code
+                        data = "&nbsp;"
+                    if is_comment:
+                        td["class"] = "comment-col"
+                    else:
+                        td["class"] = HEADER_CLASS_DICT[head]
+                td.string = str(data)
+                tr.append(td)
+        return self.table
+
+
 class StatTableSoup(TableSoup):
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, repo: GIRepo) -> None:
+        super().__init__(repo)
         self.rows: list[Row]  # to be set by child classes
 
     def _add_colored_rows_table(self, header: list[str], bg_colors: list[str]) -> None:
@@ -128,8 +171,8 @@ class StatTableSoup(TableSoup):
 
 
 class AuthorsTableSoup(StatTableSoup):
-    def get_table(self, repo: GIRepo) -> Tag:
-        self.rows: list[Row] = AuthorsTableRows(repo).get_rows()
+    def get_table(self) -> Tag:
+        self.rows: list[Row] = AuthorsTableRows(self.repo).get_rows()
         self._add_colored_rows_table(
             header_authors(),
             BG_AUTHOR_COLORS,
@@ -138,8 +181,8 @@ class AuthorsTableSoup(StatTableSoup):
 
 
 class AuthorsFilesTableSoup(StatTableSoup):
-    def get_table(self, repo: GIRepo) -> Tag:
-        self.rows: list[Row] = AuthorsFilesTableRows(repo).get_rows()
+    def get_table(self) -> Tag:
+        self.rows: list[Row] = AuthorsFilesTableRows(self.repo).get_rows()
         self._add_colored_rows_table(
             header_authors_files(),
             BG_AUTHOR_COLORS,
@@ -148,8 +191,8 @@ class AuthorsFilesTableSoup(StatTableSoup):
 
 
 class FilesAuthorsTableSoup(StatTableSoup):
-    def get_table(self, repo: GIRepo) -> Tag:
-        row_table = FilesAuthorsTableRows(repo)
+    def get_table(self) -> Tag:
+        row_table = FilesAuthorsTableRows(self.repo)
         self.rows: list[Row] = row_table.get_rows()
         authors_included: list[Author] = row_table.get_authors_included()
 
@@ -203,54 +246,46 @@ class FilesAuthorsTableSoup(StatTableSoup):
 
 
 class FilesTableSoup(StatTableSoup):
-    def get_table(self, repo: GIRepo) -> Tag:
-        self.rows: list[Row] = FilesTableRows(repo).get_rows()
+    def get_table(self) -> Tag:
+        self.rows: list[Row] = FilesTableRows(self.repo).get_rows()
         self._add_colored_rows_table(header_files(), BG_ROW_COLORS)
         return self.table
 
 
-class BlameTableSoup(TableSoup):
-    def get_table(self, fstr: FileStr, repo: GIRepo) -> Tag | None:
+class BlameTableSoup(BlameBaseTableSoup):
+    def get_fstr_table(self, fstr: FileStr) -> Tag | None:
         rows: list[Row]
         iscomments: list[bool]
+        table: Tag | None
 
-        rows, iscomments = BlameRows(repo).get_blame_rows(fstr, html=True)
+        rows, iscomments = BlameRows(self.repo).get_fstr_blame_rows(fstr, html=True)
         if not rows:
             log(f"No blame output matching filters found for file {fstr}")
             return None
 
-        col_header = header_blames()
-        self._add_header(col_header)
+        table = self.get_table(rows, iscomments)
+        return table
 
-        bg_colors_cnt = len(BG_AUTHOR_COLORS)
-        for row, is_comment in zip(rows, iscomments):
-            tr = self.soup.new_tag("tr")
-            tr["class"] = BG_AUTHOR_COLORS[(int(row[0]) % bg_colors_cnt)]
-            self.tbody.append(tr)
-            for i_col, data in enumerate(row):
-                td = self.soup.new_tag("td")
-                head = col_header[i_col]
-                if head != "Code":
-                    td["class"] = HEADER_CLASS_DICT[col_header[i_col]]
-                else:  # head == "Code"
-                    if data:
-                        data = (
-                            str(data)
-                            .replace(" ", "&nbsp;")
-                            .replace("<", "&lt;")
-                            .replace(">", "&gt;")
-                            .replace('"', "&quot;")
-                        )
-                    else:
-                        # empty line of code
-                        data = "&nbsp;"
-                    if is_comment:
-                        td["class"] = "comment-col"
-                    else:
-                        td["class"] = HEADER_CLASS_DICT[head]
-                td.string = str(data)
-                tr.append(td)
-        return self.table
+
+class BlameHistoryTableSoup(BlameBaseTableSoup):
+    blame_history: bool
+
+    def __init__(self, repo: GIRepo) -> None:
+        super().__init__(repo)
+        self.fstr2shas: dict[FileStr, list[SHALong]] = self.repo.fstr2shas
+
+    def get_fstr_table(self, fstr: FileStr) -> Tag | None:
+        if fstr not in self.fstr2shas:
+            return None
+
+        for sha in self.fstr2shas[fstr]:
+            rows, iscomments = BlameHistoryRows(self.repo).get_fstr_sha_blame_rows(
+                fstr, sha, html=True
+            )
+            table = self.get_table(rows, iscomments)
+
+        # Temporary
+        return None
 
 
 class BlameTablesSoup:
@@ -266,7 +301,7 @@ class BlameTablesSoup:
         tab_div: Tag = self.global_soup.find(id="tab-contents")  # type: ignore
 
         for fstr in self.repo.fstrs:
-            table = BlameTableSoup().get_table(fstr, self.repo)
+            table = BlameTableSoup(self.repo).get_fstr_table(fstr)
             if table:
                 fstr2table[fstr] = table
 
@@ -337,16 +372,16 @@ def get_repo_html(
 
     if not repo.args.blame_history:
         authors_tag: Tag = soup.find(id="authors")  # type: ignore
-        authors_tag.append(AuthorsTableSoup().get_table(repo))
+        authors_tag.append(AuthorsTableSoup(repo).get_table())
 
         authors_files_tag: Tag = soup.find(id="authors-files")  # type: ignore
-        authors_files_tag.append(AuthorsFilesTableSoup().get_table(repo))
+        authors_files_tag.append(AuthorsFilesTableSoup(repo).get_table())
 
         files_authors_tag: Tag = soup.find(id="files-authors")  # type: ignore
-        files_authors_tag.append(FilesAuthorsTableSoup().get_table(repo))
+        files_authors_tag.append(FilesAuthorsTableSoup(repo).get_table())
 
         files_tag: Tag = soup.find(id="files")  # type: ignore
-        files_tag.append(FilesTableSoup().get_table(repo))
+        files_tag.append(FilesTableSoup(repo).get_table())
 
     # Add blame output if not skipped.
     if not blame_skip:

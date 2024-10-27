@@ -4,8 +4,7 @@ from gigui.args_settings import Args
 from gigui.blame_reader import Blame
 from gigui.data import PersonsDB
 from gigui.repo import GIRepo
-from gigui.typedefs import Author, FileStr, Row
-from gigui.utils import log
+from gigui.typedefs import Author, FileStr, Row, SHALong
 
 
 def header_blames() -> list[str]:
@@ -21,21 +20,18 @@ def header_blames() -> list[str]:
     ]
 
 
-class BlameRows:
+class BlameBaseRows:
     args: Args
 
     def __init__(self, repo: GIRepo):
         self.repo: GIRepo = repo
 
-        self.fstr2blames: dict[FileStr, list[Blame]] = repo.blame_reader.fstr2blames  # type: ignore
-        self.blame_authors: list[Author] = repo.blame_reader.blame_authors  # type: ignore
+        self.blame_authors: list[Author] = repo.blame_reader.blame_authors
         self.persons_db: PersonsDB = repo.repo_reader.persons_db
-        self.sorted_fstrs = self.repo.fstrs
-        self.sorted_star_fstrs = self.repo.star_fstrs
 
-    # pylint: disable=too-many-locals
-    def get_blame_rows(self, fstr: FileStr, html: bool) -> tuple[list[Row], list[bool]]:
-        blames: list[Blame] = self.fstr2blames[fstr]
+    def get_blame_rows(
+        self, html: bool, blames: list[Blame]
+    ) -> tuple[list[Row], list[bool]]:
         rows: list[Row] = []
         is_comments: list[bool] = []
         line_nr = 1
@@ -79,84 +75,32 @@ class BlameRows:
         return rows, is_comments
 
 
-class MultiRootBlameRows:
-    args: Args
+class BlameRows(BlameBaseRows):
+    def __init__(self, repo: GIRepo):
+        super().__init__(repo)
+        self.fstr2blames: dict[FileStr, list[Blame]] = repo.blame_reader.fstr2blames
 
-    def __init__(
-        self,
-        fstrs: list[FileStr],
-        persons_db: PersonsDB,
-        fstr2blames: dict[FileStr, list[Blame]],
-    ):
-        self.fstrs = fstrs
-        self.persons_db = persons_db
-        self.fstr2blames = fstr2blames
-        self.sorted_fstrs: list[FileStr]
-
-        # List of blame authors, so no filtering, ordered by highest blame line count.
-        self._blame_authors: list[Author] = []
-
-    def set_sorted_fstrs(self, sorted_fstrs: list[FileStr]) -> None:
-        self.sorted_fstrs = sorted_fstrs
-
-    def get_fstr2blame_rows(
-        self, html: bool
-    ) -> dict[FileStr, tuple[list[Row], list[bool]]]:
-        fstr2rows_iscomments: dict[FileStr, tuple[list[Row], list[bool]]] = {}
-        for fstr in self.sorted_fstrs:
-            rows, iscomments = self._get_blame_rows(fstr, html)
-            if rows:
-                fstr2rows_iscomments[fstr] = rows, iscomments
-            else:
-                log(f"No blame output matching filters found for file {fstr}")
-        return fstr2rows_iscomments
-        # pylint: disable=too-many-locals
-
-    def _get_blame_rows(
+    def get_fstr_blame_rows(
         self, fstr: FileStr, html: bool
     ) -> tuple[list[Row], list[bool]]:
         blames: list[Blame] = self.fstr2blames[fstr]
-        rows: list[Row] = []
-        is_comments: list[bool] = []
-        line_nr = 1
+        return self.get_blame_rows(html, blames)
 
-        author2nr: dict[Author, int] = {}
-        author_nr = 1
-        for author in self._blame_authors:
-            if author in self.persons_db.authors_included:
-                author2nr[author] = author_nr
-                author_nr += 1
-            else:
-                author2nr[author] = 0
 
-        # Create row for each blame line.
-        for b in blames:
-            author = self.persons_db.get_author(b.author)
-            for line, is_comment in zip(b.lines, b.is_comment_lines):
-                exclude_comment = is_comment and not self.args.comments
-                exclude_empty = line.strip() == "" and not self.args.empty_lines
-                exclude_author = author in self.persons_db.authors_excluded
-                if (
-                    self.args.blame_hide_exclusions
-                    and not html
-                    and (exclude_comment or exclude_empty or exclude_author)
-                ):
-                    line_nr += 1
-                else:
-                    row: Row = [
-                        0 if exclude_comment or exclude_author else author2nr[author],
-                        author,
-                        b.date.strftime("%Y-%m-%d"),
-                        b.message,
-                        b.sha_long[:7],
-                        b.commit_nr,
-                        line_nr,
-                        line,
-                    ]
-                    rows.append(row)
-                    is_comments.append(is_comment)
-                    line_nr += 1
-        return rows, is_comments
+class BlameHistoryRows(BlameBaseRows):
+    def __init__(self, repo: GIRepo):
+        super().__init__(repo)
+
+        self.fstr2sha2blames: dict[FileStr, dict[SHALong, list[Blame]]] = (
+            repo.blame_history_reader.fstr2sha2blames
+        )
+
+    # pylint: disable=too-many-locals
+    def get_fstr_sha_blame_rows(
+        self, fstr: FileStr, sha: SHALong, html: bool
+    ) -> tuple[list[Row], list[bool]]:
+        blames: list[Blame] = self.fstr2sha2blames[fstr][sha]
+        return self.get_blame_rows(html, blames)
 
 
 def string2truncated(orgs: list[str], max_length: int) -> dict[str, str]:
