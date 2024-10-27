@@ -168,10 +168,9 @@ class FilesAuthorsTableRows(TableRows):
             )
             for author in authors:
                 row = []
-                authors_str = self.repo.get_person(author).authors_str
                 row.extend(
                     [id_val, f2a2f[fstr][author].relative_names_str(subfolder)]
-                    + (["", authors_str] if html else [authors_str])  # type: ignore
+                    + (["", author] if html else [author])  # type: ignore
                 )
                 stat = f2a2f[fstr][author].stat
                 row.extend(self._get_stat_values(stat))
