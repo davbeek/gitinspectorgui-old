@@ -70,6 +70,14 @@ class RepoReader:
     def get_person(self, author: Author | None) -> Person:
         return self.persons_db.get_person(author)
 
+    def get_fstr2shas(self, fstrs: list[FileStr]) -> dict[FileStr, list[SHALong]]:
+        fstr2shas = {}
+        for fstr in fstrs:
+            commits = list(self.git_repo.iter_commits(paths=fstr))
+            shas = [commit.hexsha for commit in commits]
+            fstr2shas[fstr] = shas
+        return fstr2shas
+
     def _set_head_commit(self) -> None:
         since = self.args.since
         until = self.args.until

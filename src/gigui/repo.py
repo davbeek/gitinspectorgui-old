@@ -7,7 +7,7 @@ from typing import TypeVar
 from git import InvalidGitRepositoryError, NoSuchPathError, PathLike, Repo
 
 from gigui.args_settings import Args
-from gigui.blame_reader import Blame, BlameBaseReader, BlameHistoryReader, BlameReader
+from gigui.blame_reader import BlameBaseReader, BlameHistoryReader, BlameReader
 from gigui.data import CommitGroup, FileStat, Person, PersonsDB, PersonStat
 from gigui.repo_reader import RepoReader
 from gigui.typedefs import Author, FileStr, SHALong
@@ -46,7 +46,7 @@ class GIRepo:
         self.star_fstrs: list[str]
 
         # Valid only after self.run has been called with option --blame-history.
-        self.fstr2shas: dict[str, list[SHALong]]
+        self.fstr2shas: dict[FileStr, list[SHALong]]
 
     # Valid only after self.run has been called.
     @property
@@ -67,7 +67,7 @@ class GIRepo:
             if not success:
                 return False
             if self.args.blame_history:
-                self.fstr2shas = self.get_fstr2shas()
+                self.set_fstr2shas()
                 self.blame_history_reader = BlameHistoryReader(
                     self.blame_reader.fstr2blames,
                     self.fstr2fstat,
@@ -167,15 +167,8 @@ class GIRepo:
     def get_sorted_fstrs(self) -> list[str]:
         return self.fstrs
 
-    def get_fstr2shas(self) -> dict[FileStr, list[SHALong]]:
-        fstr2shas: dict[str, list[SHALong]] = {}
-        for fstr in self.fstrs:
-            blames: list[Blame] = self.blame_reader.fstr2blames[fstr]
-            shas = {blame.sha_long for blame in blames}
-            fstr2shas[fstr] = sorted(
-                shas, key=lambda sha: self.blame_reader.sha2nr[sha], reverse=True
-            )
-        return fstr2shas
+    def set_fstr2shas(self) -> None:
+        self.fstr2shas = self.repo_reader.get_fstr2shas(self.fstrs)
 
     @classmethod
     def set_args(cls, args: Args):

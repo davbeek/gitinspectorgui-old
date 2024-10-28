@@ -276,8 +276,9 @@ class BlameHistoryReader(BlameBaseReader):
     ) -> GitBlames:
         while True:
             try:
+                fstr_name = self.fstr_names[0]
                 git_blames: GitBlames = self.git_repo.blame(
-                    root_sha, self.fstr_names[0], rev_opts=blame_opts
+                    root_sha, fstr_name, rev_opts=blame_opts
                 )  # type: ignore
                 break  # Exit the loop if no exception is raised
             except GitCommandError:

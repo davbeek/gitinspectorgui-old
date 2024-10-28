@@ -220,6 +220,21 @@
             margin-left: 20px;
         }
 
+        .radio-container {
+            background-color: white;
+            padding: 5px;
+            margin-left: 5px;
+            border-bottom: 1px solid lightgrey;
+        }
+
+        .radio-button {
+            margin-right: 2px;
+        }
+
+        .radio-label {
+            margin-right: 10px;
+        }
+
         .pressed {
             border-top: 2px solid grey;
             border-left: 2px solid grey;
@@ -327,6 +342,54 @@
                     button.classList.toggle('pressed');
                     updateRows();
                 };
+            });
+        });
+    </script>
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            // Function to click the first radio button in each container
+            function clickFirstRadioButton() {
+                var containers = document.querySelectorAll('.radio-container');
+                containers.forEach(function (container) {
+                    var firstRadioButton = container.querySelector('.radio-button');
+                    if (firstRadioButton) {
+                        firstRadioButton.click();
+                    }
+                });
+            }
+
+            // Click the first radio button in the initially active tab
+            clickFirstRadioButton();
+
+            // Add event listener for tab clicks
+            var tabs = document.querySelectorAll('[data-bs-toggle="tab"]');
+            tabs.forEach(function (tab) {
+                tab.addEventListener('shown.bs.tab', function (event) {
+                    clickFirstRadioButton();
+                });
+            });
+
+            // Add event listener for radio button clicks in each blame-container
+            var blameContainers = document.querySelectorAll('.blame-container');
+            blameContainers.forEach(function (blameContainer) {
+                var radioButtons = blameContainer.querySelectorAll('.radio-button');
+                radioButtons.forEach(function (radioButton) {
+                    radioButton.addEventListener('click', function () {
+                        // Hide all tables in the blame-container
+                        var tables = blameContainer.querySelectorAll('table');
+                        tables.forEach(function (table) {
+                            table.style.display = 'none';
+                        });
+
+                        // Show the table with the same ID as the button without starting "button-"
+                        var tableId = radioButton.id.replace('button-', '');
+                        var targetTable = blameContainer.querySelector(`#${tableId}`);
+                        if (targetTable) {
+                            targetTable.style.display = 'table';
+                        }
+
+                    });
+                });
             });
         });
     </script>

@@ -84,6 +84,7 @@ def init_classes(args: Args):
     TableSoup.empty_lines = args.empty_lines
     TableSoup.subfolder = args.subfolder
     BlameTablesSoup.subfolder = args.subfolder
+    BlameTablesSoup.blame_history = args.blame_history
     Book.subfolder = args.subfolder
     Book.blame_skip = args.blame_skip
     Book.blame_history = args.blame_history

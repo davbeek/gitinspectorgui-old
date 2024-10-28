@@ -70,24 +70,21 @@ class TableSoup:
     def __init__(self, repo: GIRepo) -> None:
         self.repo: GIRepo = repo
 
-        self.soup = BeautifulSoup("<table></table>", "html.parser")
-        self.table: Tag = self.soup.table  # type: ignore
-        self.tbody: Tag = self.soup.new_tag("tbody")
+        self.soup = BeautifulSoup("<div></div>", "html.parser")
 
-    def _add_header(self, headers: list[str]) -> None:
-        self.table.clear()  # remove all rows resulting from previous calls
+    def _add_header_row(self, header_row: list[str], table: Tag) -> None:
         thead: Tag = self.soup.new_tag("thead")
         thead["class"] = "sticky headerRow"
         tr = self.soup.new_tag("tr")
         tr["class"] = "bg-th-green"
         thead.append(tr)
-        for header in headers:
-            header_class = HEADER_CLASS_DICT[header]
-            header_string = "" if header == "Empty" else header
+        for column_header in header_row:
+            header_class = HEADER_CLASS_DICT[column_header]
+            header_string = "" if column_header == "Empty" else column_header
             th = self.soup.new_tag("th")
             th["class"] = header_class
             th.string = header_string
-            if header == "Code":
+            if column_header == "Code":
                 button = self.soup.new_tag("button")
                 if self.blame_hide_exclusions:
                     button["class"] = "blame-exclusions-button pressed"
@@ -109,65 +106,35 @@ class TableSoup:
                 button.string = "Hide colors"
                 th.append(button)
             thead.append(th)
-        self.table.append(thead)
-        self.table.append(self.tbody)
-
-
-class BlameBaseTableSoup(TableSoup):
-    def get_table(self, rows: list[Row], iscomments: list[bool]) -> Tag:
-        col_header = header_blames()
-        self._add_header(col_header)
-
-        bg_colors_cnt = len(BG_AUTHOR_COLORS)
-        for row, is_comment in zip(rows, iscomments):
-            tr = self.soup.new_tag("tr")
-            tr["class"] = BG_AUTHOR_COLORS[(int(row[0]) % bg_colors_cnt)]
-            self.tbody.append(tr)
-            for i_col, data in enumerate(row):
-                td = self.soup.new_tag("td")
-                head = col_header[i_col]
-                if head != "Code":
-                    td["class"] = HEADER_CLASS_DICT[col_header[i_col]]
-                else:  # head == "Code"
-                    if data:
-                        data = (
-                            str(data)
-                            .replace(" ", "&nbsp;")
-                            .replace("<", "&lt;")
-                            .replace(">", "&gt;")
-                            .replace('"', "&quot;")
-                        )
-                    else:
-                        # empty line of code
-                        data = "&nbsp;"
-                    if is_comment:
-                        td["class"] = "comment-col"
-                    else:
-                        td["class"] = HEADER_CLASS_DICT[head]
-                td.string = str(data)
-                tr.append(td)
-        return self.table
+        table.insert(0, thead)  # ensure thead comes before tbody
 
 
 class StatTableSoup(TableSoup):
     def __init__(self, repo: GIRepo) -> None:
         super().__init__(repo)
+
+        self.table: Tag = self.soup.new_tag("table")
+        self.tbody: Tag = self.soup.new_tag("tbody")
+
         self.rows: list[Row]  # to be set by child classes
 
-    def _add_colored_rows_table(self, header: list[str], bg_colors: list[str]) -> None:
-        self._add_header(header)
+    def _add_colored_rows_table(
+        self, header_row: list[str], bg_colors: list[str]
+    ) -> None:
+        self._add_header_row(header_row, self.table)
         for row in self.rows:
             tr = self.soup.new_tag("tr")
             tr["class"] = bg_colors[(int(row[0]) % len(bg_colors))]
             self.tbody.append(tr)
             for i_col, data in enumerate(row):
                 td = self.soup.new_tag("td")
-                td["class"] = HEADER_CLASS_DICT[header[i_col]]
-                if header[i_col] == "Empty":
+                td["class"] = HEADER_CLASS_DICT[header_row[i_col]]
+                if header_row[i_col] == "Empty":
                     td.string = ""
                 else:
                     td.string = str(data)
                 tr.append(td)
+        self.table.append(self.tbody)
 
 
 class AuthorsTableSoup(StatTableSoup):
@@ -191,17 +158,17 @@ class AuthorsFilesTableSoup(StatTableSoup):
 
 
 class FilesAuthorsTableSoup(StatTableSoup):
-    def get_table(self) -> Tag:
+    def get_table(self) -> Tag:  # pylint: disable=too-many-locals
         row_table = FilesAuthorsTableRows(self.repo)
-        self.rows: list[Row] = row_table.get_rows()
+        rows: list[Row] = row_table.get_rows()
         authors_included: list[Author] = row_table.get_authors_included()
 
-        header: list[str] = header_files_authors()
+        header_row: list[str] = header_files_authors()
 
         # pylint: disable=invalid-name
-        ID_COL: int = header.index("ID")  # = 0
-        FILE_COL: int = header.index("File")  # = 1
-        AUTHOR_COL: int = header.index(
+        ID_COL: int = header_row.index("ID")  # = 0
+        FILE_COL: int = header_row.index("File")  # = 1
+        AUTHOR_COL: int = header_row.index(
             "Author"
         )  # = 3, because of empty row between File and Author!!
 
@@ -209,11 +176,11 @@ class FilesAuthorsTableSoup(StatTableSoup):
         author: Author
         author_index: int
 
-        self._add_header(header)
+        self._add_header_row(header_row, self.table)
 
         first_file = True
         row_id = 0
-        for row in self.rows:
+        for row in rows:
             if row[ID_COL] != row_id:  # new ID value for new file
                 first_file = True
                 row_id = row[ID_COL]  # type: ignore
@@ -228,20 +195,25 @@ class FilesAuthorsTableSoup(StatTableSoup):
             for i_col, data in enumerate(row):
                 td = self.soup.new_tag("td")
                 if i_col == ID_COL:
-                    td["class"] = HEADER_CLASS_DICT[header[i_col]]
+                    td["class"] = HEADER_CLASS_DICT[header_row[i_col]]
                     td.string = str(data)
                 elif i_col == FILE_COL and first_file:
-                    td["class"] = HEADER_CLASS_DICT[header[i_col]]
+                    td["class"] = HEADER_CLASS_DICT[header_row[i_col]]
                     td.string = str(data)
                     first_file = False
-                elif i_col == FILE_COL and not first_file or header[i_col] == "Empty":
-                    td["class"] = HEADER_CLASS_DICT[header[i_col]]
+                elif (
+                    i_col == FILE_COL and not first_file or header_row[i_col] == "Empty"
+                ):
+                    td["class"] = HEADER_CLASS_DICT[header_row[i_col]]
                     td.string = ""
                 else:
                     color_class = BG_AUTHOR_COLORS[author_index % len(BG_AUTHOR_COLORS)]
-                    td["class"] = f"{HEADER_CLASS_DICT[header[i_col]]} {color_class}"
+                    td["class"] = (
+                        f"{HEADER_CLASS_DICT[header_row[i_col]]} {color_class}"
+                    )
                     td.string = str(data)
                 tr.append(td)
+        self.table.append(self.tbody)
         return self.table
 
 
@@ -250,6 +222,46 @@ class FilesTableSoup(StatTableSoup):
         self.rows: list[Row] = FilesTableRows(self.repo).get_rows()
         self._add_colored_rows_table(header_files(), BG_ROW_COLORS)
         return self.table
+
+
+class BlameBaseTableSoup(TableSoup):
+    def get_table(self, rows: list[Row], iscomments: list[bool]) -> Tag:
+        table: Tag = self.soup.new_tag("table")
+        tbody: Tag = self.soup.new_tag("tbody")
+        table.append(tbody)
+
+        header_row = header_blames()
+        self._add_header_row(header_row, table)
+
+        bg_colors_cnt = len(BG_AUTHOR_COLORS)
+        for row, is_comment in zip(rows, iscomments):
+            tr = self.soup.new_tag("tr")
+            tr["class"] = BG_AUTHOR_COLORS[(int(row[0]) % bg_colors_cnt)]
+            tbody.append(tr)
+            for i_col, data in enumerate(row):
+                td = self.soup.new_tag("td")
+                head = header_row[i_col]
+                if head != "Code":
+                    td["class"] = HEADER_CLASS_DICT[header_row[i_col]]
+                else:  # head == "Code"
+                    if data:
+                        data = (
+                            str(data)
+                            .replace(" ", "&nbsp;")
+                            .replace("<", "&lt;")
+                            .replace(">", "&gt;")
+                            .replace('"', "&quot;")
+                        )
+                    else:
+                        # empty line of code
+                        data = "&nbsp;"
+                    if is_comment:
+                        td["class"] = "comment-col"
+                    else:
+                        td["class"] = HEADER_CLASS_DICT[head]
+                td.string = str(data)
+                tr.append(td)
+        return table
 
 
 class BlameTableSoup(BlameBaseTableSoup):
@@ -268,60 +280,94 @@ class BlameTableSoup(BlameBaseTableSoup):
 
 
 class BlameHistoryTableSoup(BlameBaseTableSoup):
-    blame_history: bool
-
     def __init__(self, repo: GIRepo) -> None:
         super().__init__(repo)
         self.fstr2shas: dict[FileStr, list[SHALong]] = self.repo.fstr2shas
 
-    def get_fstr_table(self, fstr: FileStr) -> Tag | None:
+    def get_fstr_tables(self, fstr: FileStr, sha2nr: dict[SHALong, int]) -> list[Tag]:
+        tables: list[Tag] = []
         if fstr not in self.fstr2shas:
-            return None
+            return []
 
         for sha in self.fstr2shas[fstr]:
             rows, iscomments = BlameHistoryRows(self.repo).get_fstr_sha_blame_rows(
                 fstr, sha, html=True
             )
+            nr = sha2nr[sha]
             table = self.get_table(rows, iscomments)
-
-        # Temporary
-        return None
+            table["id"] = (
+                f"{fstr}-{nr}".replace(".", "-").replace("/", "-").replace("\\", "-")
+            )
+            tables.append(table)
+        return tables
 
 
 class BlameTablesSoup:
     subfolder: FileStr
+    blame_history: bool
 
     def __init__(self, repo: GIRepo, global_soup: BeautifulSoup) -> None:
         self.repo: GIRepo = repo
         self.global_soup = global_soup
 
     def add_tables(self) -> None:
+        table: Tag | None
+        tables: list[Tag]
         fstr2table: dict[FileStr, Tag] = {}
+        fstr2tables: dict[FileStr, list[Tag]] = {}
+        fstrs: list[FileStr] = []
+        sha2nr: dict[SHALong, int] = self.repo.blame_reader.sha2nr
         nav_ul: Tag = self.global_soup.find(id="tab-buttons")  # type: ignore
         tab_div: Tag = self.global_soup.find(id="tab-contents")  # type: ignore
 
         for fstr in self.repo.fstrs:
-            table = BlameTableSoup(self.repo).get_fstr_table(fstr)
-            if table:
-                fstr2table[fstr] = table
+            if self.blame_history:
+                tables = BlameHistoryTableSoup(self.repo).get_fstr_tables(fstr, sha2nr)
+                if tables:
+                    fstr2tables[fstr] = tables
+                    fstrs.append(fstr)
+            else:
+                table = BlameTableSoup(self.repo).get_fstr_table(fstr)
+                if table:
+                    fstr2table[fstr] = table
+                    fstrs.append(fstr)
 
-        relative_fstrs = [
-            get_relative_fstr(fstr, self.subfolder) for fstr in fstr2table
-        ]
+        relative_fstrs = [get_relative_fstr(fstr, self.subfolder) for fstr in fstrs]
         relative_fstr2truncated = string2truncated(
             relative_fstrs,
             MAX_LENGTH_TAB_NAME,
         )
 
-        for fstr, rel_fstr in zip(fstr2table, relative_fstrs):
+        for fstr, rel_fstr in zip(fstrs, relative_fstrs):
             rel_fstr_truncated: FileStr = relative_fstr2truncated[rel_fstr]
+
             nav_ul.append(self._new_nav_tab(rel_fstr_truncated))
-            tab_div.append(
-                self._new_tab_content(
-                    rel_fstr_truncated,
-                    fstr2table[fstr],
-                )
+            tab_pane_div = self._new_tab_pane(rel_fstr_truncated)
+
+            blame_container = self.global_soup.new_tag(
+                "div", attrs={"class": "blame-container"}
             )
+            tab_pane_div.append(blame_container)
+
+            table_container = self.global_soup.new_tag(
+                "div", attrs={"class": "table-container"}
+            )
+
+            if self.blame_history:
+                self._add_radio_buttons(
+                    fstr,
+                    self.repo.fstr2shas[fstr],
+                    sha2nr,
+                    blame_container,
+                )
+                for table in fstr2tables[fstr]:
+                    table_container.append(table)
+            else:
+                table_container.append(fstr2table[fstr])
+
+            blame_container.append(table_container)
+            tab_pane_div.append(blame_container)
+            tab_div.append(tab_pane_div)
 
     def _new_nav_tab(self, rel_fstr: FileStr) -> Tag:
         nav_li = self.global_soup.new_tag("li", attrs={"class": "nav-item"})
@@ -338,7 +384,7 @@ class BlameTablesSoup:
         nav_li.append(nav_bt)
         return nav_li
 
-    def _new_tab_content(self, fstr: FileStr, table: Tag) -> Tag:
+    def _new_tab_pane(self, fstr: FileStr) -> Tag:
         div = self.global_soup.new_tag(
             "div",
             attrs={
@@ -346,8 +392,51 @@ class BlameTablesSoup:
                 "id": fstr,
             },
         )
-        div.append(table)
         return div
+
+    def _add_radio_buttons(
+        self,
+        fstr: FileStr,
+        shas: list[SHALong],
+        sha2nr: dict[SHALong, int],
+        parent: Tag,
+    ) -> None:
+        # Create a container for the radio buttons
+        container = self.global_soup.new_tag(
+            "div", attrs={"class": "radio-container sticky"}
+        )
+
+        for sha in shas:
+            nr = sha2nr[sha]
+            button_id = (
+                f"button-{fstr}-{nr}".replace(".", "-")
+                .replace("/", "-")
+                .replace("\\", "-")
+            )
+            radio_button = self.global_soup.new_tag(
+                "input",
+                attrs={
+                    "class": "radio-button",
+                    "type": "radio",
+                    "name": f"radio-group-{fstr}",
+                    "value": f"{nr}",
+                    "id": button_id,
+                },
+            )
+            label = self.global_soup.new_tag(
+                "label",
+                attrs={
+                    "class": "radio-label",
+                    # This causes the label to be displayed on the radio button.
+                    # The for value must match the id of the button.
+                    "for": button_id,
+                },
+            )
+            label.string = str(nr)
+
+            container.append(radio_button)
+            container.append(label)
+            parent.append(container)
 
 
 # pylint: disable=too-many-locals
@@ -370,18 +459,17 @@ def get_repo_html(
     title_tag: Tag = soup.find(name="title")  # type: ignore
     title_tag.string = f"{repo.name} viewer"
 
-    if not repo.args.blame_history:
-        authors_tag: Tag = soup.find(id="authors")  # type: ignore
-        authors_tag.append(AuthorsTableSoup(repo).get_table())
+    authors_tag: Tag = soup.find(id="authors")  # type: ignore
+    authors_tag.append(AuthorsTableSoup(repo).get_table())
 
-        authors_files_tag: Tag = soup.find(id="authors-files")  # type: ignore
-        authors_files_tag.append(AuthorsFilesTableSoup(repo).get_table())
+    authors_files_tag: Tag = soup.find(id="authors-files")  # type: ignore
+    authors_files_tag.append(AuthorsFilesTableSoup(repo).get_table())
 
-        files_authors_tag: Tag = soup.find(id="files-authors")  # type: ignore
-        files_authors_tag.append(FilesAuthorsTableSoup(repo).get_table())
+    files_authors_tag: Tag = soup.find(id="files-authors")  # type: ignore
+    files_authors_tag.append(FilesAuthorsTableSoup(repo).get_table())
 
-        files_tag: Tag = soup.find(id="files")  # type: ignore
-        files_tag.append(FilesTableSoup(repo).get_table())
+    files_tag: Tag = soup.find(id="files")  # type: ignore
+    files_tag.append(FilesTableSoup(repo).get_table())
 
     # Add blame output if not skipped.
     if not blame_skip:
