@@ -318,14 +318,14 @@ class FilesSheet(StatsSheet):
 class BlameSheet(TableSheet):
     def __init__(
         self,
-        rows_iscomments: tuple[list[Row], list[bool]],
+        rows: list[Row],
+        is_comments: list[bool],
         *args,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
 
         header = self.create_header()
-        rows, is_comments = rows_iscomments
         for row, is_comment in zip(rows, is_comments):
             self.next_row()
             code_col: int = self.head2col["Code"]
@@ -498,12 +498,14 @@ class Book:
     def add_blame_sheet(
         self,
         name,
-        rows_iscomments: tuple[list[Row], list[bool]],
+        rows: list[Row],
+        iscomments: list[bool],
     ) -> None:
-        if rows_iscomments:
+        if rows:
             sheet_name = name.replace("/", ">")
             BlameSheet(
-                rows_iscomments,
+                rows,
+                iscomments,
                 header_blames(),
                 self.workbook.add_worksheet(sheet_name),
                 self,
@@ -512,21 +514,29 @@ class Book:
     def add_blame_sheets(
         self,
     ) -> None:
-        fstr2rows_iscomments: dict[FileStr, tuple[list[Row], list[bool]]]
-        fstr2rows_iscomments = BlameRows(self.repo).get_fstr2blame_rows(html=False)
+        fstrs: list[FileStr] = []
+        fstr2rows: dict[FileStr, list[Row]] = {}
+        fstr2iscomments: dict[FileStr, list[bool]] = {}
 
-        relative_fstrs = [
-            get_relative_fstr(fstr, self.subfolder)
-            for fstr in fstr2rows_iscomments.keys()
-        ]
+        for fstr in self.repo.fstrs:
+            rows, iscomments = BlameRows(self.repo).get_fstr_blame_rows(
+                fstr, html=False
+            )
+            if rows:
+                fstrs.append(fstr)
+                fstr2rows[fstr] = rows
+                fstr2iscomments[fstr] = iscomments
+
+        relative_fstrs = [get_relative_fstr(fstr, self.subfolder) for fstr in fstrs]
         relative_fstr2truncated = string2truncated(
             relative_fstrs, MAX_LENGTH_SHEET_NAME
         )
 
-        for fstr, rel_fstr in zip(fstr2rows_iscomments.keys(), relative_fstrs):
+        for fstr, rel_fstr in zip(fstrs, relative_fstrs):
             self.add_blame_sheet(
                 relative_fstr2truncated[rel_fstr],
-                fstr2rows_iscomments[fstr],
+                fstr2rows[fstr],
+                fstr2iscomments[fstr],
             )
 
     def close(self) -> None:

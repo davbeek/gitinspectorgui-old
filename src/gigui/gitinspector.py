@@ -13,7 +13,7 @@ from gigui.constants import DEFAULT_FILE_BASE, DEFAULT_FORMAT, MAX_BROWSER_TABS
 from gigui.data import FileStat, Person
 from gigui.keys import Keys
 from gigui.output import stat_rows
-from gigui.output.blame_rows import BlameRows
+from gigui.output.blame_rows import BlameBaseRows
 from gigui.output.excel import Book
 from gigui.output.html import BlameTablesSoup, TableSoup, get_repo_html
 from gigui.repo import GIRepo, get_repos, total_len
@@ -79,7 +79,7 @@ def main(args: Args, start_time: float, gui_window: sg.Window | None = None):
 def init_classes(args: Args):
     GIRepo.set_args(args)
     FileStat.show_renames = args.show_renames
-    BlameRows.args = args
+    BlameBaseRows.args = args
     TableSoup.blame_hide_exclusions = args.blame_hide_exclusions
     TableSoup.empty_lines = args.empty_lines
     TableSoup.subfolder = args.subfolder
