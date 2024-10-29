@@ -245,7 +245,9 @@ class BlameHistoryReader(BlameBaseReader):
         self.fstr2fstat: dict[FileStr, FileStat] = fstr2fstat
         self.fstr2shas: dict[FileStr, list[SHALong]] = fstr2shas
 
-        self.fstr_names: list[FileStr]
+        # Dict from a file to all its previous names (due to renaming) in the repo
+        self.fstr2names: dict[FileStr, list[FileStr]] = {}
+
         self.fstr2sha2blames: dict[FileStr, dict[SHALong, list[Blame]]] = {}
         self.run()
 
@@ -253,8 +255,10 @@ class BlameHistoryReader(BlameBaseReader):
         git_blames: GitBlames
         blames: list[Blame]
 
+        for fstr, fstat in self.fstr2fstat.items():
+            self.fstr2names[fstr] = fstat.names[:]  # make a copy]
+
         for fstr in self.fstrs:
-            self.fstr_names = self.fstr2fstat[fstr].names[:]  # make a copy
             head_sha = self.fstr2shas[fstr][0]
             self.fstr2sha2blames[fstr] = {}
             self.fstr2sha2blames[fstr][head_sha] = self.fstr2blames[fstr]
@@ -271,16 +275,16 @@ class BlameHistoryReader(BlameBaseReader):
     def _run_git_command(
         self,
         root_sha: SHALong,
-        fstr: FileStr,  # not used here
+        fstr: FileStr,
         blame_opts: list[str],
     ) -> GitBlames:
         while True:
             try:
-                fstr_name = self.fstr_names[0]
+                fstr_name = self.fstr2names[fstr][0]
                 git_blames: GitBlames = self.git_repo.blame(
                     root_sha, fstr_name, rev_opts=blame_opts
                 )  # type: ignore
                 break  # Exit the loop if no exception is raised
             except GitCommandError:
-                self.fstr_names.pop(0)
+                self.fstr2names[fstr].pop(0)
         return git_blames
