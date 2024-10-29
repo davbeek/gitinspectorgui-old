@@ -262,6 +262,8 @@ class BlameHistoryReader(BlameBaseReader):
 
         for fstr in self.fstrs:
             names = self.fstr2fstat[fstr].names[:]  # make a copy]
+            if not names or not names[0] == fstr:
+                names.insert(0, fstr)
             self.fstr2names[fstr] = names
 
         for fstr in self.fstrs:

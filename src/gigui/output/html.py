@@ -315,8 +315,8 @@ class BlameHistoryTableSoup(BlameBaseTableSoup):
             rows, iscomments = BlameHistoryRows(self.repo).get_fstr_sha_blame_rows(
                 fstr, sha, html=True
             )
-            # if not rows:
-            #     continue
+            if not rows:
+                continue
 
             nr = sha2nr[sha]
             table = self.get_table(rows, iscomments)
@@ -399,14 +399,15 @@ class BlameTablesSoup(TableRootSoup):
             blame_tab_index += 1
 
     def _new_nav_tab(self, rel_fstr: FileStr) -> Tag:
+        safe_rel_fstr = rel_fstr.replace(".", "_").replace("/", "_")
         nav_li = self.global_soup.new_tag("li", attrs={"class": "nav-item"})
         nav_bt = self.global_soup.new_tag(
             "button",
             attrs={
                 "class": "nav-link",
-                "id": rel_fstr + "-tab",
+                "id": f"{safe_rel_fstr}-tab",
                 "data-bs-toggle": "tab",
-                "data-bs-target": "#" + rel_fstr,
+                "data-bs-target": f"#{safe_rel_fstr}",
             },
         )
         nav_bt.string = rel_fstr
@@ -418,7 +419,7 @@ class BlameTablesSoup(TableRootSoup):
             "div",
             attrs={
                 "class": "tab-pane fade",
-                "id": fstr,
+                "id": fstr.replace(".", "_").replace("/", "_"),
             },
         )
         return div
