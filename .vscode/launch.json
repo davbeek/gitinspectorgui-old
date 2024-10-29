@@ -15,23 +15,24 @@
             "args": [
                 // ".",
                 // "${workspaceFolder}",
-                "${workspaceFolder}/../../templates/1dh",
+                // "${workspaceFolder}/../../templates/1dh",
                 // "--gui",
                 // "--ex-author=Bert",
                 // "--ex-file=lib"
+                // "--show-renames",
                 // "--scaled-percentages",
-                // "--ex-author=^(?!(Bert van Beek))",
-                // "--ex-author=bert"
+                // "--ex-email=d.a.v.beek*",
                 // "--since=2024-06-01",
                 // "--async=2",
                 // "--dry-run=2",
                 // "-F=excel",
                 // "-F=html",
-                // "--include-files=output",
+                // "--include-files=plant-usecases.cif",
                 // "-e=html"
                 // "--multi-core",
-                // "--multi-thread",
+                // "--no-multi-thread",
                 // "--viewer=none",
+                // "--blame-history"
             ],
         },
         {
