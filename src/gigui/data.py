@@ -373,6 +373,10 @@ class PersonsDB:
         return sorted(persons_set, key=lambda x: x.author)
 
     @property
+    def authors(self) -> list[Author]:
+        return [person.author for person in self.persons]
+
+    @property
     def filtered_persons(self) -> list["Person"]:
         persons_set_filtered = {
             person for person in self.persons if not person.filter_matched

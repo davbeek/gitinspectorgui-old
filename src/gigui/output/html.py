@@ -161,7 +161,6 @@ class FilesAuthorsTableSoup(StatTableSoup):
     def get_table(self) -> Tag:  # pylint: disable=too-many-locals
         row_table = FilesAuthorsTableRows(self.repo)
         rows: list[Row] = row_table.get_rows()
-        authors_included: list[Author] = row_table.get_authors_included()
 
         header_row: list[str] = header_files_authors()
 
@@ -174,7 +173,7 @@ class FilesAuthorsTableSoup(StatTableSoup):
 
         color_class: str
         author: Author
-        author_index: int
+        author_nr: int
 
         self._add_header_row(header_row, self.table)
 
@@ -190,7 +189,7 @@ class FilesAuthorsTableSoup(StatTableSoup):
             self.tbody.append(tr)
 
             author = row[AUTHOR_COL]  # type: ignore
-            author_index = authors_included.index(author)
+            author_nr = self.repo.author_star2nr[author]
 
             for i_col, data in enumerate(row):
                 td = self.soup.new_tag("td")
@@ -207,7 +206,7 @@ class FilesAuthorsTableSoup(StatTableSoup):
                     td["class"] = HEADER_CLASS_DICT[header_row[i_col]]
                     td.string = ""
                 else:
-                    color_class = BG_AUTHOR_COLORS[author_index % len(BG_AUTHOR_COLORS)]
+                    color_class = BG_AUTHOR_COLORS[author_nr % len(BG_AUTHOR_COLORS)]
                     td["class"] = (
                         f"{HEADER_CLASS_DICT[header_row[i_col]]} {color_class}"
                     )

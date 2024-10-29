@@ -22,14 +22,12 @@ class GIRepo:
     def __init__(self, name: str, location: PathLike):
         self.name = name
         self.location = str(location)
-        self.pathstr = str(Path(location).resolve())
 
-        self.repo_reader = RepoReader(
-            name,
-            location,
-        )
+        self.path = Path(location).resolve()
+        self.pathstr = str(self.path)
+        self.persons_db: PersonsDB = PersonsDB()
 
-        self.repo_reader = RepoReader(self.name, self.location)
+        self.repo_reader = RepoReader(self.name, self.location, self.persons_db)
         self.blame_reader: BlameReader
         self.blame_history_reader: BlameHistoryReader
 
@@ -45,13 +43,16 @@ class GIRepo:
         self.fstrs: list[str]
         self.star_fstrs: list[str]
 
+        # Sorted list of non-excluded authors, valid only after self.run has been called.
+        self.authors_included: list[Author]
+
         # Valid only after self.run has been called with option --blame-history.
         self.fstr2shas: dict[FileStr, list[SHALong]]
 
-    # Valid only after self.run has been called.
-    @property
-    def authors_included(self) -> list[Author]:
-        return self.blame_reader.persons_db.authors_included  # type: ignore
+        self.author2nr: dict[Author, int]  # does not include "*" as author
+        self.author_star2nr: dict[Author, int]  # includes "*" as author
+        self.sha2author: dict[SHALong, Author]
+        self.sha2author_nr: dict[SHALong, int]
 
     def run(self, thread_executor: ThreadPoolExecutor) -> bool:
         """
@@ -66,8 +67,9 @@ class GIRepo:
             success = self._run_blame_no_history(thread_executor)
             if not success:
                 return False
+
+            self._set_shared_data()
             if self.args.blame_history:
-                self.set_fstr2shas()
                 self.blame_history_reader = BlameHistoryReader(
                     self.blame_reader.fstr2blames,
                     self.fstr2fstat,
@@ -75,7 +77,7 @@ class GIRepo:
                     self.repo_reader.git_repo,
                     self.repo_reader.ex_sha_shorts,
                     self.blame_reader.fstrs,
-                    self.repo_reader.persons_db,
+                    self.persons_db,
                 )
             return True
         finally:
@@ -90,7 +92,7 @@ class GIRepo:
             self.repo_reader.git_repo,
             self.repo_reader.ex_sha_shorts,
             self.repo_reader.fstrs,
-            self.repo_reader.persons_db,
+            self.persons_db,
         )
 
         # This calculates all blames but also adds the author and email of
@@ -157,18 +159,43 @@ class GIRepo:
             )
         return True
 
-    @property
-    def path(self) -> Path:
-        return Path(self.pathstr)
-
-    def get_person(self, author: Author) -> Person:
+    def get_person(self, author: Author | None) -> Person:
         return self.repo_reader.get_person(author)
 
-    def get_sorted_fstrs(self) -> list[str]:
-        return self.fstrs
+    def _set_shared_data(self) -> None:
+        self.sha2author = {}
+        self.fstr2shas = {}
+        self.author2nr = {}
+        self.author_star2nr = {}
+        self.sha2author_nr = {}
 
-    def set_fstr2shas(self) -> None:
-        self.fstr2shas = self.repo_reader.get_fstr2shas(self.fstrs)
+        shas: list[SHALong]
+
+        for commit in self.repo_reader.git_repo.iter_commits():
+            author = self.get_person(commit.author.name).author
+            self.sha2author[commit.hexsha] = author
+
+        for fstr in self.fstrs:
+            commits = list(self.repo_reader.git_repo.iter_commits(paths=fstr))
+            shas = [commit.hexsha for commit in commits]
+            self.fstr2shas[fstr] = shas
+
+        authors_included: list[Author] = self.repo_reader.persons_db.authors_included
+        self.authors_included = sorted(
+            authors_included,
+            key=lambda x: self.author2pstat[x].stat.line_count,
+            reverse=True,
+        )
+
+        for i, author in enumerate(self.authors_included):
+            self.author_star2nr[author] = i  # "*" author gets nr 0
+        for author in self.persons_db.authors_excluded:
+            self.author_star2nr[author] = 0
+
+        self.author2nr = {k: v for k, v in self.author_star2nr.items() if k != "*"}
+
+        for sha, author in self.sha2author.items():
+            self.sha2author_nr[sha] = self.author2nr[author]
 
     @classmethod
     def set_args(cls, args: Args):

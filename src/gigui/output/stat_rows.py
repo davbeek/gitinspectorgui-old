@@ -68,14 +68,6 @@ class TableRows:
         self.repo = repo
         self.rows: list[Row] = []
 
-    # Return a sorted list of authors occurring in the stats outputs, so these are
-    # filtered authors.
-    def get_authors_included(self) -> list[Author]:
-        a2p: dict[Author, PersonStat] = self.repo.author2pstat
-        authors = list(a2p.keys())
-        authors = sorted(authors, key=lambda x: a2p[x].stat.line_count, reverse=True)
-        return authors
-
     def _get_stat_values(self, stat: Stat, nr_authors: int = 2) -> list[Any]:
         return (
             [
@@ -106,7 +98,7 @@ class AuthorsTableRows(TableRows):
         row: Row
         rows: list[Row] = []
         id_val: int = 0
-        for author in self.get_authors_included():
+        for author in self.repo.authors_included:
             person = self.repo.get_person(author)
             row = [id_val, person.authors_str] + (
                 ["", person.emails_str] if html else [person.emails_str]
@@ -123,7 +115,7 @@ class AuthorsFilesTableRows(TableRows):
         row: Row
         rows: list[Row] = []
         id_val: int = 0
-        for author in self.get_authors_included():
+        for author in self.repo.authors_included:
             person = self.repo.get_person(author)
             fstrs = list(a2f2f[author].keys())
             fstrs = sorted(

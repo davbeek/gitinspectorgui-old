@@ -222,9 +222,6 @@ class BlameReader(BlameBaseReader):
                     target[author][fstr].stat.line_count += line_count  # type: ignore
                     target[author]["*"].stat.line_count += line_count
                     target["*"]["*"].stat.line_count += line_count
-        authors = list(author2line_count.keys())
-        authors = sorted(authors, key=lambda x: author2line_count[x], reverse=True)
-        self.blame_authors = authors
         return target
 
 

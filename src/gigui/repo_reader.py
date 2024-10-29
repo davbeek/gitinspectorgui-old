@@ -20,8 +20,9 @@ class RepoReader:
     # Here the values of the --ex-revision parameter are stored as a set.
     ex_revs: set[Rev] = set()
 
-    def __init__(self, name: str, location: PathLike):
+    def __init__(self, name: str, location: PathLike, persons_db: PersonsDB):
         self.name: str = name
+        self.persons_db: PersonsDB = persons_db
 
         # The default True value of expand_vars can lead to confusing warnings from
         # GitPython:
@@ -46,7 +47,6 @@ class RepoReader:
 
         self.fstr2commit_groups: dict[FileStr, list[CommitGroup]] = {}
         self.stats = RepoStats()
-        self.persons_db: PersonsDB = PersonsDB()
 
         self.thread_executor: ThreadPoolExecutor
         self.blame_reader: BlameReader
@@ -69,14 +69,6 @@ class RepoReader:
 
     def get_person(self, author: Author | None) -> Person:
         return self.persons_db.get_person(author)
-
-    def get_fstr2shas(self, fstrs: list[FileStr]) -> dict[FileStr, list[SHALong]]:
-        fstr2shas = {}
-        for fstr in fstrs:
-            commits = list(self.git_repo.iter_commits(paths=fstr))
-            shas = [commit.hexsha for commit in commits]
-            fstr2shas[fstr] = shas
-        return fstr2shas
 
     def _set_head_commit(self) -> None:
         since = self.args.since

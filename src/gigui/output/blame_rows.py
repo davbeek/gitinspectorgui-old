@@ -4,7 +4,7 @@ from gigui.args_settings import Args
 from gigui.blame_reader import Blame
 from gigui.data import PersonsDB
 from gigui.repo import GIRepo
-from gigui.typedefs import Author, FileStr, Row, SHALong
+from gigui.typedefs import FileStr, Row, SHALong
 
 
 def header_blames() -> list[str]:
@@ -26,8 +26,7 @@ class BlameBaseRows:
     def __init__(self, repo: GIRepo):
         self.repo: GIRepo = repo
 
-        self.blame_authors: list[Author] = repo.blame_reader.blame_authors
-        self.persons_db: PersonsDB = repo.repo_reader.persons_db
+        self.persons_db: PersonsDB = self.repo.persons_db
 
     def get_blame_rows(
         self, html: bool, blames: list[Blame]
@@ -36,31 +35,21 @@ class BlameBaseRows:
         is_comments: list[bool] = []
         line_nr = 1
 
-        author2nr: dict[Author, int] = {}
-        author_nr = 1
-        for author in self.blame_authors:
-            if author in self.persons_db.authors_included:
-                author2nr[author] = author_nr
-                author_nr += 1
-            else:
-                author2nr[author] = 0
-
         # Create row for each blame line.
         for b in blames:
             author = self.persons_db.get_author(b.author)
             for line, is_comment in zip(b.lines, b.is_comment_lines):
                 exclude_comment = is_comment and not self.args.comments
                 exclude_empty = line.strip() == "" and not self.args.empty_lines
-                exclude_author = author in self.persons_db.authors_excluded
                 if (
                     self.args.blame_hide_exclusions
                     and not html
-                    and (exclude_comment or exclude_empty or exclude_author)
+                    and (exclude_comment or exclude_empty)
                 ):
                     line_nr += 1
                 else:
                     row: Row = [
-                        0 if exclude_comment or exclude_author else author2nr[author],
+                        (0 if exclude_comment else self.repo.author2nr[author]),
                         author,
                         b.date.strftime("%Y-%m-%d"),
                         b.message,
