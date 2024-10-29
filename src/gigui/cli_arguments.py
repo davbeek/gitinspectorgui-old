@@ -105,7 +105,7 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
     )
     group_generation.add_argument(
         "--show-renames",
-        action="store_true",
+        action=BooleanOptionalAction,
         help=hlp.show_renames,
     )
     group_generation.add_argument(
@@ -115,12 +115,12 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
     )
     group_generation.add_argument(
         "--blame-hide-exclusions",
-        action="store_true",
+        action=BooleanOptionalAction,
         help=hlp.blame_hide_exclusions,
     )
     group_generation.add_argument(
         "--blame-skip",
-        action="store_true",
+        action=BooleanOptionalAction,
         help=hlp.blame_skip,
     )
     group_generation.add_argument(
@@ -189,22 +189,22 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
     )
     group_include_diffs.add_argument(
         "--deletions",
-        action="store_true",
+        action=BooleanOptionalAction,
         help=hlp.deletions,
     )
     group_include_diffs.add_argument(
         "--whitespace",
-        action="store_true",
+        action=BooleanOptionalAction,
         help=hlp.whitespace,
     )
     group_include_diffs.add_argument(
         "--empty-lines",
-        action="store_true",
+        action=BooleanOptionalAction,
         help=hlp.empty_lines,
     )
     group_include_diffs.add_argument(
         "--comments",
-        action="store_true",
+        action=BooleanOptionalAction,
         help=hlp.comments,
     )
     group_include_diffs.add_argument(
