@@ -347,34 +347,38 @@
     </script>
     <script>
         document.addEventListener("DOMContentLoaded", function () {
-            // Function to click the first radio button in each container
-            function clickFirstRadioButton() {
-                var containers = document.querySelectorAll('.radio-container');
-                containers.forEach(function (container) {
-                    var firstRadioButton = container.querySelector('.radio-button');
-                    if (firstRadioButton) {
-                        firstRadioButton.click();
-                    }
-                });
+            // Function to click the first radio button in the active tab
+            function clickFirstRadioButton(tabContent) {
+                const firstRadioButton = tabContent.querySelector('input[type="radio"]');
+                if (firstRadioButton) {
+                    firstRadioButton.click();
+                }
             }
 
-            // Track the activation state of each tab
-            var tabActivationState = {};
+            // Add event listener for tab activation
+            const tabs = document.querySelectorAll('.nav-link[data-bs-toggle="tab"]');
+            const activatedTabs = new Set();
 
-            // Click the first radio button in the initially active tab
-            clickFirstRadioButton();
-
-            // Add event listener for tab clicks
-            var tabs = document.querySelectorAll('[data-bs-toggle="tab"]');
-            tabs.forEach(function (tab) {
+            tabs.forEach(tab => {
                 tab.addEventListener('shown.bs.tab', function (event) {
-                    if (!tabActivationState[tabId]) {
-                        clickFirstRadioButton();
-                        tabActivationState[tabId] = true;
-                    }
+                    const targetId = event.target.getAttribute('data-bs-target');
+                    const tabContent = document.querySelector(targetId);
 
+                    if (!activatedTabs.has(targetId)) {
+                        clickFirstRadioButton(tabContent);
+                        activatedTabs.add(targetId);
+                    }
                 });
             });
+
+            // Initial click for the first radio button in the initially active tab
+            const initialActiveTab = document.querySelector('.nav-link.active');
+            if (initialActiveTab) {
+                const initialTargetId = initialActiveTab.getAttribute('data-bs-target');
+                const initialTabContent = document.querySelector(initialTargetId);
+                clickFirstRadioButton(initialTabContent);
+                activatedTabs.add(initialTargetId);
+            }
 
             // Add event listener for radio button clicks in each blame-container
             var blameContainers = document.querySelectorAll('.blame-container');
