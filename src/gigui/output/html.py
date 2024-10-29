@@ -59,6 +59,7 @@ BG_AUTHOR_COLORS: list[str] = [
     "bg-author-light-grey",
     "bg-row-light-green",
 ]
+
 BG_ROW_COLORS: list[str] = ["bg-row-light-green", "bg-white"]
 
 
@@ -71,6 +72,8 @@ class TableSoup:
         self.repo: GIRepo = repo
 
         self.soup = BeautifulSoup("<div></div>", "html.parser")
+
+        self.author2color_class: dict[Author, str]
 
     def _add_header_row(self, header_row: list[str], table: Tag) -> None:
         thead: Tag = self.soup.new_tag("thead")
@@ -107,6 +110,21 @@ class TableSoup:
                 th.append(button)
             thead.append(th)
         table.insert(0, thead)  # ensure thead comes before tbody
+
+    def _get_color_for_author(self, author: Author) -> str:
+        author_nr = self.repo.author_star2nr[author]
+        return BG_AUTHOR_COLORS[author_nr % len(BG_AUTHOR_COLORS)]
+
+    def _get_color_for_sha_nr(self, sha_nr: int) -> str:
+        commit_nr2sha: dict[int, SHALong] = {}
+
+        for sha, nr in self.repo.sha2nr.items():
+            commit_nr2sha[nr] = sha
+
+        sha = commit_nr2sha[sha_nr]
+        author = self.repo.sha2author[sha]
+        color_class = self._get_color_for_author(author)
+        return color_class
 
 
 class StatTableSoup(TableSoup):
@@ -173,7 +191,6 @@ class FilesAuthorsTableSoup(StatTableSoup):
 
         color_class: str
         author: Author
-        author_nr: int
 
         self._add_header_row(header_row, self.table)
 
@@ -189,7 +206,6 @@ class FilesAuthorsTableSoup(StatTableSoup):
             self.tbody.append(tr)
 
             author = row[AUTHOR_COL]  # type: ignore
-            author_nr = self.repo.author_star2nr[author]
 
             for i_col, data in enumerate(row):
                 td = self.soup.new_tag("td")
@@ -206,7 +222,7 @@ class FilesAuthorsTableSoup(StatTableSoup):
                     td["class"] = HEADER_CLASS_DICT[header_row[i_col]]
                     td.string = ""
                 else:
-                    color_class = BG_AUTHOR_COLORS[author_nr % len(BG_AUTHOR_COLORS)]
+                    color_class = self._get_color_for_author(author)
                     td["class"] = (
                         f"{HEADER_CLASS_DICT[header_row[i_col]]} {color_class}"
                     )
@@ -283,7 +299,9 @@ class BlameHistoryTableSoup(BlameBaseTableSoup):
         super().__init__(repo)
         self.fstr2shas: dict[FileStr, list[SHALong]] = self.repo.fstr2shas
 
-    def get_fstr_tables(self, fstr: FileStr, sha2nr: dict[SHALong, int]) -> list[Tag]:
+    def get_fstr_tables(
+        self, fstr: FileStr, sha2nr: dict[SHALong, int], blame_tab_index: int
+    ) -> list[Tag]:
         tables: list[Tag] = []
         if fstr not in self.fstr2shas:
             return []
@@ -294,9 +312,7 @@ class BlameHistoryTableSoup(BlameBaseTableSoup):
             )
             nr = sha2nr[sha]
             table = self.get_table(rows, iscomments)
-            table["id"] = (
-                f"{fstr}-{nr}".replace(".", "-").replace("/", "-").replace("\\", "-")
-            )
+            table["id"] = f"file-{blame_tab_index}-sha-{nr}"
             tables.append(table)
         return tables
 
@@ -319,9 +335,12 @@ class BlameTablesSoup:
         nav_ul: Tag = self.global_soup.find(id="tab-buttons")  # type: ignore
         tab_div: Tag = self.global_soup.find(id="tab-contents")  # type: ignore
 
+        blame_tab_index = 0
         for fstr in self.repo.fstrs:
             if self.blame_history:
-                tables = BlameHistoryTableSoup(self.repo).get_fstr_tables(fstr, sha2nr)
+                tables = BlameHistoryTableSoup(self.repo).get_fstr_tables(
+                    fstr, sha2nr, blame_tab_index
+                )
                 if tables:
                     fstr2tables[fstr] = tables
                     fstrs.append(fstr)
@@ -330,6 +349,7 @@ class BlameTablesSoup:
                 if table:
                     fstr2table[fstr] = table
                     fstrs.append(fstr)
+            blame_tab_index += 1
 
         relative_fstrs = [get_relative_fstr(fstr, self.subfolder) for fstr in fstrs]
         relative_fstr2truncated = string2truncated(
@@ -337,6 +357,7 @@ class BlameTablesSoup:
             MAX_LENGTH_TAB_NAME,
         )
 
+        blame_tab_index = 0
         for fstr, rel_fstr in zip(fstrs, relative_fstrs):
             rel_fstr_truncated: FileStr = relative_fstr2truncated[rel_fstr]
 
@@ -354,10 +375,10 @@ class BlameTablesSoup:
 
             if self.blame_history:
                 self._add_radio_buttons(
-                    fstr,
                     self.repo.fstr2shas[fstr],
                     sha2nr,
                     blame_container,
+                    blame_tab_index,
                 )
                 for table in fstr2tables[fstr]:
                     table_container.append(table)
@@ -367,6 +388,7 @@ class BlameTablesSoup:
             blame_container.append(table_container)
             tab_pane_div.append(blame_container)
             tab_div.append(tab_pane_div)
+            blame_tab_index += 1
 
     def _new_nav_tab(self, rel_fstr: FileStr) -> Tag:
         nav_li = self.global_soup.new_tag("li", attrs={"class": "nav-item"})
@@ -395,10 +417,10 @@ class BlameTablesSoup:
 
     def _add_radio_buttons(
         self,
-        fstr: FileStr,
         shas: list[SHALong],
         sha2nr: dict[SHALong, int],
         parent: Tag,
+        blame_tab_index: int,
     ) -> None:
         # Create a container for the radio buttons
         container = self.global_soup.new_tag(
@@ -406,19 +428,15 @@ class BlameTablesSoup:
         )
 
         for sha in shas:
-            nr = sha2nr[sha]
-            button_id = (
-                f"button-{fstr}-{nr}".replace(".", "-")
-                .replace("/", "-")
-                .replace("\\", "-")
-            )
+            sha_nr = sha2nr[sha]
+            button_id = f"button-file-{blame_tab_index}-sha-{sha_nr}"
             radio_button = self.global_soup.new_tag(
                 "input",
                 attrs={
                     "class": "radio-button",
                     "type": "radio",
-                    "name": f"radio-group-{fstr}",
-                    "value": f"{nr}",
+                    "name": f"radio-group-{blame_tab_index}",
+                    "value": f"{sha_nr}",
                     "id": button_id,
                 },
             )
@@ -431,7 +449,7 @@ class BlameTablesSoup:
                     "for": button_id,
                 },
             )
-            label.string = str(nr)
+            label.string = str(sha_nr)
 
             container.append(radio_button)
             container.append(label)

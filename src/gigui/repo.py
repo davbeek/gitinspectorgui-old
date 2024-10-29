@@ -4,6 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import TypeVar
 
+from git import Commit as GitCommit
 from git import InvalidGitRepositoryError, NoSuchPathError, PathLike, Repo
 
 from gigui.args_settings import Args
@@ -40,7 +41,7 @@ class GIRepo:
 
         # Valid only after self.run has been called. This call calculates the sorted
         # versions of self.fstrs and self.star_fstrs.
-        self.fstrs: list[str]
+        self.fstrs: list[str] = []
         self.star_fstrs: list[str]
 
         # Sorted list of non-excluded authors, valid only after self.run has been called.
@@ -51,6 +52,7 @@ class GIRepo:
 
         self.author2nr: dict[Author, int]  # does not include "*" as author
         self.author_star2nr: dict[Author, int]  # includes "*" as author
+        self.sha2nr: dict[SHALong, int]
         self.sha2author: dict[SHALong, Author]
         self.sha2author_nr: dict[SHALong, int]
 
@@ -76,7 +78,8 @@ class GIRepo:
                     self.fstr2shas,
                     self.repo_reader.git_repo,
                     self.repo_reader.ex_sha_shorts,
-                    self.blame_reader.fstrs,
+                    self.repo_reader.fstrs,
+                    self.fstrs,
                     self.persons_db,
                 )
             return True
@@ -91,7 +94,8 @@ class GIRepo:
             self.repo_reader.head_commit.hexsha,
             self.repo_reader.git_repo,
             self.repo_reader.ex_sha_shorts,
-            self.repo_reader.fstrs,
+            self.repo_reader.fstrs,  # unfiltered files
+            self.fstrs,  # filtered files, no files from excluded authors
             self.persons_db,
         )
 
@@ -164,16 +168,29 @@ class GIRepo:
 
     def _set_shared_data(self) -> None:
         self.sha2author = {}
+        self.sha2nr = {}
+
         self.fstr2shas = {}
-        self.author2nr = {}
+
         self.author_star2nr = {}
+        self.author2nr = {}
+
         self.sha2author_nr = {}
 
         shas: list[SHALong]
 
-        for commit in self.repo_reader.git_repo.iter_commits():
+        commits: list[GitCommit] = list(self.repo_reader.git_repo.iter_commits())
+        commit_nr = len(commits)  # set first commit nr to the number of commits
+        for commit in commits:
+            sha = commit.hexsha
+
+            # calculate self.sha2author
             author = self.get_person(commit.author.name).author
-            self.sha2author[commit.hexsha] = author
+            self.sha2author[sha] = author
+
+            # calculate self.sha2nr
+            self.sha2nr[sha] = commit_nr
+            commit_nr -= 1
 
         for fstr in self.fstrs:
             commits = list(self.repo_reader.git_repo.iter_commits(paths=fstr))

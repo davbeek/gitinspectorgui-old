@@ -49,11 +49,16 @@ class BlameBaseReader:
         git_repo: Repo,
         ex_sha_shorts: set[SHAShort],
         fstrs: list[FileStr],
+        repo_fstrs: list[FileStr],
         persons_db: PersonsDB,
     ):
         self.git_repo = git_repo
         self.ex_sha_shorts = ex_sha_shorts
+
+        # Unfiltered list of files, may still include files that belong completely to an
+        # excluded author.
         self.fstrs = fstrs
+        self.repo_fstrs = repo_fstrs
         self.persons_db = persons_db
 
         # List of blame authors, so no filtering, ordered by highest blame line count.
@@ -255,7 +260,7 @@ class BlameHistoryReader(BlameBaseReader):
         for fstr, fstat in self.fstr2fstat.items():
             self.fstr2names[fstr] = fstat.names[:]  # make a copy]
 
-        for fstr in self.fstrs:
+        for fstr in self.repo_fstrs:
             head_sha = self.fstr2shas[fstr][0]
             self.fstr2sha2blames[fstr] = {}
             self.fstr2sha2blames[fstr][head_sha] = self.fstr2blames[fstr]

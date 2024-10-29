@@ -39,7 +39,10 @@ class RepoReader:
         # --ex-revision parameter together with the --ex-message parameter.
         self.ex_sha_shorts: set[SHAShort] = set()
 
-        # List of files from the top commit of the repo:
+        # List of files from the top commit of the repo.
+        # Unfiltered files, which may still include files from authors that are excluded
+        # later, because the blame run may find new authors that match an excluded
+        # author and thus must be excluded later.
         self.fstrs: list[FileStr] = []
 
         # Dict of file names to their sizes:
