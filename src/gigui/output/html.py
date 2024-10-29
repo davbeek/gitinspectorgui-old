@@ -63,13 +63,33 @@ BG_AUTHOR_COLORS: list[str] = [
 BG_ROW_COLORS: list[str] = ["bg-row-light-green", "bg-white"]
 
 
-class TableSoup:
+class TableRootSoup:
+    def __init__(self, repo: GIRepo) -> None:
+        self.repo: GIRepo = repo
+
+    def _get_color_for_author(self, author: Author) -> str:
+        author_nr = self.repo.author_star2nr[author]
+        return BG_AUTHOR_COLORS[author_nr % len(BG_AUTHOR_COLORS)]
+
+    def _get_color_for_sha_nr(self, sha_nr: int) -> str:
+        commit_nr2sha: dict[int, SHALong] = {}
+
+        for sha, nr in self.repo.sha2nr.items():
+            commit_nr2sha[nr] = sha
+
+        sha = commit_nr2sha[sha_nr]
+        author = self.repo.sha2author[sha]
+        color_class = self._get_color_for_author(author)
+        return color_class
+
+
+class TableSoup(TableRootSoup):
     blame_hide_exclusions: bool
     empty_lines: bool
     subfolder: FileStr
 
     def __init__(self, repo: GIRepo) -> None:
-        self.repo: GIRepo = repo
+        super().__init__(repo)
 
         self.soup = BeautifulSoup("<div></div>", "html.parser")
 
@@ -110,21 +130,6 @@ class TableSoup:
                 th.append(button)
             thead.append(th)
         table.insert(0, thead)  # ensure thead comes before tbody
-
-    def _get_color_for_author(self, author: Author) -> str:
-        author_nr = self.repo.author_star2nr[author]
-        return BG_AUTHOR_COLORS[author_nr % len(BG_AUTHOR_COLORS)]
-
-    def _get_color_for_sha_nr(self, sha_nr: int) -> str:
-        commit_nr2sha: dict[int, SHALong] = {}
-
-        for sha, nr in self.repo.sha2nr.items():
-            commit_nr2sha[nr] = sha
-
-        sha = commit_nr2sha[sha_nr]
-        author = self.repo.sha2author[sha]
-        color_class = self._get_color_for_author(author)
-        return color_class
 
 
 class StatTableSoup(TableSoup):
@@ -310,6 +315,9 @@ class BlameHistoryTableSoup(BlameBaseTableSoup):
             rows, iscomments = BlameHistoryRows(self.repo).get_fstr_sha_blame_rows(
                 fstr, sha, html=True
             )
+            # if not rows:
+            #     continue
+
             nr = sha2nr[sha]
             table = self.get_table(rows, iscomments)
             table["id"] = f"file-{blame_tab_index}-sha-{nr}"
@@ -317,12 +325,12 @@ class BlameHistoryTableSoup(BlameBaseTableSoup):
         return tables
 
 
-class BlameTablesSoup:
+class BlameTablesSoup(TableRootSoup):
     subfolder: FileStr
     blame_history: bool
 
     def __init__(self, repo: GIRepo, global_soup: BeautifulSoup) -> None:
-        self.repo: GIRepo = repo
+        super().__init__(repo)
         self.global_soup = global_soup
 
     def add_tables(self) -> None:
@@ -430,10 +438,11 @@ class BlameTablesSoup:
         for sha in shas:
             sha_nr = sha2nr[sha]
             button_id = f"button-file-{blame_tab_index}-sha-{sha_nr}"
+            color_class = self._get_color_for_sha_nr(sha_nr)
             radio_button = self.global_soup.new_tag(
                 "input",
                 attrs={
-                    "class": "radio-button",
+                    "class": f"radio-button {color_class}",
                     "type": "radio",
                     "name": f"radio-group-{blame_tab_index}",
                     "value": f"{sha_nr}",
@@ -443,7 +452,7 @@ class BlameTablesSoup:
             label = self.global_soup.new_tag(
                 "label",
                 attrs={
-                    "class": "radio-label",
+                    "class": f"radio-label {color_class}",
                     # This causes the label to be displayed on the radio button.
                     # The for value must match the id of the button.
                     "for": button_id,
