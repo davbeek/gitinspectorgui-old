@@ -358,6 +358,9 @@
                 });
             }
 
+            // Track the activation state of each tab
+            var tabActivationState = {};
+
             // Click the first radio button in the initially active tab
             clickFirstRadioButton();
 
@@ -365,7 +368,11 @@
             var tabs = document.querySelectorAll('[data-bs-toggle="tab"]');
             tabs.forEach(function (tab) {
                 tab.addEventListener('shown.bs.tab', function (event) {
-                    clickFirstRadioButton();
+                    if (!tabActivationState[tabId]) {
+                        clickFirstRadioButton();
+                        tabActivationState[tabId] = true;
+                    }
+
                 });
             });
 
