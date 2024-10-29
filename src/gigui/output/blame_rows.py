@@ -88,8 +88,11 @@ class BlameHistoryRows(BlameBaseRows):
     def get_fstr_sha_blame_rows(
         self, fstr: FileStr, sha: SHALong, html: bool
     ) -> tuple[list[Row], list[bool]]:
-        blames: list[Blame] = self.fstr2sha2blames[fstr][sha]
-        return self.get_blame_rows(html, blames)
+        if fstr in self.fstr2sha2blames:
+            blames: list[Blame] = self.fstr2sha2blames[fstr][sha]
+            return self.get_blame_rows(html, blames)
+        else:
+            return [], []
 
 
 def string2truncated(orgs: list[str], max_length: int) -> dict[str, str]:

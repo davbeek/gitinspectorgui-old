@@ -48,8 +48,8 @@ class BlameBaseReader:
         self,
         git_repo: Repo,
         ex_sha_shorts: set[SHAShort],
+        all_fstrs: list[FileStr],
         fstrs: list[FileStr],
-        repo_fstrs: list[FileStr],
         persons_db: PersonsDB,
     ):
         self.git_repo = git_repo
@@ -57,8 +57,11 @@ class BlameBaseReader:
 
         # Unfiltered list of files, may still include files that belong completely to an
         # excluded author.
+        self.all_fstrs = all_fstrs
+
+        # List of files in repo module with complete filtering, so no files that belong
+        # to excluded authors.
         self.fstrs = fstrs
-        self.repo_fstrs = repo_fstrs
         self.persons_db = persons_db
 
         # List of blame authors, so no filtering, ordered by highest blame line count.
@@ -168,14 +171,14 @@ class BlameReader(BlameBaseReader):
 
             futures = [
                 thread_executor.submit(self._get_git_blames_for, fstr, self.head_sha)
-                for fstr in self.fstrs
+                for fstr in self.all_fstrs
             ]
             for future in as_completed(futures):
                 git_blames, fstr = future.result()
                 blames = self._process_git_blames(fstr, git_blames)
                 self.fstr2blames[fstr] = blames
         else:  # single thread
-            for fstr in self.fstrs:
+            for fstr in self.all_fstrs:
                 git_blames, fstr = self._get_git_blames_for(fstr, self.head_sha)
                 blames = self._process_git_blames(fstr, git_blames)
                 self.fstr2blames[fstr] = blames  # type: ignore
@@ -183,7 +186,7 @@ class BlameReader(BlameBaseReader):
         # New authors and emails may have been found in the blames, so update
         # the authors of the blames with the possibly newly found persons
         fstr2blames: dict[FileStr, list[Blame]] = {}
-        for fstr in self.fstrs:
+        for fstr in self.all_fstrs:
             # fstr2blames will be the new value of self.fstr2blames
             fstr2blames[fstr] = []
             for blame in self.fstr2blames[fstr]:
@@ -201,7 +204,7 @@ class BlameReader(BlameBaseReader):
         """
         author2line_count: dict[Author, int] = {}
         target = author2fstr2fstat
-        for fstr in self.fstrs:
+        for fstr in self.all_fstrs:
             blames = self.fstr2blames[fstr]
             for b in blames:
                 person = self.persons_db.get_person(b.author)
@@ -257,10 +260,14 @@ class BlameHistoryReader(BlameBaseReader):
         git_blames: GitBlames
         blames: list[Blame]
 
-        for fstr, fstat in self.fstr2fstat.items():
-            self.fstr2names[fstr] = fstat.names[:]  # make a copy]
+        for fstr in self.fstrs:
+            names = self.fstr2fstat[fstr].names[:]  # make a copy]
+            self.fstr2names[fstr] = names
 
-        for fstr in self.repo_fstrs:
+        for fstr in self.fstrs:
+            if not self.fstr2names[fstr]:
+                continue
+
             head_sha = self.fstr2shas[fstr][0]
             self.fstr2sha2blames[fstr] = {}
             self.fstr2sha2blames[fstr][head_sha] = self.fstr2blames[fstr]
