@@ -73,7 +73,7 @@ def handle_settings_file(namespace: Namespace, cli_args: CLIArgs):
         settings = cli_args.create_settings()
         settings.save()
         print(f"Settings saved to {SettingsFile.get_location()}.")
-    elif namespace.saveas is not None:
+    elif namespace.save_as is not None:
         path = namespace.save_as
         if not path:
             print("Please specify a path for the settings file.")
