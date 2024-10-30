@@ -88,7 +88,7 @@ class BlameHistoryRows(BlameBaseRows):
     def get_fstr_sha_blame_rows(
         self, fstr: FileStr, sha: SHALong, html: bool
     ) -> tuple[list[Row], list[bool]]:
-        if fstr in self.fstr2sha2blames:
+        if fstr in self.fstr2sha2blames and sha in self.fstr2sha2blames[fstr]:
             blames: list[Blame] = self.fstr2sha2blames[fstr][sha]
             return self.get_blame_rows(html, blames)
         else:

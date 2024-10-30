@@ -18,6 +18,7 @@ from gigui.typedefs import (
     SHALong,
     SHAShort,
 )
+from gigui.utils import log
 
 
 # Commit that is used to order and number commits by date, starting at 1 for the
@@ -50,6 +51,7 @@ class BlameBaseReader:
         ex_sha_shorts: set[SHAShort],
         all_fstrs: list[FileStr],
         fstrs: list[FileStr],
+        fstr2fstat: dict[FileStr, FileStat],
         persons_db: PersonsDB,
     ):
         self.git_repo = git_repo
@@ -62,6 +64,7 @@ class BlameBaseReader:
         # List of files in repo module with complete filtering, so no files that belong
         # to excluded authors.
         self.fstrs = fstrs
+        self.fstr2fstat: dict[FileStr, FileStat] = fstr2fstat
         self.persons_db = persons_db
 
         # List of blame authors, so no filtering, ordered by highest blame line count.
@@ -72,7 +75,9 @@ class BlameBaseReader:
         # Set of all commit SHAs to commit numbers. The commits have been added in
         # reverse order, so starting with the initial commit with nr 1.
         self.sha2nr: dict[SHALong, int] = {}
+        self.fstr2names: dict[FileStr, list[FileStr]] = {}
         self._set_sha2nr()
+        self._set_fstr2names()
 
     # Need to number the complete list of all commits, because even when --since
     # severely restricts the number of commits to analyse, the result of git blame
@@ -86,6 +91,13 @@ class BlameBaseReader:
         for c in commits:
             self.sha2nr[c.hexsha] = i
             i -= 1
+
+    def _set_fstr2names(self):
+        for fstr in self.fstrs:
+            names = self.fstr2fstat[fstr].names[:]  # make a copy]
+            if not names or not names[0] == fstr:
+                names.insert(0, fstr)
+            self.fstr2names[fstr] = names
 
     def _get_git_blames_for(
         self, fstr: FileStr, root_sha: SHALong
@@ -119,6 +131,8 @@ class BlameBaseReader:
         extension = dot_ext[1:] if dot_ext else ""
         in_multi_comment = False
         for b in git_blames:  # type: ignore
+            if not b:
+                continue
             c: GitCommit = b[0]  # type: ignore
 
             author = c.author.name  # type: ignore
@@ -167,8 +181,10 @@ class BlameReader(BlameBaseReader):
     def run(self, thread_executor: ThreadPoolExecutor) -> None:
         git_blames: GitBlames
         blames: list[Blame]
-        if self.args.multi_thread:
 
+        self._set_fstr2names()
+
+        if self.args.multi_thread:
             futures = [
                 thread_executor.submit(self._get_git_blames_for, fstr, self.head_sha)
                 for fstr in self.all_fstrs
@@ -240,14 +256,12 @@ class BlameHistoryReader(BlameBaseReader):
     def __init__(
         self,
         fstr2blames: dict[FileStr, list[Blame]],
-        fstr2fstat: dict[FileStr, FileStat],
         fstr2shas: dict[FileStr, list[SHALong]],
         *args,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self.fstr2blames: dict[FileStr, list[Blame]] = fstr2blames
-        self.fstr2fstat: dict[FileStr, FileStat] = fstr2fstat
         self.fstr2shas: dict[FileStr, list[SHALong]] = fstr2shas
 
         # Dict from a file to all its previous names (due to renaming) in the repo
@@ -260,21 +274,16 @@ class BlameHistoryReader(BlameBaseReader):
         git_blames: GitBlames
         blames: list[Blame]
 
-        for fstr in self.fstrs:
-            names = self.fstr2fstat[fstr].names[:]  # make a copy]
-            if not names or not names[0] == fstr:
-                names.insert(0, fstr)
-            self.fstr2names[fstr] = names
+        self._set_fstr2names()
 
         for fstr in self.fstrs:
-            if not self.fstr2names[fstr]:
-                continue
-
             head_sha = self.fstr2shas[fstr][0]
             self.fstr2sha2blames[fstr] = {}
             self.fstr2sha2blames[fstr][head_sha] = self.fstr2blames[fstr]
             shas = self.fstr2shas[fstr]
             for sha in shas:
+                if not self.fstr2names[fstr]:
+                    break
                 git_blames, _ = self._get_git_blames_for(fstr, sha)
                 blames = self._process_git_blames(fstr, git_blames)
                 self.fstr2sha2blames[fstr][sha] = blames
@@ -298,4 +307,7 @@ class BlameHistoryReader(BlameBaseReader):
                 break  # Exit the loop if no exception is raised
             except GitCommandError:
                 self.fstr2names[fstr].pop(0)
+                if not self.fstr2names[fstr]:
+                    log(f"GitCommandError for blame of file {fstr}, sha {root_sha}")
+                    return [[]]
         return git_blames

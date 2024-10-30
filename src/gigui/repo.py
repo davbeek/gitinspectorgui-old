@@ -74,12 +74,12 @@ class GIRepo:
             if self.args.blame_history:
                 self.blame_history_reader = BlameHistoryReader(
                     self.blame_reader.fstr2blames,
-                    self.fstr2fstat,
                     self.fstr2shas,
                     self.repo_reader.git_repo,
                     self.repo_reader.ex_sha_shorts,
                     self.repo_reader.fstrs,
                     self.fstrs,
+                    self.fstr2fstat,
                     self.persons_db,
                 )
             return True
@@ -96,6 +96,7 @@ class GIRepo:
             self.repo_reader.ex_sha_shorts,
             self.repo_reader.fstrs,  # unfiltered files
             self.fstrs,  # filtered files, no files from excluded authors
+            self.fstr2fstat,
             self.persons_db,
         )
 
