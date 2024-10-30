@@ -219,6 +219,7 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
     group_general.add_argument(
         "--multi-thread",
         action=BooleanOptionalAction,
+        default=False,
         help=hlp.multi_thread,
     )
     group_general.add_argument(

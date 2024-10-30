@@ -61,7 +61,7 @@ class Args:
     copy_move: int = DEFAULT_COPY_MOVE
     verbosity: int = 0
     dry_run: int = 0
-    multi_thread: bool = True
+    multi_thread: bool = False
     multi_core: bool = False
     since: str = ""
     until: str = ""
