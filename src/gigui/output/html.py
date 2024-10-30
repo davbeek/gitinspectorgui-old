@@ -502,7 +502,7 @@ def get_repo_html(
     if not blame_skip:
         BlameTablesSoup(repo, soup).add_tables()
 
-    html: Html = soup.prettify(formatter="html")
+    html: Html = str(soup)
 
     html = html.replace("&amp;nbsp;", "&nbsp;")
     html = html.replace("&amp;lt;", "&lt;")
