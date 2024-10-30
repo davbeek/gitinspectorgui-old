@@ -258,8 +258,8 @@
 
 <body>
     <div style="margin-right: auto; margin-left: 0;">
-        <div class="sticky" id="tabRow">
-            <ul class="nav nav-tabs" id="tab-buttons">
+        <div class="sticky" id="tabRow" style="overflow-x: auto;">
+            <ul class="nav nav-tabs flex-nowrap" id="tab-buttons">
                 <li class="nav-item">
                     <button class="nav-link active" id="authors-tab" data-bs-toggle="tab"
                         data-bs-target="#authors">Authors</button>
@@ -401,6 +401,18 @@
 
                     });
                 });
+            });
+        });
+    </script>
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const tabs = document.querySelectorAll('.nav-link');
+            tabs.forEach(tab => {
+                const fullText = tab.textContent;
+                if (fullText.length > 20) {
+                    tab.textContent = fullText.substring(0, 20) + '...';
+                    tab.setAttribute('title', fullText);
+                }
             });
         });
     </script>

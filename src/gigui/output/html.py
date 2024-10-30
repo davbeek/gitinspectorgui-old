@@ -22,7 +22,7 @@ from gigui.repo import GIRepo
 from gigui.typedefs import Author, FileStr, Html, Row, SHALong
 from gigui.utils import get_relative_fstr, log
 
-MAX_LENGTH_TAB_NAME = 40
+MAX_LENGTH_TAB_NAME = 160
 
 HEADER_CLASS_DICT: dict[str, str] = {
     "ID": "id_col",
