@@ -107,15 +107,14 @@ class RepoReader:
                     and not self._matches_ex_file(blob.path)  # type: ignore
                     and any(
                         fnmatch(blob.path, pattern)  # type: ignore
-                        for pattern in include_files
+                        for pattern in include_files + [f"{self.args.subfolder}*"]
                     )
                 )
             ]
         return matches
 
     # Get the n biggest files in the worktree that:
-    # - match the required extensions
-    # - are not excluded
+    # - match the required file extensions
     def _get_biggest_worktree_files(self, n: int) -> list[FileStr]:
         # Get the files with their file sizes that match the required extensions
         def get_worktree_files_sizes() -> list[tuple[FileStr, int]]:
@@ -125,6 +124,8 @@ class RepoReader:
                 if (
                     (blob.type == "blob")  # type: ignore
                     and ((blob.path.split(".")[-1] in self.args.extensions))  # type: ignore
+                    and fnmatch(blob.path, f"{self.args.subfolder}*")  # type: ignore
+                    and not self._matches_ex_file(blob.path)  # type: ignore
                 )
             ]
 
@@ -133,10 +134,7 @@ class RepoReader:
             get_worktree_files_sizes(), key=lambda x: x[1], reverse=True
         )
         sorted_files = [file_size[0] for file_size in sorted_files_sizes]
-        sorted_files_filtered = [
-            f for f in sorted_files if (not self._matches_ex_file(f))
-        ]
-        return sorted_files_filtered[0:n]
+        return sorted_files[0:n]
 
     # Returns True if file should be excluded
     def _matches_ex_file(self, fstr: FileStr) -> bool:

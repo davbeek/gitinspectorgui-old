@@ -167,7 +167,7 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
         help=hlp.include_files,
     )
     group_inc_exclusions.add_argument(
-        "--subfolder", type=process_subfolder, help=hlp.subfolder
+        "--subfolder", type=ensure_trailing_slash, help=hlp.subfolder
     )
     group_inc_exclusions.add_argument(
         "--since", type=valid_datetime_type, help=hlp.since
@@ -311,7 +311,7 @@ def valid_datetime_type(arg_datetime_str):
             ) from e
 
 
-def process_subfolder(subfolder):
+def ensure_trailing_slash(subfolder):
     if len(subfolder) and (not subfolder.endswith("/")):
         subfolder += "/"
     return subfolder
