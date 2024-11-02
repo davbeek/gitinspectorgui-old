@@ -275,7 +275,7 @@ class SettingsFile:
             "whitespace": {"type": "boolean"},
             "empty_lines": {"type": "boolean"},
             "comments": {"type": "boolean"},
-            "viewer": {"type": "string"},
+            "viewer": {"type": "string", "enum": VIEWER_CHOICES},
             "copy_move": {"type": "integer"},
             "verbosity": {"type": "integer"},
             "dry_run": {"type": "integer"},

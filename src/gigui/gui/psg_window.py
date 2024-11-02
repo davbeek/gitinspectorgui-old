@@ -280,7 +280,7 @@ def output_formats_frame() -> sg.Frame:
                                 key=keys.scaled_percentages,
                             ),
                             checkbox(
-                                "Hide blame exclusions",
+                                "Blame hide exclusions",
                                 key=keys.blame_hide_exclusions,
                             ),
                             checkbox(
@@ -320,6 +320,7 @@ def output_formats_frame() -> sg.Frame:
                             spinbox(
                                 keys.dry_run,
                                 list(range(3)),
+                                pad=((3, 13), 0),
                             ),
                             checkbox(
                                 "Blame history",
@@ -391,7 +392,7 @@ def general_config_frame() -> sg.Frame:
                 ),
                 input_box(
                     keys.include_files,
-                    size=10,
+                    size=12,
                 ),
                 name_input(
                     "Subfolder",
@@ -400,7 +401,7 @@ def general_config_frame() -> sg.Frame:
                 ),
                 input_box(
                     keys.subfolder,
-                    size=10,
+                    size=8,
                 ),
             ],
             [
