@@ -48,7 +48,12 @@ class Tip:
         "Omit from blame output: comments, empty lines and author lines that are excluded"
     )
     blame_skip: str = "Do not generate blame worksheets or blame tabs"
-    blame_history: str = "Generate blame table per commit"
+    blame_history: str = (
+        "Generate blame tables, "
+        "static: all tables in html, "
+        "dynamic: generate on demand, "
+        "none: single table per file (default)"
+    )
     settings_file: str = "Settings file name or full path"
     subfolder: str = "Restrict analysis to a subfolder of the repository"
     file_options: str = (

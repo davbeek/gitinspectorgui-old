@@ -1,7 +1,7 @@
 import datetime
 from argparse import Action, ArgumentParser, ArgumentTypeError, BooleanOptionalAction
 
-from gigui.args_settings import FIX_TYPE, VIEWER_CHOICES
+from gigui.args_settings import BLAME_HISTORY_CHOICES, FIX_TYPE, VIEWER_CHOICES
 from gigui.constants import AVAILABLE_FORMATS
 from gigui.tiphelp import Help
 from gigui.utils import get_digit, get_pos_number, get_version, str_split_comma
@@ -125,7 +125,7 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
     )
     group_generation.add_argument(
         "--blame-history",
-        action=BooleanOptionalAction,
+        choices=BLAME_HISTORY_CHOICES,
         help=hlp.blame_history,
     )
     group_generation.add_argument(

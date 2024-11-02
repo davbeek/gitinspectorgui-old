@@ -7,7 +7,13 @@ from pathlib import Path
 import PySimpleGUI as sg  # type: ignore
 
 from gigui._logging import add_gui_handler
-from gigui.args_settings import AUTO, VIEWER_CHOICES, SettingsFile
+from gigui.args_settings import (
+    AUTO,
+    BLAME_HISTORY_CHOICES,
+    NONE,
+    VIEWER_CHOICES,
+    SettingsFile,
+)
 from gigui.constants import (
     INIT_COL_PERCENT,
     MAX_COL_HEIGHT,
@@ -322,9 +328,20 @@ def output_formats_frame() -> sg.Frame:
                                 list(range(3)),
                                 pad=((3, 13), 0),
                             ),
-                            checkbox(
+                            name_choice(
                                 "Blame history",
+                                tooltip=tip.blame_history,
+                            ),
+                            sg.Combo(
+                                BLAME_HISTORY_CHOICES,
+                                default_value=NONE,
                                 key=keys.blame_history,
+                                enable_events=True,
+                                size=6,
+                                pad=((3, 10), 2),
+                                readonly=True,
+                                text_color="black",
+                                background_color="white",
                             ),
                         ],
                     ],

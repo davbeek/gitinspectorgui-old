@@ -364,7 +364,7 @@ class BlameSheet(TableSheet):
 
 class Book:
     blame_skip: bool
-    blame_history: bool
+    blame_history: str
     subfolder: str
 
     def __init__(self, name: str, repo: GIRepo):

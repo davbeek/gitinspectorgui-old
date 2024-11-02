@@ -327,7 +327,7 @@ class BlameHistoryTableSoup(BlameBaseTableSoup):
 
 class BlameTablesSoup(TableRootSoup):
     subfolder: FileStr
-    blame_history: bool
+    blame_history: str
 
     def __init__(self, repo: GIRepo, global_soup: BeautifulSoup) -> None:
         super().__init__(repo)
@@ -345,7 +345,7 @@ class BlameTablesSoup(TableRootSoup):
 
         blame_tab_index = 0
         for fstr in self.repo.fstrs:
-            if self.blame_history:
+            if self.blame_history != "none":
                 tables = BlameHistoryTableSoup(self.repo).get_fstr_tables(
                     fstr, sha2nr, blame_tab_index
                 )
@@ -381,7 +381,7 @@ class BlameTablesSoup(TableRootSoup):
                 "div", attrs={"class": "table-container"}
             )
 
-            if self.blame_history:
+            if self.blame_history != "none":
                 self._add_radio_buttons(
                     self.repo.fstr2shas[fstr],
                     sha2nr,

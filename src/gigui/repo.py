@@ -71,7 +71,7 @@ class GIRepo:
                 return False
 
             self._set_shared_data()
-            if self.args.blame_history:
+            if self.args.blame_history != "none":
                 self.blame_history_reader = BlameHistoryReader(
                     self.blame_reader.fstr2blames,
                     self.fstr2shas,

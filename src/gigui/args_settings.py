@@ -32,6 +32,11 @@ NONE = "none"
 VIEWER_CHOICES = [AUTO, NONE]
 VIEWER_DEFAULT = AUTO
 
+STATIC = "static"
+DYNAMIC = "dynamic"
+BLAME_HISTORY_CHOICES = [STATIC, DYNAMIC, NONE]
+BLAME_HISTORY_DEFAULT = NONE
+
 logger = logging.getLogger(__name__)
 
 
@@ -47,7 +52,7 @@ class Args:
     scaled_percentages: bool = False
     blame_hide_exclusions: bool = False
     blame_skip: bool = False
-    blame_history: bool = False
+    blame_history: str = BLAME_HISTORY_DEFAULT
     subfolder: str = ""
     n_files: int = DEFAULT_N_FILES
     include_files: list[str] = field(default_factory=list)
