@@ -89,7 +89,7 @@ class RepoReader:
 
     # Get list of top level files (based on the until parameter) that satisfy the
     # required extensions and do not match the exclude file patterns.
-    # To get all files use --include-file=".*" as pattern
+    # To get all files use --include-file="*" as pattern
     # include_files takes priority over n_files
     def _get_worktree_files(self) -> list[FileStr]:
         include_files = self.args.include_files
@@ -107,8 +107,9 @@ class RepoReader:
                     and not self._matches_ex_file(blob.path)  # type: ignore
                     and any(
                         fnmatch(blob.path, pattern)  # type: ignore
-                        for pattern in include_files + [f"{self.args.subfolder}*"]
+                        for pattern in include_files
                     )
+                    and fnmatch(blob.path, f"{self.args.subfolder}*")  # type: ignore
                 )
             ]
         return matches
