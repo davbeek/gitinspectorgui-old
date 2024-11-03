@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title></title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-size: 12px;
+        }
+
+        td.sha-col,
+        td.code-col,
+        td.comment-col {
+            font-family: "Menlo", "Consolas", "Courier", "monospace";
+            font-size: 11px;
+        }
+
+        table {
+            table-layout: fixed;
+            /* borders of adjacent cells are collapsed into one */
+            border-collapse: collapse;
+        }
+
+        tr {
+            border-bottom: 1px solid lightgrey;
+        }
+
+        td {
+            white-space: nowrap;
+            overflow: hidden;
+        }
+
+        td.author-col,
+        td.email-col,
+        td.file-col,
+        td.message-col,
+        td.code-col,
+        td.comment-col {
+            display: block;
+            text-overflow: ellipsis;
+            border: none;
+        }
+
+        .author-col,
+        .file-col {
+            border: none
+        }
+
+        td.author-col:hover,
+        td.email-col:hover,
+        td.file-col:hover,
+        td.message-col:hover,
+        td.code-col:hover,
+        td.comment-col:hover {
+            overflow: visible;
+            white-space: unset;
+        }
+
+        .empty-col {
+            width: 0;
+            padding: 0;
+            border-top: none;
+            border-left: none;
+            border-bottom: none;
+        }
+
+        table,
+        th,
+        td {
+            border: 1px solid lightgrey;
+            padding-left: 8px;
+        }
+
+        th {
+            background-color: #CCFF99;
+            text-align: left;
+        }
+
+        td.number-col {
+            text-align: right;
+            padding-right: 8px;
+        }
+
+        .bg-white {
+            background-color: #FFFFFF;
+        }
+
+        .bg-row-light-green {
+            background-color: #EBF1DE;
+        }
+
+        .bg-th-green {
+            background-color: #CCFF99;
+        }
+
+        .bg-author-light-green {
+            background-color: #E6FFE6;
+        }
+
+        .bg-author-light-blue {
+            background-color: #ADD8E6;
+        }
+
+        .bg-author-light-red {
+            background-color: #FFCCCB;
+        }
+
+        .bg-author-light-yellow {
+            background-color: #FFFFBF;
+        }
+
+        .bg-author-light-orange {
+            background-color: #FFD7B5;
+        }
+
+        .bg-author-light-purple {
+            background-color: #CBC3E3;
+        }
+
+        .bg-author-light-grey {
+            background-color: #D3D3D3;
+        }
+
+
+        .id_col {
+            width: 20px;
+        }
+
+        .author-col {
+            width: 150px;
+        }
+
+        .email-col {
+            width: 150px;
+        }
+
+        .file-col {
+            width: 150px;
+        }
+
+        .p-lines-col {
+            width: 50px;
+        }
+
+        .ps-lines-col {
+            width: 80px;
+        }
+
+        .p-insertions-col {
+            width: 80px;
+        }
+
+        .ps-insertions-col {
+            width: 110px;
+        }
+
+        .lines-col {
+            width: 50px;
+        }
+
+        .insertions-col {
+            width: 50px;
+        }
+
+        .stability-col {
+            width: 50px;
+        }
+
+        .commits-col {
+            width: 50px;
+        }
+
+        .age-col {
+            width: 70px;
+        }
+
+        .date-col {
+            width: 90px;
+        }
+
+        .message-col {
+            width: 150px;
+        }
+
+        .sha-col {
+            width: 60px;
+        }
+
+        .commit-number-col {
+            width: 50px;
+        }
+
+        .line-col {
+            width: 30px;
+        }
+
+        td.code-col,
+        td.comment-col {
+            width: 800px;
+        }
+
+        td.comment-col {
+            font-style: italic;
+        }
+
+        td {
+            border-top: none;
+            border-bottom: none;
+            border-left: 1px solid lightgrey;
+            border-right: 1px solid lightgrey;
+        }
+
+        .blame-exclusions-button,
+        .blame-empty-lines-button,
+        .hide-colors-button {
+            background-color: #D9FFB3;
+            margin-left: 20px;
+        }
+
+        .radio-container {
+            background-color: white;
+            padding: 5px;
+            margin-left: 5px;
+            border-bottom: 1px solid lightgrey;
+        }
+
+        .radio-button {
+            margin-right: 2px;
+        }
+
+        .radio-label {
+            margin-right: 10px;
+        }
+
+        .pressed {
+            border-top: 2px solid grey;
+            border-left: 2px solid grey;
+            border-bottom: 2px solid white;
+            border-right: 2px solid white;
+        }
+
+        .hide-colors {
+            background-color: #FFFFFF !important;
+        }
+
+        .sticky {
+            background-color: white;
+            opacity: 1;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+    </style>
+</head>
+
+<body>
+    <div style="margin-right: auto; margin-left: 0;">
+        <div class="sticky" id="tabRow" style="overflow-x: auto;">
+            <ul class="nav nav-tabs flex-nowrap" id="tab-buttons">
+                <li class="nav-item">
+                    <button class="nav-link active" id="authors-tab" data-bs-toggle="tab"
+                        data-bs-target="#authors">Authors</button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" id="authors-files-tab" data-bs-toggle="tab"
+                        data-bs-target="#authors-files">Authors-Files</button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" id="files-authors-tab" data-bs-toggle="tab"
+                        data-bs-target="#files-authors">Files-Authors</button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" id="files-tab" data-bs-toggle="tab" data-bs-target="#files">Files</button>
+                </li>
+            </ul>
+        </div>
+        <div class="tab-content" id="tab-contents">
+            <div class="tab-pane fade show active" id="authors"></div>
+            <div class="tab-pane fade" id="authors-files"></div>
+            <div class="tab-pane fade" id="files-authors"></div>
+            <div class="tab-pane fade" id="files"></div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        // Adjust the top position of the header rows based on the height of the tab row
+        window.addEventListener('load', function () {
+            var tabRow = document.getElementById('tabRow');
+            var headerRows = document.querySelectorAll('.headerRow');
+            var tabRowHeight = tabRow.offsetHeight;
+            headerRows.forEach(function (headerRow) {
+                headerRow.style.top = tabRowHeight + 'px';
+            });
+        });
+    </script>
+
+    <script>
+        // Function to update the visibility of rows based on the state of the buttons:
+        // .blame-exclusions-button, .blame-empty-lines-button, and .hide-colors-button
+        document.addEventListener("DOMContentLoaded", function () {
+
+            const updateRows = () => {
+                document.querySelectorAll('table').forEach(table => {
+                    const exclusionsButton = table.querySelector('.blame-exclusions-button');
+                    const emptyLinesButton = table.querySelector('.blame-empty-lines-button');
+                    const hideColorsButton = table.querySelector('.hide-colors-button');
+
+                    const isExclusionsPressed = exclusionsButton ? exclusionsButton.classList.contains('pressed') : false;
+                    const isEmptyLinesPressed = emptyLinesButton ? emptyLinesButton.classList.contains('pressed') : false;
+                    const isHideColorsPressed = hideColorsButton ? hideColorsButton.classList.contains('pressed') : false;
+
+                    const rows = table.querySelectorAll('tbody tr');
+                    rows.forEach(row => {
+                        const codeCell = row.querySelector('.code-col');
+                        const firstCell = row.cells[0];
+                        const secondCell = row.cells[1];
+                        const isEmptyLine = codeCell && codeCell.textContent.trim() === '';
+                        const isExcludedAuthor = firstCell && secondCell && firstCell.textContent.trim() === '0' && !secondCell.textContent.includes('*');
+
+                        row.style.display = (isExcludedAuthor && isExclusionsPressed)
+                            || (isEmptyLine && isEmptyLinesPressed) ? 'none' : '';
+
+                        if (isHideColorsPressed) {
+                            row.classList.add('hide-colors');
+                        } else {
+                            row.classList.remove('hide-colors');
+                        }
+                    });
+                });
+            };
+
+            const addEventListenersToButtons = () => {
+                document.querySelectorAll('.blame-empty-lines-button, .blame-exclusions-button, .hide-colors-button').forEach(button => {
+                    if (!button.classList.contains('hide-colors-button')) {
+                        // Set initial state based on the presence of the 'pressed' class
+                        updateRows()
+                    };
+
+                    button.onclick = function () {
+                        button.classList.toggle('pressed');
+                        updateRows();
+                    };
+                });
+            };
+
+            // Use MutationObserver to watch for changes in the DOM and add event listeners to the buttons
+            const observer = new MutationObserver((mutationsList) => {
+                for (const mutation of mutationsList) {
+                    if (mutation.type === 'childList') {
+                        addEventListenersToButtons();
+                    }
+                }
+            });
+
+            observer.observe(document.body, { childList: true, subtree: true });
+
+            // Initial call to add event listeners to existing buttons
+            addEventListenersToButtons();
+        });
+    </script>
+    <script>
+        // Function to add event listeners for tab activation and radio button clicks
+        document.addEventListener("DOMContentLoaded", function () {
+            // Function to click the first radio button in the active tab
+            function clickFirstRadioButton(tabContent) {
+                const firstRadioButton = tabContent.querySelector('input[type="radio"]');
+                if (firstRadioButton) {
+                    firstRadioButton.click();
+                }
+            }
+
+            // Add event listener for tab activation
+            const tabs = document.querySelectorAll('.nav-link[data-bs-toggle="tab"]');
+            const activatedTabs = new Set();
+
+            tabs.forEach(tab => {
+                tab.addEventListener('shown.bs.tab', function (event) {
+                    const targetId = event.target.getAttribute('data-bs-target');
+                    const tabContent = document.querySelector(targetId);
+
+                    if (!activatedTabs.has(targetId)) {
+                        clickFirstRadioButton(tabContent);
+                        activatedTabs.add(targetId);
+                    }
+                });
+            });
+
+            // Initial click for the first radio button in the initially active tab
+            const initialActiveTab = document.querySelector('.nav-link.active');
+            if (initialActiveTab) {
+                const initialTargetId = initialActiveTab.getAttribute('data-bs-target');
+                const initialTabContent = document.querySelector(initialTargetId);
+                clickFirstRadioButton(initialTabContent);
+                activatedTabs.add(initialTargetId);
+            }
+
+            // Add event listener for radio button clicks in each blame-container
+            var blameContainers = document.querySelectorAll('.blame-container');
+            blameContainers.forEach(function (blameContainer) {
+                var radioButtons = blameContainer.querySelectorAll('.radio-button');
+                radioButtons.forEach(function (radioButton) {
+                    radioButton.addEventListener('click', function () {
+                        // Remove all tables from the .blame-container
+                        blameContainer.querySelectorAll('table').forEach(table => table.remove());
+
+                        // Ask the Flask server to load the table with the same ID as
+                        // the button without starting "button-"
+                        const tableId = radioButton.id.replace('button-', '');
+                        console.log(`Fetching table with id: ${tableId}`);
+                        fetch(`/load-table/${tableId}`)
+                            .then(response => response.text())
+                            .then(html => {
+                                blameContainer.insertAdjacentHTML('beforeend', html);
+                            })
+                            .catch(error => console.error('Error loading table:', error));
+                    });
+                });
+            });
+        });
+    </script>
+    <script>
+        // Function to truncate the length of tab names longer than 20 characters, but
+        // only if the tab row height exceeds 3 times the default text height.
+        document.addEventListener("DOMContentLoaded", function () {
+            const tabRow = document.getElementById('tabRow');
+            const tabs = document.querySelectorAll('.nav-link');
+            const defaultTextHeight = tabs[0].offsetHeight;
+
+            if (tabRow.offsetHeight > 3 * defaultTextHeight) {
+                tabs.forEach(tab => {
+                    const fullText = tab.textContent;
+                    if (fullText.length > 20) {
+                        tab.textContent = fullText.substring(0, 20) + '...';
+                        tab.setAttribute('title', fullText);
+                    }
+                });
+            }
+        });
+    </script>
+    <script>
+        // Set the base URL for the Flask server
+        document.addEventListener("DOMContentLoaded", function () {
+            const baseUrl = window.location.origin;
+            console.log(`Base URL: ${baseUrl}`);
+            // Use the base URL in your fetch requests or other dynamic URLs
+        });
+    </script>
+    <script>
+        let serverActive = true;
+
+        // Increment the tab count when the page loads
+        window.addEventListener('load', function () {
+            fetch('/increment-tabs', { method: 'POST' });
+        });
+
+        // Decrement the tab count when the page unloads
+        window.addEventListener('beforeunload', function () {
+            if (serverActive) {
+                navigator.sendBeacon('/decrement-tabs');
+            }
+        });
+    </script>
+</body>
+
+</html>

@@ -53,6 +53,7 @@ class GIRepo:
         self.author2nr: dict[Author, int]  # does not include "*" as author
         self.author_star2nr: dict[Author, int]  # includes "*" as author
         self.sha2nr: dict[SHALong, int]
+        self.nr2sha: dict[int, SHALong]
         self.sha2author: dict[SHALong, Author]
         self.sha2author_nr: dict[SHALong, int]
 
@@ -170,6 +171,7 @@ class GIRepo:
     def _set_shared_data(self) -> None:
         self.sha2author = {}
         self.sha2nr = {}
+        self.nr2sha = {}
 
         self.fstr2shas = {}
 
@@ -189,8 +191,9 @@ class GIRepo:
             author = self.get_person(commit.author.name).author
             self.sha2author[sha] = author
 
-            # calculate self.sha2nr
+            # calculate self.sha2nr and self.nr2sha
             self.sha2nr[sha] = commit_nr
+            self.nr2sha[commit_nr] = sha
             commit_nr -= 1
 
         for fstr in self.fstrs:

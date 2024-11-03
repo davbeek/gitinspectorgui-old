@@ -272,7 +272,7 @@ class SettingsFile:
             "include_files": {"type": "array", "items": {"type": "string"}},
             "blame_hide_exclusions": {"type": "boolean"},
             "blame_skip": {"type": "boolean"},
-            "blame_history": {"type": "boolean"},
+            "blame_history": {"type": "string", "enum": BLAME_HISTORY_CHOICES},
             "show_renames": {"type": "boolean"},
             "gui_settings_full_path": {"type": "boolean"},
             "subfolder": {"type": "string"},

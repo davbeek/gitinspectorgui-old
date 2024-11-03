@@ -1,7 +1,24 @@
+import logging
+import os
+import re
+
+# Add these imports
+import sys
+import threading
 from pathlib import Path
 
+import requests  # type: ignore[import]
 from bs4 import BeautifulSoup, Tag
+from flask import (  # type: ignore[import]
+    Flask,
+    Response,
+    make_response,
+    request,
+    send_from_directory,
+)
+from flask_cors import CORS  # type: ignore[import]
 
+from gigui.args_settings import DYNAMIC, NONE, STATIC
 from gigui.output.blame_rows import (
     BlameHistoryRows,
     BlameRows,
@@ -62,6 +79,24 @@ BG_AUTHOR_COLORS: list[str] = [
 
 BG_ROW_COLORS: list[str] = ["bg-row-light-green", "bg-white"]
 
+# Global variable for the current repository, to be used by the flask server.
+current_repo: GIRepo
+
+logger = logging.getLogger(__name__)
+
+# Suppress Flask startup messages
+cli = sys.modules["flask.cli"]
+cli.show_server_banner = lambda *x: None  # type: ignore
+
+app = Flask(__name__)
+CORS(app)  # Enable CORS for the Flask app
+
+# Configure Werkzeug logger to suppress default access logs
+logging.getLogger("werkzeug").setLevel(logging.ERROR)
+
+active_tabs = 0
+active_tabs_lock = threading.Lock()
+
 
 class TableRootSoup:
     def __init__(self, repo: GIRepo) -> None:
@@ -72,12 +107,8 @@ class TableRootSoup:
         return BG_AUTHOR_COLORS[author_nr % len(BG_AUTHOR_COLORS)]
 
     def _get_color_for_sha_nr(self, sha_nr: int) -> str:
-        commit_nr2sha: dict[int, SHALong] = {}
 
-        for sha, nr in self.repo.sha2nr.items():
-            commit_nr2sha[nr] = sha
-
-        sha = commit_nr2sha[sha_nr]
+        sha = self.repo.nr2sha[sha_nr]
         author = self.repo.sha2author[sha]
         color_class = self._get_color_for_author(author)
         return color_class
@@ -299,7 +330,33 @@ class BlameTableSoup(BlameBaseTableSoup):
         return table
 
 
-class BlameHistoryTableSoup(BlameBaseTableSoup):
+class BlameHistoryStaticTableSoup(BlameBaseTableSoup):
+    def __init__(self, repo: GIRepo) -> None:
+        super().__init__(repo)
+        self.fstr2shas: dict[FileStr, list[SHALong]] = self.repo.fstr2shas
+
+    def get_fstr_tables(
+        self, fstr: FileStr, sha2nr: dict[SHALong, int], blame_tab_index: int
+    ) -> list[Tag]:
+        tables: list[Tag] = []
+        if fstr not in self.fstr2shas:
+            return []
+
+        for sha in self.fstr2shas[fstr]:
+            rows, iscomments = BlameHistoryRows(self.repo).get_fstr_sha_blame_rows(
+                fstr, sha, html=True
+            )
+            if not rows:
+                continue
+
+            nr = sha2nr[sha]
+            table = self.get_table(rows, iscomments)
+            table["id"] = f"file-{blame_tab_index}-sha-{nr}"
+            tables.append(table)
+        return tables
+
+
+class BlameHistoryDynamicTableSoup(BlameBaseTableSoup):
     def __init__(self, repo: GIRepo) -> None:
         super().__init__(repo)
         self.fstr2shas: dict[FileStr, list[SHALong]] = self.repo.fstr2shas
@@ -345,14 +402,17 @@ class BlameTablesSoup(TableRootSoup):
 
         blame_tab_index = 0
         for fstr in self.repo.fstrs:
-            if self.blame_history != "none":
-                tables = BlameHistoryTableSoup(self.repo).get_fstr_tables(
+            if self.blame_history == STATIC:
+                tables = BlameHistoryStaticTableSoup(self.repo).get_fstr_tables(
                     fstr, sha2nr, blame_tab_index
                 )
                 if tables:
                     fstr2tables[fstr] = tables
                     fstrs.append(fstr)
-            else:
+            elif self.blame_history == DYNAMIC:
+                fstr2tables[fstr] = []
+                fstrs.append(fstr)
+            elif self.blame_history == NONE:
                 table = BlameTableSoup(self.repo).get_fstr_table(fstr)
                 if table:
                     fstr2table[fstr] = table
@@ -381,7 +441,7 @@ class BlameTablesSoup(TableRootSoup):
                 "div", attrs={"class": "table-container"}
             )
 
-            if self.blame_history != "none":
+            if self.blame_history in {STATIC, DYNAMIC}:
                 self._add_radio_buttons(
                     self.repo.fstr2shas[fstr],
                     sha2nr,
@@ -390,7 +450,7 @@ class BlameTablesSoup(TableRootSoup):
                 )
                 for table in fstr2tables[fstr]:
                     table_container.append(table)
-            else:
+            else:  # self.blame_history == NONE
                 table_container.append(fstr2table[fstr])
 
             blame_container.append(table_container)
@@ -463,7 +523,7 @@ class BlameTablesSoup(TableRootSoup):
 
             container.append(radio_button)
             container.append(label)
-            parent.append(container)
+        parent.append(container)
 
 
 # pylint: disable=too-many-locals
@@ -475,9 +535,15 @@ def get_repo_html(
     Generate html with complete analysis results of the provided repository.
     """
 
+    global current_repo
+    current_repo = repo
+
     # Load the template file.
     module_dir = Path(__file__).resolve().parent
-    html_path = module_dir / "files" / "template.html"
+    if repo.args.blame_history == DYNAMIC:
+        html_path = module_dir / "files" / "bottle-template.html"
+    else:
+        html_path = module_dir / "files" / "template.html"
     with open(html_path, "r", encoding="utf-8") as f:
         html_template = f.read()
 
@@ -509,3 +575,102 @@ def get_repo_html(
     html = html.replace("&amp;gt;", "&gt;")
     html = html.replace("&amp;quot;", "&quot;")
     return html
+
+
+def get_fstr_commit_table(file_nr, commit_nr) -> Html:
+    # Logic to fetch the table HTML based on file_nr and commit_nr
+    rows, iscomments = BlameHistoryRows(current_repo).get_fstr_sha_blame_rows(
+        current_repo.fstrs[file_nr], current_repo.nr2sha[commit_nr], html=True
+    )
+    table = BlameHistoryDynamicTableSoup(current_repo).get_table(rows, iscomments)
+    html = str(table)
+    html = html.replace("&amp;nbsp;", "&nbsp;")
+    html = html.replace("&amp;lt;", "&lt;")
+    html = html.replace("&amp;gt;", "&gt;")
+    html = html.replace("&amp;quot;", "&quot;")
+    return html
+
+
+@app.route("/load-table/<table_id>")
+def load_table(table_id) -> Html:
+    # Extract file_nr and commit_nr from table_id
+    match = re.match(r"file-(\d+)-sha-(\d+)", table_id)
+    if match:
+        file_nr = int(match.group(1))
+        commit_nr = int(match.group(2))
+        # Logic to fetch the table HTML based on file_nr and commit_nr
+        table_html = get_fstr_commit_table(file_nr, commit_nr)
+        return table_html
+    else:
+        return "Invalid table_id"
+
+
+@app.route("/files/<path:fstr>")
+def serve_static(fstr: FileStr) -> Response:
+    if not fstr.startswith("/"):
+        fstr = "/" + fstr
+    file_path = Path(fstr).resolve()
+    if not file_path.exists():
+        log(f"File not found: {file_path}")
+        return make_response("File not found", 404)
+    file_dir = str(file_path.parent)
+    filename = file_path.name
+    return send_from_directory(file_dir, filename)
+
+
+@app.route("/increment-tabs", methods=["POST"])
+def increment_tabs() -> str:
+    global active_tabs
+    with active_tabs_lock:
+        active_tabs += 1
+    return "Tab count incremented"
+
+
+@app.route("/decrement-tabs", methods=["POST"])
+def decrement_tabs() -> str:
+    global active_tabs
+    with active_tabs_lock:
+        active_tabs -= 1
+        if active_tabs <= 0:
+            shutdown_server = request.environ.get("werkzeug.server.shutdown")
+            if shutdown_server is not None:
+                shutdown_server()
+            else:
+                os._exit(0)
+    return "Tab count decremented"
+
+
+@app.route("/shutdown", methods=["POST"])
+def shutdown() -> str:
+    shutdown_server = request.environ.get("werkzeug.server.shutdown")
+    if shutdown_server is not None:
+        shutdown_server()
+    else:
+        os._exit(0)
+    return "Server shutting down..."
+
+
+def start_flask_server() -> None:
+    app.run(host="localhost", port=8080)
+
+
+def start_flask_server_in_thread() -> threading.Thread:
+    server_thread = threading.Thread(target=start_flask_server)
+    server_thread.daemon = (
+        True  # This ensures the thread will exit when the main program exits
+    )
+    server_thread.start()
+    return server_thread
+
+
+def shutdown_flask_server() -> None:
+    try:
+        response = requests.post("http://127.0.0.1:8080/shutdown", timeout=5)
+        if response.status_code == 200:
+            logger.info("Flask server shut down successfully.")
+        else:
+            logger.error(f"Failed to shut down Flask server: {response.status_code}")
+    except requests.exceptions.ConnectionError:
+        logger.warning("Flask server is not running.")
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error shutting down Flask server: {e}")

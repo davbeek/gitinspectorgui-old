@@ -8,7 +8,7 @@ from io import StringIO
 from pathlib import Path
 from pstats import Stats
 
-import PySimpleGUI as sg
+import PySimpleGUI as sg  # type: ignore
 import webview
 
 from gigui.constants import WEBVIEW_HEIGHT, WEBVIEW_WIDTH
@@ -34,29 +34,34 @@ def log(arg, text_color=None, end="\n"):
         print(arg, end=end)
 
 
-def open_files(fstrs: list[str]):
-    """
-    Ask the OS to open the given html filenames.
-
-    :param fstrs: The file paths to open.
-    """
+def open_files(fstrs: list[str], blame_history: str):
     if fstrs:
-        match platform.system():
-            case "Darwin":
-                subprocess.run(["open"] + fstrs, check=True)
-            case "Linux":
-                subprocess.run(["xdg-open"] + fstrs, check=True)
-            case "Windows":
-                if len(fstrs) != 1:
-                    raise RuntimeError(
-                        "Illegal attempt to open multiple html files at once on Windows."
-                    )
-
-                # First argument "" is the title for the new command prompt window.
-                subprocess.run(["start", "", fstrs[0]], check=True, shell=True)
-
-            case _:
-                raise RuntimeError(f"Unknown platform {platform.system()}")
+        for fstr in fstrs:
+            if blame_history == "dynamic":
+                url = f"http://localhost:8080/files/{fstr}"
+                match platform.system():
+                    case "Darwin":
+                        subprocess.run(["open", url], check=True)
+                    case "Linux":
+                        subprocess.run(["xdg-open", url], check=True)
+                    case "Windows":
+                        subprocess.run(["start", "", url], check=True, shell=True)
+                    case _:
+                        raise RuntimeError(f"Unknown platform {platform.system()}")
+            else:
+                match platform.system():
+                    case "Darwin":
+                        subprocess.run(["open"] + fstrs, check=True)
+                    case "Linux":
+                        subprocess.run(["xdg-open"] + fstrs, check=True)
+                    case "Windows":
+                        if len(fstrs) != 1:
+                            raise RuntimeError(
+                                "Illegal attempt to open multiple html files at once on Windows."
+                            )
+                        subprocess.run(["start", "", fstrs[0]], check=True, shell=True)
+                    case _:
+                        raise RuntimeError(f"Unknown platform {platform.system()}")
 
 
 def open_webview(html_code: str, repo_name: str):

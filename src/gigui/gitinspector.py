@@ -8,14 +8,19 @@ from pathlib import Path
 
 import PySimpleGUI as sg  # type: ignore
 
-from gigui.args_settings import AUTO, NONE, Args
+from gigui.args_settings import AUTO, DYNAMIC, NONE, Args
 from gigui.constants import DEFAULT_FILE_BASE, DEFAULT_FORMAT, MAX_BROWSER_TABS
 from gigui.data import FileStat, Person
 from gigui.keys import Keys
 from gigui.output import stat_rows
 from gigui.output.blame_rows import BlameBaseRows
 from gigui.output.excel import Book
-from gigui.output.html import BlameTablesSoup, TableSoup, get_repo_html
+from gigui.output.html import (
+    BlameTablesSoup,
+    TableSoup,
+    get_repo_html,
+    start_flask_server_in_thread,
+)
 from gigui.repo import GIRepo, get_repos, total_len
 from gigui.typedefs import FileStr, Html
 from gigui.utils import (
@@ -32,7 +37,7 @@ from gigui.utils import (
 logger = logging.getLogger(__name__)
 
 
-def main(args: Args, start_time: float, gui_window: sg.Window | None = None):
+def main(args: Args, start_time: float, gui_window: sg.Window | None = None) -> None:
     profiler = None
     if args.profile:
         profiler = Profile()
@@ -42,10 +47,21 @@ def main(args: Args, start_time: float, gui_window: sg.Window | None = None):
     init_classes(args)
     repo_lists: list[list[GIRepo]] = []
 
-    fstrs = get_dir_matches(args.input_fstrs)
-    for fstr in fstrs:
-        repo_lists.extend(get_repos(fstr, args.depth))
+    dir_strs = get_dir_matches(args.input_fstrs)
+    for dir_str in dir_strs:
+        repo_lists.extend(get_repos(dir_str, args.depth))
     len_repos = total_len(repo_lists)
+
+    if args.blame_history in {AUTO, DYNAMIC} and "excel" in args.format:
+        logging.warning(
+            "Blame history is not not supported and will be ignored for excel output. "
+        )
+    if args.blame_history == DYNAMIC and len_repos > 1:
+        logging.warning(
+            "Dynamic blame history is not supported for multiple repositories, exiting. "
+        )
+        return
+
     fix_ok = not (len_repos == 1 and args.fix == Keys.nofix)
 
     if repo_lists and fix_ok:
@@ -67,6 +83,7 @@ def main(args: Args, start_time: float, gui_window: sg.Window | None = None):
             )
 
         out_profile(args, profiler)
+
     elif not fix_ok:
         log(
             "Multiple repos detected and nofix option selected."
@@ -139,7 +156,7 @@ def process_repos_unicore(
             runs += 1
         log_end_time(start_time)
         if runs == 1 and files_to_open:  # type: ignore
-            open_files(files_to_open)
+            open_files(files_to_open, args.blame_history)
 
 
 # Process a single repository in case len(repos) == 1 which also means on a single core.
@@ -177,9 +194,21 @@ def process_len1_repo(
                 log("No statistics matching filters found")
     log_end_time(start_time)
     if file_to_open:
-        open_files([file_to_open])
+        open_files([file_to_open], args.blame_history)
+        if args.blame_history == DYNAMIC:
+            try:
+                server_thread = start_flask_server_in_thread()
+                server_thread.join()  # Wait for the server thread to finish
+            except KeyboardInterrupt:
+                os._exit(0)
     elif html_code:
-        open_webview(html_code, name)
+        if args.blame_history == DYNAMIC:
+            logger.warning(
+                "Dynamic blame history is not supported for output format auto, "
+                "only for html."
+            )
+        else:
+            open_webview(html_code, name)
 
 
 def write_repo_output(  # pylint: disable=too-many-locals
@@ -325,7 +354,7 @@ def process_multirepos_unicore(
                         if platform.system() == "Windows":
                             # Windows cannot open multiple files at once in a
                             # browser, so files are opened one by one.
-                            open_files([file_to_open])
+                            open_files([file_to_open], repo.args.blame_history)
                         else:
                             files_to_open.append(file_to_open)
             count += 1
