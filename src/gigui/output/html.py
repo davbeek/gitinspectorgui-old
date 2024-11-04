@@ -515,7 +515,7 @@ def get_repo_html(
     # Load the template file.
     module_dir = Path(__file__).resolve().parent
     if repo.args.blame_history == DYNAMIC:
-        html_path = module_dir / "files" / "bottle-template.html"
+        html_path = module_dir / "files" / "flask-template.html"
     else:
         html_path = module_dir / "files" / "template.html"
     with open(html_path, "r", encoding="utf-8") as f:
