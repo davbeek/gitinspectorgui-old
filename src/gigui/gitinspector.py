@@ -15,7 +15,11 @@ from gigui.keys import Keys
 from gigui.output import stat_rows
 from gigui.output.blame_rows import BlameBaseRows
 from gigui.output.excel import Book
-from gigui.output.flask_server import start_flask_server_in_thread
+from gigui.output.flask_server import (
+    load_css,
+    open_web_browser_for_flask_server,
+    start_flask_server_in_thread_with_html,
+)
 from gigui.output.html import BlameTablesSoup, TableSoup, get_repo_html
 from gigui.repo import GIRepo, get_repos, total_len
 from gigui.typedefs import FileStr, Html
@@ -50,12 +54,20 @@ def main(args: Args, start_time: float, gui_window: sg.Window | None = None) -> 
 
     if args.blame_history != NONE and "excel" in args.format:
         logging.warning(
-            "Blame history is not not supported and will be ignored for excel output. "
+            "Blame history is not not supported and will be ignored for excel output."
         )
     if args.blame_history == DYNAMIC and len_repos > 1:
         logging.warning(
-            "Dynamic blame history is not supported for multiple repositories, exiting. "
+            "Dynamic blame history is not supported for multiple repositories, exiting."
         )
+        return
+    if args.blame_history == DYNAMIC and args.format != ["auto"]:
+        logging.warning(
+            "Dynamic blame history is not supported for formats other than auto, exiting."
+        )
+        return
+    if gui_window and args.blame_history == DYNAMIC:
+        logging.warning("Dynamic blame history is not supported with the GUI, exiting.")
         return
 
     fix_ok = not (len_repos == 1 and args.fix == Keys.nofix)
@@ -189,20 +201,24 @@ def process_len1_repo(
             else:
                 log("No statistics matching filters found")
     log_end_time(start_time)
+    print(f"{file_to_open=}")
+    if html_code:
+        print("html code YES")
+    else:
+        print("html code NO")
+    print(f"{name=}")
     if file_to_open:
         open_files([file_to_open], args.blame_history)
+    elif html_code:
         if args.blame_history == DYNAMIC:
             try:
-                server_thread = start_flask_server_in_thread()
+                open_web_browser_for_flask_server()
+                server_thread = start_flask_server_in_thread_with_html(
+                    html_code, name, load_css()
+                )
                 server_thread.join()  # Wait for the server thread to finish
             except KeyboardInterrupt:
                 os._exit(0)
-    elif html_code:
-        if args.blame_history == DYNAMIC:
-            logger.warning(
-                "Dynamic blame history is not supported for output format auto, "
-                "only for output format html."
-            )
         else:
             open_webview(html_code, name)
 
@@ -278,6 +294,7 @@ def write_repo_output(  # pylint: disable=too-many-locals
     out_format = formats[0]
 
     if len_repos == 1 and out_format == "auto" and gui_window:
+        print("gui_window")
         html_code = get_repo_html(repo, args.blame_skip)
         gui_window.write_event_value(Keys.open_webview, (html_code, repo.name))
         return [], "", ("", "")

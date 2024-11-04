@@ -3,10 +3,18 @@ import os
 import re
 import sys
 import threading
+import webbrowser
 from pathlib import Path
 
 import requests  # type: ignore
-from flask import Flask, Response, make_response, request, send_from_directory
+from flask import (
+    Flask,
+    Response,
+    make_response,
+    render_template_string,
+    request,
+    send_from_directory,
+)
 from flask_cors import CORS  # type: ignore
 
 from gigui.args_settings import DYNAMIC, STATIC
@@ -27,6 +35,10 @@ logging.getLogger("werkzeug").setLevel(logging.ERROR)
 
 active_tabs = 0
 active_tabs_lock = threading.Lock()
+
+html_code: Html = ""
+repo_name: str = ""
+css_code: str = ""
 
 
 @app.route("/load-table/<table_id>")
@@ -93,10 +105,25 @@ def shutdown() -> str:
     return "Server shutting down..."
 
 
+@app.route("/")
+def serve_initial_html() -> Response:
+    """
+    Serve the initial HTML code when the Flask server is accessed.
+    """
+    response = make_response(
+        render_template_string(
+            f"<title>{repo_name}</title>{html_code}", css_code=css_code
+        )
+    )
+    response.headers["Content-Type"] = "text/html; charset=utf-8"
+    return response
+
+
 def start_flask_server() -> None:
     app.run(host="localhost", port=8080)
 
 
+# Remove this method and dependencies
 def start_flask_server_in_thread() -> threading.Thread:
     server_thread = threading.Thread(target=start_flask_server)
     server_thread.daemon = (
@@ -104,6 +131,16 @@ def start_flask_server_in_thread() -> threading.Thread:
     )
     server_thread.start()
     return server_thread
+
+
+def start_flask_server_in_thread_with_html(
+    generated_html: Html, name: str, css: str
+) -> threading.Thread:
+    global html_code, repo_name, css_code
+    html_code = generated_html
+    repo_name = name
+    css_code = css
+    return start_flask_server_in_thread()
 
 
 def shutdown_flask_server() -> None:
@@ -117,3 +154,17 @@ def shutdown_flask_server() -> None:
         logger.warning("Flask server is not running.")
     except requests.exceptions.RequestException as e:
         logger.error(f"Error shutting down Flask server: {e}")
+
+
+def open_web_browser_for_flask_server() -> None:
+    """
+    Open the default web browser to display the HTML code served by the Flask server.
+    """
+    url = "http://localhost:8080"
+    webbrowser.open(url)
+
+
+def load_css() -> str:
+    css_file = Path(__file__).parent / "files" / "styles.css"
+    with open(css_file, "r", encoding="utf-8") as f:
+        return f.read()

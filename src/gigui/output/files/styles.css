@@ -1,0 +1,247 @@
+body,
+tr {
+    font-size: 12px;
+}
+
+td.sha-col,
+td.code-col,
+td.comment-col {
+    font-family: "Menlo", "Consolas", "Courier", "monospace";
+    font-size: 11px;
+}
+
+table {
+    table-layout: fixed;
+    /* borders of adjacent cells are collapsed into one */
+    border-collapse: collapse;
+}
+
+tr {
+    border-bottom: 1px solid lightgrey;
+}
+
+td {
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+td.author-col,
+td.email-col,
+td.file-col,
+td.message-col,
+td.code-col,
+td.comment-col {
+    display: block;
+    text-overflow: ellipsis;
+    border: none;
+}
+
+.author-col,
+.file-col {
+    border: none
+}
+
+td.author-col:hover,
+td.email-col:hover,
+td.file-col:hover,
+td.message-col:hover,
+td.code-col:hover,
+td.comment-col:hover {
+    overflow: visible;
+    white-space: unset;
+}
+
+.empty-col {
+    width: 0;
+    padding: 0;
+    border-top: none;
+    border-left: none;
+    border-bottom: none;
+}
+
+table,
+th,
+td {
+    border: 1px solid lightgrey;
+    padding-left: 8px;
+}
+
+th {
+    background-color: #CCFF99;
+    text-align: left;
+}
+
+td.number-col {
+    text-align: right;
+    padding-right: 8px;
+}
+
+.bg-white {
+    background-color: #FFFFFF;
+}
+
+.bg-row-light-green {
+    background-color: #EBF1DE;
+}
+
+.bg-th-green {
+    background-color: #CCFF99;
+}
+
+.bg-author-light-green {
+    background-color: #E6FFE6;
+}
+
+.bg-author-light-blue {
+    background-color: #ADD8E6;
+}
+
+.bg-author-light-red {
+    background-color: #FFCCCB;
+}
+
+.bg-author-light-yellow {
+    background-color: #FFFFBF;
+}
+
+.bg-author-light-orange {
+    background-color: #FFD7B5;
+}
+
+.bg-author-light-purple {
+    background-color: #CBC3E3;
+}
+
+.bg-author-light-grey {
+    background-color: #D3D3D3;
+}
+
+
+.id_col {
+    width: 20px;
+}
+
+.author-col {
+    width: 150px;
+}
+
+.email-col {
+    width: 150px;
+}
+
+.file-col {
+    width: 150px;
+}
+
+.p-lines-col {
+    width: 50px;
+}
+
+.ps-lines-col {
+    width: 80px;
+}
+
+.p-insertions-col {
+    width: 80px;
+}
+
+.ps-insertions-col {
+    width: 110px;
+}
+
+.lines-col {
+    width: 50px;
+}
+
+.insertions-col {
+    width: 50px;
+}
+
+.stability-col {
+    width: 50px;
+}
+
+.commits-col {
+    width: 50px;
+}
+
+.age-col {
+    width: 70px;
+}
+
+.date-col {
+    width: 90px;
+}
+
+.message-col {
+    width: 150px;
+}
+
+.sha-col {
+    width: 60px;
+}
+
+.commit-number-col {
+    width: 50px;
+}
+
+.line-col {
+    width: 30px;
+}
+
+td.code-col,
+td.comment-col {
+    width: 800px;
+}
+
+td.comment-col {
+    font-style: italic;
+}
+
+td {
+    border-top: none;
+    border-bottom: none;
+    border-left: 1px solid lightgrey;
+    border-right: 1px solid lightgrey;
+}
+
+.blame-exclusions-button,
+.blame-empty-lines-button,
+.hide-colors-button {
+    background-color: #D9FFB3;
+    margin-left: 20px;
+}
+
+.radio-container {
+    background-color: white;
+    padding: 5px;
+    margin-left: 5px;
+    border-bottom: 1px solid lightgrey;
+}
+
+.radio-button {
+    margin-right: 2px;
+}
+
+.radio-label {
+    margin-right: 10px;
+}
+
+.pressed {
+    border-top: 2px solid grey;
+    border-left: 2px solid grey;
+    border-bottom: 2px solid white;
+    border-right: 2px solid white;
+}
+
+.hide-colors {
+    background-color: #FFFFFF !important;
+}
+
+.sticky {
+    background-color: white;
+    opacity: 1;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
