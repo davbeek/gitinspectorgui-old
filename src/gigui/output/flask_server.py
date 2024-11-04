@@ -7,21 +7,13 @@ import webbrowser
 from pathlib import Path
 
 import requests  # type: ignore
-from flask import (
-    Flask,
-    Response,
-    make_response,
-    render_template_string,
-    request,
-    send_from_directory,
-)
+from flask import Flask, Response, make_response, render_template_string, request
 from flask_cors import CORS  # type: ignore
 
 from gigui.args_settings import DYNAMIC, STATIC
 from gigui.output import html
 from gigui.output.html import generate_fstr_commit_table, get_fstr_commit_table, logger
-from gigui.typedefs import FileStr, Html
-from gigui.utils import log
+from gigui.typedefs import Html
 
 # Suppress Flask startup messages
 cli = sys.modules["flask.cli"]
@@ -58,19 +50,6 @@ def load_table(table_id) -> Html:
         return table_html
     else:
         return "Invalid table_id"
-
-
-@app.route("/files/<path:fstr>")
-def serve_static(fstr: FileStr) -> Response:
-    if not fstr.startswith("/"):
-        fstr = "/" + fstr
-    file_path = Path(fstr).resolve()
-    if not file_path.exists():
-        log(f"File not found: {file_path}")
-        return make_response("File not found", 404)
-    file_dir = str(file_path.parent)
-    filename = file_path.name
-    return send_from_directory(file_dir, filename)
 
 
 @app.route("/increment-tabs", methods=["POST"])

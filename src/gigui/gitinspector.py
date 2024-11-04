@@ -201,12 +201,6 @@ def process_len1_repo(
             else:
                 log("No statistics matching filters found")
     log_end_time(start_time)
-    print(f"{file_to_open=}")
-    if html_code:
-        print("html code YES")
-    else:
-        print("html code NO")
-    print(f"{name=}")
     if file_to_open:
         open_files([file_to_open], args.blame_history)
     elif html_code:
@@ -294,7 +288,6 @@ def write_repo_output(  # pylint: disable=too-many-locals
     out_format = formats[0]
 
     if len_repos == 1 and out_format == "auto" and gui_window:
-        print("gui_window")
         html_code = get_repo_html(repo, args.blame_skip)
         gui_window.write_event_value(Keys.open_webview, (html_code, repo.name))
         return [], "", ("", "")
