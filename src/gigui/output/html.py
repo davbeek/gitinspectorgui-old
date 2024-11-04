@@ -356,32 +356,6 @@ class BlameHistoryStaticTableSoup(BlameBaseTableSoup):
         return tables
 
 
-class BlameHistoryDynamicTableSoup(BlameBaseTableSoup):
-    def __init__(self, repo: GIRepo) -> None:
-        super().__init__(repo)
-        self.fstr2shas: dict[FileStr, list[SHALong]] = self.repo.fstr2shas
-
-    def get_fstr_tables(
-        self, fstr: FileStr, sha2nr: dict[SHALong, int], blame_tab_index: int
-    ) -> list[Tag]:
-        tables: list[Tag] = []
-        if fstr not in self.fstr2shas:
-            return []
-
-        for sha in self.fstr2shas[fstr]:
-            rows, iscomments = BlameHistoryRows(self.repo).get_fstr_sha_blame_rows(
-                fstr, sha, html=True
-            )
-            if not rows:
-                continue
-
-            nr = sha2nr[sha]
-            table = self.get_table(rows, iscomments)
-            table["id"] = f"file-{blame_tab_index}-sha-{nr}"
-            tables.append(table)
-        return tables
-
-
 class BlameTablesSoup(TableRootSoup):
     subfolder: FileStr
     blame_history: str
@@ -569,7 +543,6 @@ def get_repo_html(
         BlameTablesSoup(repo, soup).add_tables()
 
     html: Html = str(soup)
-
     html = html.replace("&amp;nbsp;", "&nbsp;")
     html = html.replace("&amp;lt;", "&lt;")
     html = html.replace("&amp;gt;", "&gt;")
@@ -578,11 +551,23 @@ def get_repo_html(
 
 
 def get_fstr_commit_table(file_nr, commit_nr) -> Html:
-    # Logic to fetch the table HTML based on file_nr and commit_nr
     rows, iscomments = BlameHistoryRows(current_repo).get_fstr_sha_blame_rows(
         current_repo.fstrs[file_nr], current_repo.nr2sha[commit_nr], html=True
     )
-    table = BlameHistoryDynamicTableSoup(current_repo).get_table(rows, iscomments)
+    table = BlameHistoryStaticTableSoup(current_repo).get_table(rows, iscomments)
+    html = str(table)
+    html = html.replace("&amp;nbsp;", "&nbsp;")
+    html = html.replace("&amp;lt;", "&lt;")
+    html = html.replace("&amp;gt;", "&gt;")
+    html = html.replace("&amp;quot;", "&quot;")
+    return html
+
+
+def generate_fstr_commit_table(file_nr, commit_nr) -> Html:
+    rows, iscomments = BlameHistoryRows(current_repo).generate_fstr_sha_blame_rows(
+        current_repo.fstrs[file_nr], current_repo.nr2sha[commit_nr], html=True
+    )
+    table = BlameTableSoup(current_repo).get_table(rows, iscomments)
     html = str(table)
     html = html.replace("&amp;nbsp;", "&nbsp;")
     html = html.replace("&amp;lt;", "&lt;")
@@ -598,8 +583,13 @@ def load_table(table_id) -> Html:
     if match:
         file_nr = int(match.group(1))
         commit_nr = int(match.group(2))
-        # Logic to fetch the table HTML based on file_nr and commit_nr
-        table_html = get_fstr_commit_table(file_nr, commit_nr)
+        if current_repo.args.blame_history == STATIC:
+            table_html = get_fstr_commit_table(file_nr, commit_nr)
+        elif current_repo.args.blame_history == DYNAMIC:
+            table_html = generate_fstr_commit_table(file_nr, commit_nr)
+        else:  # NONE
+            table_html = "Blame history is not enabled."
+            logger.error("Error in blame history option: blame history is not enabled.")
         return table_html
     else:
         return "Invalid table_id"

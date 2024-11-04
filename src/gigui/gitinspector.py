@@ -52,7 +52,7 @@ def main(args: Args, start_time: float, gui_window: sg.Window | None = None) -> 
         repo_lists.extend(get_repos(dir_str, args.depth))
     len_repos = total_len(repo_lists)
 
-    if args.blame_history in {AUTO, DYNAMIC} and "excel" in args.format:
+    if args.blame_history != NONE and "excel" in args.format:
         logging.warning(
             "Blame history is not not supported and will be ignored for excel output. "
         )
@@ -205,7 +205,7 @@ def process_len1_repo(
         if args.blame_history == DYNAMIC:
             logger.warning(
                 "Dynamic blame history is not supported for output format auto, "
-                "only for html."
+                "only for output format html."
             )
         else:
             open_webview(html_code, name)

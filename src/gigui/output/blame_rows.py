@@ -94,6 +94,12 @@ class BlameHistoryRows(BlameBaseRows):
         else:
             return [], []
 
+    def generate_fstr_sha_blame_rows(self, fstr: FileStr, sha: SHALong, html: bool):
+        blames: list[Blame] = self.repo.blame_history_reader.generate_blame_history(
+            fstr, sha
+        )
+        return self.get_blame_rows(html, blames)
+
 
 def string2truncated(orgs: list[str], max_length: int) -> dict[str, str]:
 

@@ -6,7 +6,7 @@ from pathlib import Path
 from git import Commit as GitCommit
 from git import GitCommandError, Repo
 
-from gigui.args_settings import Args
+from gigui.args_settings import STATIC, Args
 from gigui.comment import get_is_comment_lines
 from gigui.data import FileStat, PersonsDB
 from gigui.typedefs import (
@@ -276,17 +276,18 @@ class BlameHistoryReader(BlameBaseReader):
 
         self._set_fstr2names()
 
-        for fstr in self.fstrs:
-            head_sha = self.fstr2shas[fstr][0]
-            self.fstr2sha2blames[fstr] = {}
-            self.fstr2sha2blames[fstr][head_sha] = self.fstr2blames[fstr]
-            shas = self.fstr2shas[fstr]
-            for sha in shas:
-                if not self.fstr2names[fstr]:
-                    break
-                git_blames, _ = self._get_git_blames_for(fstr, sha)
-                blames = self._process_git_blames(fstr, git_blames)
-                self.fstr2sha2blames[fstr][sha] = blames
+        if self.args.blame_history == STATIC:
+            for fstr in self.fstrs:
+                head_sha = self.fstr2shas[fstr][0]
+                self.fstr2sha2blames[fstr] = {}
+                self.fstr2sha2blames[fstr][head_sha] = self.fstr2blames[fstr]
+                shas = self.fstr2shas[fstr]
+                for sha in shas:
+                    if not self.fstr2names[fstr]:
+                        break
+                    git_blames, _ = self._get_git_blames_for(fstr, sha)
+                    blames = self._process_git_blames(fstr, git_blames)
+                    self.fstr2sha2blames[fstr][sha] = blames
 
         # Assume that no new authors are found when using earlier root commit_shas, so
         # do not update authors of the blames with the possibly newly found persons as
@@ -311,3 +312,9 @@ class BlameHistoryReader(BlameBaseReader):
                     log(f"GitCommandError for blame of file {fstr}, sha {root_sha}")
                     return [[]]
         return git_blames
+
+    def generate_blame_history(self, fstr: FileStr, sha: SHALong) -> list[Blame]:
+        git_blames: GitBlames
+        git_blames, _ = self._get_git_blames_for(fstr, sha)
+        blames: list[Blame] = self._process_git_blames(fstr, git_blames)
+        return blames
