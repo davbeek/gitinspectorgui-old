@@ -15,12 +15,8 @@ from gigui.keys import Keys
 from gigui.output import stat_rows
 from gigui.output.blame_rows import BlameBaseRows
 from gigui.output.excel import Book
-from gigui.output.html import (
-    BlameTablesSoup,
-    TableSoup,
-    get_repo_html,
-    start_flask_server_in_thread,
-)
+from gigui.output.flask_server import start_flask_server_in_thread
+from gigui.output.html import BlameTablesSoup, TableSoup, get_repo_html
 from gigui.repo import GIRepo, get_repos, total_len
 from gigui.typedefs import FileStr, Html
 from gigui.utils import (
