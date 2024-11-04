@@ -402,21 +402,33 @@
             var blameContainers = document.querySelectorAll('.blame-container');
             blameContainers.forEach(function (blameContainer) {
                 var radioButtons = blameContainer.querySelectorAll('.radio-button');
+                var tableContainer = blameContainer.querySelector('.table-container');
                 radioButtons.forEach(function (radioButton) {
                     radioButton.addEventListener('click', function () {
-                        // Remove all tables from the .blame-container
-                        blameContainer.querySelectorAll('table').forEach(table => table.remove());
+                        // Hide all tables in the .table-container
+                        tableContainer.querySelectorAll('table').forEach(table => table.style.display = 'none');
 
-                        // Ask the Flask server to load the table with the same ID as
-                        // the button without starting "button-"
+                        // Check if the table is already in the DOM using its table id
                         const tableId = radioButton.id.replace('button-', '');
-                        console.log(`Fetching table with id: ${tableId}`);
-                        fetch(`/load-table/${tableId}`)
-                            .then(response => response.text())
-                            .then(html => {
-                                blameContainer.insertAdjacentHTML('beforeend', html);
-                            })
-                            .catch(error => console.error('Error loading table:', error));
+                        const existingTable = tableContainer.querySelector(`table#${tableId}`);
+
+                        if (existingTable) {
+                            // Show the existing table
+                            existingTable.style.display = '';
+                        } else {
+                            // Fetch and insert the table if not already in the DOM
+                            console.log(`Fetching table with id: ${tableId}`);
+                            fetch(`/load-table/${tableId}`)
+                                .then(response => response.text())
+                                .then(html => {
+                                    const tempDiv = document.createElement('div');
+                                    tempDiv.innerHTML = html;
+                                    const table = tempDiv.querySelector('table');
+                                    table.id = tableId; // Ensure the table has the correct id
+                                    tableContainer.appendChild(table);
+                                })
+                                .catch(error => console.error('Error loading table:', error));
+                        }
                     });
                 });
             });

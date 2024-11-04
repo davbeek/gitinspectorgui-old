@@ -276,10 +276,19 @@ class FilesTableSoup(StatTableSoup):
 
 
 class BlameBaseTableSoup(TableSoup):
-    def get_table(self, rows: list[Row], iscomments: list[bool]) -> Tag:
+    def get_table(
+        self,
+        rows: list[Row],
+        iscomments: list[bool],
+        fstr_nr: int = 0,
+        sha_nr: int = 0,
+    ) -> Tag:
         table: Tag = self.soup.new_tag("table")
         tbody: Tag = self.soup.new_tag("tbody")
         table.append(tbody)
+
+        if self.repo.args.blame_history == DYNAMIC:
+            table["id"] = f"file-{fstr_nr}-sha-{sha_nr}"
 
         header_row = header_blames()
         self._add_header_row(header_row, table)
@@ -564,10 +573,12 @@ def get_fstr_commit_table(file_nr, commit_nr) -> Html:
 
 
 def generate_fstr_commit_table(file_nr, commit_nr) -> Html:
+    fstr: FileStr = current_repo.fstrs[file_nr]
+    sha: SHALong = current_repo.nr2sha[commit_nr]
     rows, iscomments = BlameHistoryRows(current_repo).generate_fstr_sha_blame_rows(
-        current_repo.fstrs[file_nr], current_repo.nr2sha[commit_nr], html=True
+        fstr, sha, html=True
     )
-    table = BlameTableSoup(current_repo).get_table(rows, iscomments)
+    table = BlameTableSoup(current_repo).get_table(rows, iscomments, file_nr, commit_nr)
     html = str(table)
     html = html.replace("&amp;nbsp;", "&nbsp;")
     html = html.replace("&amp;lt;", "&lt;")
