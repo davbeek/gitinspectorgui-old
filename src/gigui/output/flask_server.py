@@ -10,10 +10,11 @@ import requests  # type: ignore
 from flask import Flask, Response, make_response, render_template_string, request
 from flask_cors import CORS  # type: ignore
 
-from gigui.args_settings import DYNAMIC, STATIC
-from gigui.output import html
-from gigui.output.html import generate_fstr_commit_table, get_fstr_commit_table, logger
-from gigui.typedefs import Html
+from gigui import shared_data
+from gigui.constants import DYNAMIC, STATIC
+from gigui.output.blame_rows import BlameHistoryRows
+from gigui.output.html import BlameHistoryStaticTableSoup, BlameTableSoup, logger
+from gigui.typedefs import FileStr, Html, SHALong
 
 # Suppress Flask startup messages
 cli = sys.modules["flask.cli"]
@@ -25,31 +26,30 @@ CORS(app)  # Enable CORS for the Flask app
 # Configure Werkzeug logger to suppress default access logs
 logging.getLogger("werkzeug").setLevel(logging.ERROR)
 
-active_tabs = 0
+active_tabs = 0  # pylint: disable=invalid-name
 active_tabs_lock = threading.Lock()
-
-html_code: Html = ""
-repo_name: str = ""
-css_code: str = ""
 
 
 @app.route("/load-table/<table_id>")
 def load_table(table_id) -> Html:
     # Extract file_nr and commit_nr from table_id
+    table_html: Html = ""
     match = re.match(r"file-(\d+)-sha-(\d+)", table_id)
     if match:
         file_nr = int(match.group(1))
         commit_nr = int(match.group(2))
-        if html.current_repo.args.blame_history == STATIC:
+        if shared_data.current_repo.blame_history == STATIC:
             table_html = get_fstr_commit_table(file_nr, commit_nr)
-        elif html.current_repo.args.blame_history == DYNAMIC:
+        elif shared_data.current_repo.blame_history == DYNAMIC:
             table_html = generate_fstr_commit_table(file_nr, commit_nr)
         else:  # NONE
             table_html = "Blame history is not enabled."
             logger.error("Error in blame history option: blame history is not enabled.")
         return table_html
     else:
-        return "Invalid table_id"
+        return (
+            "Invalid table_id, should have the format 'file-<file_nr>-sha-<commit_nr>'"
+        )
 
 
 @app.route("/increment-tabs", methods=["POST"])
@@ -91,7 +91,8 @@ def serve_initial_html() -> Response:
     """
     response = make_response(
         render_template_string(
-            f"<title>{repo_name}</title>{html_code}", css_code=css_code
+            f"<title>{shared_data.repo_name}</title>{shared_data.html_code}",
+            css_code=shared_data.css_code,
         )
     )
     response.headers["Content-Type"] = "text/html; charset=utf-8"
@@ -115,10 +116,9 @@ def start_flask_server_in_thread() -> threading.Thread:
 def start_flask_server_in_thread_with_html(
     generated_html: Html, name: str, css: str
 ) -> threading.Thread:
-    global html_code, repo_name, css_code
-    html_code = generated_html
-    repo_name = name
-    css_code = css
+    shared_data.html_code = generated_html
+    shared_data.repo_name = name
+    shared_data.css_code = css
     return start_flask_server_in_thread()
 
 
@@ -147,3 +147,39 @@ def load_css() -> str:
     css_file = Path(__file__).parent / "files" / "styles.css"
     with open(css_file, "r", encoding="utf-8") as f:
         return f.read()
+
+
+def get_fstr_commit_table(file_nr, commit_nr) -> Html:
+    rows, iscomments = BlameHistoryRows(
+        shared_data.current_repo
+    ).get_fstr_sha_blame_rows(
+        shared_data.current_repo.fstrs[file_nr],
+        shared_data.current_repo.nr2sha[commit_nr],
+        html=True,
+    )
+    table = BlameHistoryStaticTableSoup(shared_data.current_repo).get_table(
+        rows, iscomments
+    )
+    html = str(table)
+    html = html.replace("&amp;nbsp;", "&nbsp;")
+    html = html.replace("&amp;lt;", "&lt;")
+    html = html.replace("&amp;gt;", "&gt;")
+    html = html.replace("&amp;quot;", "&quot;")
+    return html
+
+
+def generate_fstr_commit_table(file_nr, commit_nr) -> Html:
+    fstr: FileStr = shared_data.current_repo.fstrs[file_nr]
+    sha: SHALong = shared_data.current_repo.nr2sha[commit_nr]
+    rows, iscomments = BlameHistoryRows(
+        shared_data.current_repo
+    ).generate_fstr_sha_blame_rows(fstr, sha, html=True)
+    table = BlameTableSoup(shared_data.current_repo).get_table(
+        rows, iscomments, file_nr, commit_nr
+    )
+    html = str(table)
+    html = html.replace("&amp;nbsp;", "&nbsp;")
+    html = html.replace("&amp;lt;", "&lt;")
+    html = html.replace("&amp;gt;", "&gt;")
+    html = html.replace("&amp;quot;", "&quot;")
+    return html

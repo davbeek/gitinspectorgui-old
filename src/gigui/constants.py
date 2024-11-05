@@ -56,3 +56,19 @@ ABBREV_CNT = 30
 
 # Debugging
 DEBUG_SHOW_MAIN_EVENT_LOOP = False
+
+# Constants for CLI arguments, GUI options and settings
+PREFIX = "prefix"
+POSTFIX = "postfix"
+NOFIX = "nofix"
+FIX_TYPE = [PREFIX, POSTFIX, NOFIX]
+
+AUTO = "auto"
+NONE = "none"
+VIEWER_CHOICES = [AUTO, NONE]
+VIEWER_DEFAULT = AUTO
+
+STATIC = "static"
+DYNAMIC = "dynamic"
+BLAME_HISTORY_CHOICES = [NONE, DYNAMIC, STATIC]
+BLAME_HISTORY_DEFAULT = NONE

@@ -6,7 +6,6 @@ from fnmatch import fnmatch
 from git import Commit as GitCommit
 from git import PathLike, Repo
 
-from gigui.args_settings import Args
 from gigui.blame_reader import BlameReader, Commit
 from gigui.data import CommitGroup, Person, PersonsDB, RepoStats
 from gigui.typedefs import Author, FileStr, Rev, SHALong, SHAShort
@@ -15,7 +14,16 @@ logger = logging.getLogger(__name__)
 
 
 class RepoReader:
-    args: Args
+    since: str
+    until: str
+    include_files: list[FileStr]
+    n_files: int
+    subfolder: str
+    extensions: list[str]
+    whitespace: bool
+    multi_thread: bool
+    ex_files: list[FileStr]
+    ex_messages: list[str]
 
     # Here the values of the --ex-revision parameter are stored as a set.
     ex_revs: set[Rev] = set()
@@ -74,8 +82,8 @@ class RepoReader:
         return self.persons_db.get_person(author)
 
     def _set_head_commit(self) -> None:
-        since = self.args.since
-        until = self.args.until
+        since = self.since
+        until = self.until
 
         since_until_kwargs: dict = {}
         if since and until:
@@ -92,24 +100,22 @@ class RepoReader:
     # To get all files use --include-file="*" as pattern
     # include_files takes priority over n_files
     def _get_worktree_files(self) -> list[FileStr]:
-        include_files = self.args.include_files
-        show_n_files = self.args.n_files
         matches: list[FileStr]
-        if not include_files:
-            matches = self._get_biggest_worktree_files(show_n_files)
+        if not self.include_files:
+            matches = self._get_biggest_worktree_files(self.n_files)
         else:  # Get files matching file pattern
             matches = [
                 blob.path  # type: ignore
                 for blob in self.head_commit.tree.traverse()
                 if (
                     blob.type == "blob"  # type: ignore
-                    and blob.path.split(".")[-1] in self.args.extensions  # type: ignore
+                    and blob.path.split(".")[-1] in self.extensions  # type: ignore
                     and not self._matches_ex_file(blob.path)  # type: ignore
                     and any(
                         fnmatch(blob.path, pattern)  # type: ignore
-                        for pattern in include_files
+                        for pattern in self.include_files
                     )
-                    and fnmatch(blob.path, f"{self.args.subfolder}*")  # type: ignore
+                    and fnmatch(blob.path, f"{self.subfolder}*")  # type: ignore
                 )
             ]
         return matches
@@ -124,8 +130,8 @@ class RepoReader:
                 for blob in self.head_commit.tree.traverse()
                 if (
                     (blob.type == "blob")  # type: ignore
-                    and ((blob.path.split(".")[-1] in self.args.extensions))  # type: ignore
-                    and fnmatch(blob.path, f"{self.args.subfolder}*")  # type: ignore
+                    and ((blob.path.split(".")[-1] in self.extensions))  # type: ignore
+                    and fnmatch(blob.path, f"{self.subfolder}*")  # type: ignore
                     and not self._matches_ex_file(blob.path)  # type: ignore
                 )
             ]
@@ -139,7 +145,7 @@ class RepoReader:
 
     # Returns True if file should be excluded
     def _matches_ex_file(self, fstr: FileStr) -> bool:
-        return any(fnmatch(fstr, pattern) for pattern in self.args.ex_files)
+        return any(fnmatch(fstr, pattern) for pattern in self.ex_files)
 
     def _set_fstr2lines(self) -> None:
         self.fstr2lines["*"] = 0
@@ -188,7 +194,7 @@ class RepoReader:
                 continue
             timestamp = int(lines.pop(0))
             message = lines.pop(0)
-            if any(fnmatch(message, pattern) for pattern in self.args.ex_messages):
+            if any(fnmatch(message, pattern) for pattern in self.ex_messages):
                 ex_sha_shorts.add(sha_short)
                 continue
             author = lines.pop(0)
@@ -204,8 +210,8 @@ class RepoReader:
         self.ex_sha_shorts = ex_sha_shorts
 
     def _get_since_until_args(self) -> list[str]:
-        since = self.args.since
-        until = self.args.until
+        since = self.since
+        until = self.until
         if since and until:
             return [f"--since={since}", f"--until={until}"]
         elif since:
@@ -235,7 +241,7 @@ class RepoReader:
                         commit_groups2.pop()
                         i -= 1
 
-        if self.args.multi_thread:
+        if self.multi_thread:
             futures = [
                 thread_executor.submit(self._get_commit_lines_for, fstr)
                 for fstr in self.fstrs
@@ -256,7 +262,7 @@ class RepoReader:
     def _get_commit_lines_for(self, fstr: FileStr) -> tuple[str, FileStr]:
         def git_log_args() -> list[str]:
             args = self._get_since_until_args()
-            if not self.args.whitespace:
+            if not self.whitespace:
                 args.append("-w")
             args += [
                 # %h: short commit hash
@@ -360,8 +366,3 @@ class RepoReader:
                 )
                 commits.append(commit)
         return commits
-
-    @classmethod
-    def set_args(cls, args: Args):
-        cls.args = args
-        cls.ex_revs = set(args.ex_revisions)

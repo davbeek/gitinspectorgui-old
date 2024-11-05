@@ -6,8 +6,8 @@ from pathlib import Path
 from git import Commit as GitCommit
 from git import GitCommandError, Repo
 
-from gigui.args_settings import STATIC, Args
 from gigui.comment import get_is_comment_lines
+from gigui.constants import STATIC
 from gigui.data import FileStat, PersonsDB
 from gigui.typedefs import (
     Author,
@@ -43,7 +43,9 @@ class Blame:
 
 
 class BlameBaseReader:
-    args: Args
+    copy_move: int
+    since: str
+    whitespace: bool
 
     def __init__(
         self,
@@ -109,10 +111,10 @@ class BlameBaseReader:
             3: ["-C", "-C"],
             4: ["-C", "-C", "-C"],
         }
-        blame_opts: list[str] = copy_move_int2opts[self.args.copy_move]
-        if self.args.since:
-            blame_opts.append(f"--since={self.args.since}")
-        if not self.args.whitespace:
+        blame_opts: list[str] = copy_move_int2opts[self.copy_move]
+        if self.since:
+            blame_opts.append(f"--since={self.since}")
+        if not self.whitespace:
             blame_opts.append("-w")
         for rev in self.ex_sha_shorts:
             blame_opts.append(f"--ignore-rev={rev}")
@@ -171,6 +173,10 @@ class BlameBaseReader:
 
 
 class BlameReader(BlameBaseReader):
+    multi_thread: bool
+    comments: bool
+    empty_lines: bool
+
     def __init__(self, head_sha: SHALong, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.head_sha: SHALong = head_sha
@@ -184,7 +190,7 @@ class BlameReader(BlameBaseReader):
 
         self._set_fstr2names()
 
-        if self.args.multi_thread:
+        if self.multi_thread:
             futures = [
                 thread_executor.submit(self._get_git_blames_for, fstr, self.head_sha)
                 for fstr in self.all_fstrs
@@ -229,11 +235,11 @@ class BlameReader(BlameBaseReader):
                     author2line_count[author] = 0
                 total_line_count = len(b.lines)  # type: ignore
                 comment_lines_subtract = (
-                    0 if self.args.comments else b.is_comment_lines.count(True)
+                    0 if self.comments else b.is_comment_lines.count(True)
                 )
                 empty_lines_subtract = (
                     0
-                    if self.args.empty_lines
+                    if self.empty_lines
                     else len([line for line in b.lines if not line.strip()])
                 )
                 line_count = (
@@ -250,7 +256,7 @@ class BlameReader(BlameBaseReader):
 
 
 class BlameHistoryReader(BlameBaseReader):
-    args: Args
+    blame_history: str
 
     # pylint: disable=too-many-arguments disable=too-many-positional-arguments
     def __init__(
@@ -276,7 +282,7 @@ class BlameHistoryReader(BlameBaseReader):
 
         self._set_fstr2names()
 
-        if self.args.blame_history == STATIC:
+        if self.blame_history == STATIC:
             for fstr in self.fstrs:
                 head_sha = self.fstr2shas[fstr][0]
                 self.fstr2sha2blames[fstr] = {}

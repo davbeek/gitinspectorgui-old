@@ -10,7 +10,7 @@ from typing import Any
 
 import PySimpleGUI as sg  # type: ignore[import-untyped]
 
-from gigui import _logging, utils
+from gigui import shared_data
 from gigui._logging import set_logging_level_from_verbosity
 from gigui.args_settings import Args, Settings, SettingsFile
 from gigui.constants import (
@@ -58,7 +58,7 @@ def run(settings: Settings) -> None:
 def run_inner(settings: Settings) -> bool:
     logger.info(f"{settings = }")
     state: GUIState = GUIState(settings.col_percent, settings.gui_settings_full_path)
-    utils.gui = True
+    shared_data.gui = True
 
     # Is set to True when handling "Reset settings file" menu item
     recreate_window: bool = False
@@ -68,8 +68,7 @@ def run_inner(settings: Settings) -> bool:
 
     window: sg.Window
     window = make_window()
-    utils.gui_window = window
-    _logging.gui_window = window
+    shared_data.gui_window = window
 
     buttons = WindowButtons(window)
 

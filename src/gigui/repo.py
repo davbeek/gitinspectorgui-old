@@ -7,8 +7,7 @@ from typing import TypeVar
 from git import Commit as GitCommit
 from git import InvalidGitRepositoryError, NoSuchPathError, PathLike, Repo
 
-from gigui.args_settings import Args
-from gigui.blame_reader import BlameBaseReader, BlameHistoryReader, BlameReader
+from gigui.blame_reader import BlameHistoryReader, BlameReader
 from gigui.data import CommitGroup, FileStat, Person, PersonsDB, PersonStat
 from gigui.repo_reader import RepoReader
 from gigui.typedefs import Author, FileStr, SHALong
@@ -18,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 class GIRepo:
-    args: Args
+    blame_history: str
 
     def __init__(self, name: str, location: PathLike):
         self.name = name
@@ -72,7 +71,7 @@ class GIRepo:
                 return False
 
             self._set_shared_data()
-            if self.args.blame_history != "none":
+            if self.blame_history != "none":
                 self.blame_history_reader = BlameHistoryReader(
                     self.blame_reader.fstr2blames,
                     self.fstr2shas,
@@ -218,16 +217,8 @@ class GIRepo:
         for sha, author in self.sha2author.items():
             self.sha2author_nr[sha] = self.author2nr[author]
 
-    @classmethod
-    def set_args(cls, args: Args):
-        GIRepo.args = RepoReader.args = StatTables.args = args
-        RepoReader.ex_revs = set(args.ex_revisions)
-        BlameBaseReader.args = args
-
 
 class StatTables:
-    args: Args
-
     @staticmethod
     def get_author2fstr2fstat(
         fstrs: list[FileStr],

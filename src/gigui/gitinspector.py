@@ -4,12 +4,22 @@ import os
 import platform
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from cProfile import Profile
+from multiprocessing import Manager
+from multiprocessing.managers import DictProxy, SyncManager
 from pathlib import Path
 
 import PySimpleGUI as sg  # type: ignore
 
-from gigui.args_settings import AUTO, DYNAMIC, NONE, Args
-from gigui.constants import DEFAULT_FILE_BASE, DEFAULT_FORMAT, MAX_BROWSER_TABS
+from gigui.args_settings import Args
+from gigui.blame_reader import BlameBaseReader, BlameHistoryReader, BlameReader
+from gigui.constants import (
+    AUTO,
+    DEFAULT_FILE_BASE,
+    DEFAULT_FORMAT,
+    DYNAMIC,
+    MAX_BROWSER_TABS,
+    NONE,
+)
 from gigui.data import FileStat, Person
 from gigui.keys import Keys
 from gigui.output import stat_rows
@@ -20,8 +30,14 @@ from gigui.output.flask_server import (
     open_web_browser_for_flask_server,
     start_flask_server_in_thread_with_html,
 )
-from gigui.output.html import BlameTablesSoup, TableSoup, get_repo_html
+from gigui.output.html import (
+    BlameBaseTableSoup,
+    BlameTablesSoup,
+    TableSoup,
+    get_repo_html,
+)
 from gigui.repo import GIRepo, get_repos, total_len
+from gigui.repo_reader import RepoReader
 from gigui.typedefs import FileStr, Html
 from gigui.utils import (
     get_outfile_name,
@@ -78,14 +94,21 @@ def main(args: Args, start_time: float, gui_window: sg.Window | None = None) -> 
             args.format = [DEFAULT_FORMAT]
 
         if not args.multi_core or len_repos == 1:
+            manager: SyncManager = Manager()  # Create a Manager
+            shared_data: DictProxy[str, str] = manager.dict()
+
             # Process on a single core
             process_repos_unicore(
-                args, repo_lists, len_repos, outfile_base, gui_window, start_time
+                args,
+                repo_lists,
+                len_repos,
+                outfile_base,
+                gui_window,
+                start_time,
+                shared_data,
             )
         else:
             # Process multiple repos on multi cores
-            # gui_window is not passed as argument to process_multi_repos_multi_core
-            # because gui_window.write_event_value only works on the main thread.
             process_multirepos_multicore(
                 args, repo_lists, len_repos, outfile_base, gui_window, start_time
             )
@@ -102,9 +125,29 @@ def main(args: Args, start_time: float, gui_window: sg.Window | None = None) -> 
 
 
 def init_classes(args: Args):
-    GIRepo.set_args(args)
+    GIRepo.blame_history = args.blame_history
+    RepoReader.include_files = args.include_files
+    RepoReader.n_files = args.n_files
+    RepoReader.subfolder = args.subfolder
+    RepoReader.extensions = args.extensions
+    RepoReader.whitespace = args.whitespace
+    RepoReader.multi_thread = args.multi_thread
+    RepoReader.since = args.since
+    RepoReader.until = args.until
+    RepoReader.ex_files = args.ex_files
+    RepoReader.ex_revs = set(args.ex_revisions)
+    RepoReader.ex_messages = args.ex_messages
+    BlameBaseReader.copy_move = args.copy_move
+    BlameBaseReader.since = args.since
+    BlameBaseReader.whitespace = args.whitespace
+    BlameReader.multi_thread = args.multi_thread
+    BlameReader.comments = args.comments
+    BlameReader.empty_lines = args.comments
+    BlameHistoryReader.blame_history = args.blame_history
     FileStat.show_renames = args.show_renames
     BlameBaseRows.args = args
+    stat_rows.TableRows.deletions = args.deletions
+    BlameBaseTableSoup.blame_history = args.blame_history
     TableSoup.blame_hide_exclusions = args.blame_hide_exclusions
     TableSoup.empty_lines = args.empty_lines
     TableSoup.subfolder = args.subfolder
@@ -140,6 +183,7 @@ def process_repos_unicore(
     outfile_base: FileStr,
     gui_window: sg.Window | None,
     start_time: float,
+    shared_data: DictProxy,
 ):
     if len_repos == 1:
         process_len1_repo(
@@ -148,6 +192,7 @@ def process_repos_unicore(
             outfile_base,
             gui_window,
             start_time,
+            shared_data,  # Pass shared_data to process_len1_repo
         )
     elif len_repos > 1:
         count = 1
@@ -155,6 +200,7 @@ def process_repos_unicore(
         while repo_lists:
             repos = repo_lists.pop(0)
             count, files_to_open = process_multirepos_unicore(
+                args,
                 repos,
                 len_repos,
                 outfile_base,
@@ -174,6 +220,7 @@ def process_len1_repo(
     outfile_base: str,
     gui_window: sg.Window | None,
     start_time: float,
+    shared_data: DictProxy,
 ):
     args.multi_core = False
     file_to_open = ""
@@ -205,14 +252,18 @@ def process_len1_repo(
         open_files([file_to_open], args.blame_history)
     elif html_code:
         if args.blame_history == DYNAMIC:
-            try:
-                open_web_browser_for_flask_server()
-                server_thread = start_flask_server_in_thread_with_html(
-                    html_code, name, load_css()
-                )
-                server_thread.join()  # Wait for the server thread to finish
-            except KeyboardInterrupt:
-                os._exit(0)
+            if gui_window:
+                shared_data["html_code"] = html_code  # Store html_code in shared_data
+                gui_window.write_event_value(Keys.start_flask_server, shared_data)
+            else:
+                try:
+                    open_web_browser_for_flask_server()
+                    server_thread = start_flask_server_in_thread_with_html(
+                        html_code, name, load_css()
+                    )
+                    server_thread.join()  # Wait for the server thread to finish
+                except KeyboardInterrupt:
+                    os._exit(0)
         else:
             open_webview(html_code, name)
 
@@ -325,6 +376,7 @@ def get_output_file_and_webview_data(
 
 # Process multiple repos on a single core.
 def process_multirepos_unicore(
+    args: Args,
     repos: list[GIRepo],
     len_repos: int,
     outfile_base: str,
@@ -335,7 +387,7 @@ def process_multirepos_unicore(
     with ThreadPoolExecutor(max_workers=5) as thread_executor:
         files_to_open = []
         for repo in repos:
-            dry_run = repo.args.dry_run
+            dry_run = args.dry_run
             log(f"    {repo.name} repository ({count} of {len_repos})")
             if dry_run == 2:
                 continue
@@ -350,7 +402,7 @@ def process_multirepos_unicore(
                     log("")
                 else:  # dry_run == 0
                     _, file_to_open, _ = write_repo_output(
-                        repo.args,
+                        args,
                         repo,
                         len_repos,
                         outfile_base,
@@ -360,7 +412,7 @@ def process_multirepos_unicore(
                         if platform.system() == "Windows":
                             # Windows cannot open multiple files at once in a
                             # browser, so files are opened one by one.
-                            open_files([file_to_open], repo.args.blame_history)
+                            open_files([file_to_open], args.blame_history)
                         else:
                             files_to_open.append(file_to_open)
             count += 1
@@ -420,14 +472,14 @@ def process_repo_in_process_pool(
 ) -> tuple[bool, list[FileStr]]:
     init_classes(args)
     with ThreadPoolExecutor(max_workers=5) as thread_executor:
-        dry_run = repo.args.dry_run
+        dry_run = args.dry_run
         stats_found = False
         files_to_log: list[FileStr] = []
         if dry_run <= 1:
             stats_found = repo.run(thread_executor)
         if dry_run == 0 and stats_found:
             files_to_log, _, _ = write_repo_output(
-                repo.args,
+                args,
                 repo,
                 len_repos,
                 outfile_base,

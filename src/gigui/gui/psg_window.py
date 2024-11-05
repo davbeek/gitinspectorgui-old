@@ -7,16 +7,14 @@ from pathlib import Path
 import PySimpleGUI as sg  # type: ignore
 
 from gigui._logging import add_gui_handler
-from gigui.args_settings import (
+from gigui.args_settings import SettingsFile
+from gigui.constants import (
     AUTO,
     BLAME_HISTORY_CHOICES,
-    NONE,
-    VIEWER_CHOICES,
-    SettingsFile,
-)
-from gigui.constants import (
     INIT_COL_PERCENT,
     MAX_COL_HEIGHT,
+    NONE,
+    VIEWER_CHOICES,
     WINDOW_HEIGHT_CORR,
     WINDOW_SIZE_X,
     WINDOW_SIZE_Y,

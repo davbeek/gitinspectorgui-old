@@ -64,6 +64,8 @@ def percentage_to_out(percentage: float) -> int | str:
 
 
 class TableRows:
+    deletions: bool = False
+
     def __init__(self, repo: GIRepo):
         self.repo = repo
         self.rows: list[Row] = []
@@ -88,7 +90,7 @@ class TableRows:
                 stat.stability,
                 len(stat.commits),
             ]
-            + ([stat.deletions, stat.age] if self.repo.args.deletions else [stat.age])
+            + ([stat.deletions, stat.age] if self.deletions else [stat.age])
         )
 
 

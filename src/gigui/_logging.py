@@ -1,12 +1,12 @@
 import logging
 
 import colorlog
-import PySimpleGUI as sg
+import PySimpleGUI as sg  # type: ignore
+
+from gigui import shared_data
 
 FORMAT = "%(name)s %(funcName)s %(lineno)s\n%(message)s\n"
 DEBUG = "debug"
-# Set to the value of the GUI window at the start of gui.psg.run
-gui_window: sg.Window | None = None
 
 # Root logger should not have a name, so that all loggers with names are automatically
 # children of the root logger.
@@ -23,13 +23,13 @@ class GUIOutputHandler(logging.Handler):
         log_entry = "\n" + log_entry
         match record.levelno:
             case logging.ERROR:
-                gui_window.write_event_value(DEBUG, (log_entry, "red"))  # type: ignore
+                shared_data.gui_window.write_event_value(DEBUG, (log_entry, "red"))  # type: ignore
             case logging.WARNING:
-                gui_window.write_event_value(DEBUG, (log_entry, "orange"))  # type: ignore
+                shared_data.gui_window.write_event_value(DEBUG, (log_entry, "orange"))  # type: ignore
             case logging.INFO:
-                gui_window.write_event_value(DEBUG, (log_entry, "green"))  # type: ignore
+                shared_data.gui_window.write_event_value(DEBUG, (log_entry, "green"))  # type: ignore
             case logging.DEBUG:
-                gui_window.write_event_value(DEBUG, (log_entry, "blue"))  # type: ignore
+                shared_data.gui_window.write_event_value(DEBUG, (log_entry, "blue"))  # type: ignore
             case _:
                 sg.cprint(log_entry)
 

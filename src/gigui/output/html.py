@@ -5,7 +5,8 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup, Tag
 
-from gigui.args_settings import DYNAMIC, NONE, STATIC
+from gigui import shared_data
+from gigui.constants import DYNAMIC, NONE, STATIC
 from gigui.output.blame_rows import (
     BlameHistoryRows,
     BlameRows,
@@ -65,9 +66,6 @@ BG_AUTHOR_COLORS: list[str] = [
 ]
 
 BG_ROW_COLORS: list[str] = ["bg-row-light-green", "bg-white"]
-
-# Global variable for the current repository, to be used by the flask server.
-current_repo: GIRepo = GIRepo("", "")
 
 logger = logging.getLogger(__name__)
 
@@ -250,6 +248,8 @@ class FilesTableSoup(StatTableSoup):
 
 
 class BlameBaseTableSoup(TableSoup):
+    blame_history: str
+
     def get_table(
         self,
         rows: list[Row],
@@ -261,7 +261,7 @@ class BlameBaseTableSoup(TableSoup):
         tbody: Tag = self.soup.new_tag("tbody")
         table.append(tbody)
 
-        if self.repo.args.blame_history == DYNAMIC:
+        if self.blame_history == DYNAMIC:
             table["id"] = f"file-{fstr_nr}-sha-{sha_nr}"
 
         header_row = header_blames()
@@ -492,12 +492,11 @@ def get_repo_html(
     Generate html with complete analysis results of the provided repository.
     """
 
-    global current_repo
-    current_repo = repo
+    shared_data.current_repo = repo
 
     # Load the template file.
     module_dir = Path(__file__).resolve().parent
-    if repo.args.blame_history == DYNAMIC:
+    if repo.blame_history == DYNAMIC:
         html_path = module_dir / "files" / "flask-template.html"
     else:
         html_path = module_dir / "files" / "template.html"
@@ -526,34 +525,6 @@ def get_repo_html(
         BlameTablesSoup(repo, soup).add_tables()
 
     html: Html = str(soup)
-    html = html.replace("&amp;nbsp;", "&nbsp;")
-    html = html.replace("&amp;lt;", "&lt;")
-    html = html.replace("&amp;gt;", "&gt;")
-    html = html.replace("&amp;quot;", "&quot;")
-    return html
-
-
-def get_fstr_commit_table(file_nr, commit_nr) -> Html:
-    rows, iscomments = BlameHistoryRows(current_repo).get_fstr_sha_blame_rows(
-        current_repo.fstrs[file_nr], current_repo.nr2sha[commit_nr], html=True
-    )
-    table = BlameHistoryStaticTableSoup(current_repo).get_table(rows, iscomments)
-    html = str(table)
-    html = html.replace("&amp;nbsp;", "&nbsp;")
-    html = html.replace("&amp;lt;", "&lt;")
-    html = html.replace("&amp;gt;", "&gt;")
-    html = html.replace("&amp;quot;", "&quot;")
-    return html
-
-
-def generate_fstr_commit_table(file_nr, commit_nr) -> Html:
-    fstr: FileStr = current_repo.fstrs[file_nr]
-    sha: SHALong = current_repo.nr2sha[commit_nr]
-    rows, iscomments = BlameHistoryRows(current_repo).generate_fstr_sha_blame_rows(
-        fstr, sha, html=True
-    )
-    table = BlameTableSoup(current_repo).get_table(rows, iscomments, file_nr, commit_nr)
-    html = str(table)
     html = html.replace("&amp;nbsp;", "&nbsp;")
     html = html.replace("&amp;lt;", "&lt;")
     html = html.replace("&amp;gt;", "&gt;")

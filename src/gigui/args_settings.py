@@ -9,33 +9,25 @@ import jsonschema
 import platformdirs
 from git import PathLike
 
-from gigui import utils
+from gigui import shared_data
 from gigui._logging import set_logging_level_from_verbosity
 from gigui.constants import (
+    AUTO,
     AVAILABLE_FORMATS,
+    BLAME_HISTORY_CHOICES,
+    BLAME_HISTORY_DEFAULT,
     DEFAULT_COPY_MOVE,
     DEFAULT_EXTENSIONS,
     DEFAULT_FILE_BASE,
     DEFAULT_N_FILES,
+    FIX_TYPE,
+    PREFIX,
     SUBDIR_NESTING_DEPTH,
+    VIEWER_CHOICES,
+    VIEWER_DEFAULT,
 )
 from gigui.keys import Keys, KeysArgs
 from gigui.utils import log, str_split_comma
-
-PREFIX = "prefix"
-POSTFIX = "postfix"
-NOFIX = "nofix"
-FIX_TYPE = [PREFIX, POSTFIX, NOFIX]
-
-AUTO = "auto"
-NONE = "none"
-VIEWER_CHOICES = [AUTO, NONE]
-VIEWER_DEFAULT = AUTO
-
-STATIC = "static"
-DYNAMIC = "dynamic"
-BLAME_HISTORY_CHOICES = [NONE, DYNAMIC, STATIC]
-BLAME_HISTORY_DEFAULT = NONE
 
 logger = logging.getLogger(__name__)
 
@@ -329,7 +321,7 @@ class SettingsFile:
         path = cls.get_location()
         log(f"Settings file location: {path}")
         settings, _ = cls.load()
-        if not utils.gui:
+        if not shared_data.gui:
             settings.log()
 
     @classmethod
