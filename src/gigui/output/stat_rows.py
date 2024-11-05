@@ -7,7 +7,6 @@ from gigui.typedefs import Author, FileStr, Row
 
 deletions: bool = False
 scaled_percentages: bool = False
-subfolder: str = ""
 
 
 def header_stat() -> list[str]:
@@ -64,6 +63,7 @@ def percentage_to_out(percentage: float) -> int | str:
 
 
 class TableRows:
+    subfolder: str = ""
     deletions: bool = False
 
     def __init__(self, repo: GIRepo):
@@ -127,7 +127,7 @@ class AuthorsFilesTableRows(TableRows):
             )
             for fstr in fstrs:
                 row = []
-                rel_fstr = a2f2f[author][fstr].relative_names_str(subfolder)
+                rel_fstr = a2f2f[author][fstr].relative_names_str(self.subfolder)
                 row.extend(
                     [id_val, person.authors_str]
                     + (["", rel_fstr] if html else [rel_fstr])  # type: ignore
@@ -163,7 +163,7 @@ class FilesAuthorsTableRows(TableRows):
             for author in authors:
                 row = []
                 row.extend(
-                    [id_val, f2a2f[fstr][author].relative_names_str(subfolder)]
+                    [id_val, f2a2f[fstr][author].relative_names_str(self.subfolder)]
                     + (["", author] if html else [author])  # type: ignore
                 )
                 stat = f2a2f[fstr][author].stat
@@ -180,7 +180,7 @@ class FilesTableRows(TableRows):
         row: Row
         id_val: int = 0
         for fstr in self.repo.star_fstrs:
-            row = [id_val, f2f[fstr].relative_names_str(subfolder)]
+            row = [id_val, f2f[fstr].relative_names_str(self.subfolder)]
             row.extend(self._get_stat_values(f2f[fstr].stat))
             rows.append(row)
             id_val += 1

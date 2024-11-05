@@ -36,6 +36,7 @@ from gigui.output.html import (
     TableSoup,
     get_repo_html,
 )
+from gigui.output.stat_rows import TableRows
 from gigui.repo import GIRepo, get_repos, total_len
 from gigui.repo_reader import RepoReader
 from gigui.typedefs import FileStr, Html
@@ -146,7 +147,8 @@ def init_classes(args: Args):
     BlameHistoryReader.blame_history = args.blame_history
     FileStat.show_renames = args.show_renames
     BlameBaseRows.args = args
-    stat_rows.TableRows.deletions = args.deletions
+    TableRows.deletions = args.deletions
+    TableRows.subfolder = args.subfolder
     BlameBaseTableSoup.blame_history = args.blame_history
     TableSoup.blame_hide_exclusions = args.blame_hide_exclusions
     TableSoup.empty_lines = args.empty_lines
@@ -161,7 +163,6 @@ def init_classes(args: Args):
     Person.ex_email_patterns = args.ex_emails
     stat_rows.deletions = args.deletions
     stat_rows.scaled_percentages = args.scaled_percentages
-    stat_rows.subfolder = args.subfolder
 
 
 # Normally, the input paths have already been expanded by the shell, but in case the
