@@ -327,17 +327,39 @@ class StatTables:
             )
 
 
-def get_repos(pathlike: PathLike, depth: int) -> list[list[GIRepo]]:
-    path = Path(pathlike)
+def get_repos(dir_path: Path, depth: int) -> list[list[GIRepo]]:
+    """
+    Recursively retrieves a list of repositories from a given directory path up to a
+    specified depth.
+
+    Args:
+        - dir_path (Path): The directory path to search for repositories.
+        - depth (int): The depth of recursion to search for repositories. A depth of 0
+          means only the given directory is checked.
+
+    Returns:
+        list[list[GIRepo]]: A list of lists, where each inner list contains repositories
+        found in the same directory.
+
+    Raises:
+        None
+
+    Notes:
+        - If the given path is not a directory, an empty list is returned.
+        - If the given path is a Git repository, a list containing a single list with
+          one GIRepo object is returned.
+        - If the depth is greater than 0, the function will recursively search
+          subdirectories for Git repositories.
+    """
     repo_lists: list[list[GIRepo]]
-    if is_dir_safe(pathlike):
-        if is_git_repo(pathlike):
-            return [[GIRepo(path.name, path)]]  # independent of depth
+    if is_dir_safe(dir_path):
+        if is_git_repo(dir_path):
+            return [[GIRepo(dir_path.name, dir_path)]]  # independent of depth
         elif depth == 0:
             # For depth == 0, the input itself must be a repo, which is not the case.
             return []
         else:  # depth >= 1:
-            subdirs: list[Path] = subdirs_safe(pathlike)
+            subdirs: list[Path] = subdirs_safe(dir_path)
             repos: list[GIRepo] = [
                 GIRepo(subdir.name, subdir) for subdir in subdirs if is_git_repo(subdir)
             ]
@@ -351,7 +373,7 @@ def get_repos(pathlike: PathLike, depth: int) -> list[list[GIRepo]]:
                 repo_lists.extend(get_repos(other_dir, depth - 1))
             return repo_lists
     else:
-        log(f"Path {pathlike} is not a directory")
+        log(f"Path {dir_path} is not a directory")
         return []
 
 

@@ -114,11 +114,11 @@ def start_flask_server_in_thread() -> threading.Thread:
 
 
 def start_flask_server_in_thread_with_html(
-    generated_html: Html, name: str, css: str
+    html_code: Html, repo_name: str, css_code: str
 ) -> threading.Thread:
-    shared_data.html_code = generated_html
-    shared_data.repo_name = name
-    shared_data.css_code = css
+    shared_data.html_code = html_code
+    shared_data.repo_name = repo_name
+    shared_data.css_code = css_code
     return start_flask_server_in_thread()
 
 

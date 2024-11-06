@@ -5,6 +5,7 @@ import sys
 import time
 from datetime import datetime
 from multiprocessing import Process
+from multiprocessing.managers import DictProxy  # type: ignore[import]
 from pathlib import Path
 from typing import Any
 
@@ -37,6 +38,10 @@ from gigui.gui.psg_support import (
 )
 from gigui.gui.psg_window import make_window
 from gigui.keys import Keys
+from gigui.output.flask_server import (
+    open_web_browser_for_flask_server,
+    start_flask_server_in_thread_with_html,
+)
 from gigui.tiphelp import Help, Tip
 from gigui.utils import open_webview, str_split_comma
 
@@ -224,6 +229,15 @@ def run_inner(settings: Settings) -> bool:
                 )
                 webview_process.daemon = True
                 webview_process.start()
+
+            case keys.start_flask_server:
+                shared_data_dict: DictProxy = values[event]
+                open_web_browser_for_flask_server()
+                start_flask_server_in_thread_with_html(
+                    shared_data_dict["html_code"],
+                    shared_data_dict["repo_name"],
+                    shared_data_dict["css_code"],
+                )
     return recreate_window
 
 

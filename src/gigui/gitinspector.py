@@ -19,6 +19,7 @@ from gigui.constants import (
     DYNAMIC,
     MAX_BROWSER_TABS,
     NONE,
+    STATIC,
 )
 from gigui.data import FileStat, Person
 from gigui.keys import Keys
@@ -60,13 +61,16 @@ def main(args: Args, start_time: float, gui_window: sg.Window | None = None) -> 
         profiler = Profile()
         profiler.enable()
 
+    manager: SyncManager
+
     logger.info(f"{args = }")
     init_classes(args)
     repo_lists: list[list[GIRepo]] = []
 
     dir_strs = get_dir_matches(args.input_fstrs)
     for dir_str in dir_strs:
-        repo_lists.extend(get_repos(dir_str, args.depth))
+        repo_lists.extend(get_repos(Path(dir_str), args.depth))
+
     len_repos = total_len(repo_lists)
 
     if args.blame_history != NONE and "excel" in args.format:
@@ -83,46 +87,48 @@ def main(args: Args, start_time: float, gui_window: sg.Window | None = None) -> 
             "Dynamic blame history is not supported for formats other than auto, exiting."
         )
         return
-    if gui_window and args.blame_history == DYNAMIC:
-        logging.warning("Dynamic blame history is not supported with the GUI, exiting.")
+    if not len_repos:
+        log("Found no repositories")
         return
-
-    fix_ok = not (len_repos == 1 and args.fix == Keys.nofix)
-
-    if repo_lists and fix_ok:
-        outfile_base = args.outfile_base if args.outfile_base else DEFAULT_FILE_BASE
-        if not args.format:
-            args.format = [DEFAULT_FORMAT]
-
-        if not args.multi_core or len_repos == 1:
-            manager: SyncManager = Manager()  # Create a Manager
-            shared_data: DictProxy[str, str] = manager.dict()
-
-            # Process on a single core
-            process_repos_unicore(
-                args,
-                repo_lists,
-                len_repos,
-                outfile_base,
-                gui_window,
-                start_time,
-                shared_data,
-            )
-        else:
-            # Process multiple repos on multi cores
-            process_multirepos_multicore(
-                args, repo_lists, len_repos, outfile_base, gui_window, start_time
-            )
-
-        out_profile(args, profiler)
-
-    elif not fix_ok:
+    if len_repos > 1 and args.fix == Keys.nofix:
         log(
             "Multiple repos detected and nofix option selected."
             "Multiple repos need the (default prefix) or postfix option."
         )
-    else:  # repos is empty
-        log("Found no repositories")
+        return
+
+    outfile_base = args.outfile_base if args.outfile_base else DEFAULT_FILE_BASE
+    if not args.format:
+        args.format = [DEFAULT_FORMAT]
+
+    # Create a Manager for synchronization between gui and flask server
+    manager = Manager()
+    shared_data_dict: DictProxy[str, str] = manager.dict()
+
+    # Process a single repository
+    if len_repos == 1:
+        process_unicore_repo(
+            args,
+            repo_lists[0][0],
+            outfile_base,
+            gui_window,
+            start_time,
+            shared_data_dict,
+        )
+        return
+
+    # Process multiple repositories
+    if args.multi_core:
+        process_multicore_repos(args, repo_lists, len_repos, outfile_base, start_time)
+    else:
+        process_unicore_repos(
+            args,
+            repo_lists,
+            len_repos,
+            outfile_base,
+            start_time,
+        )
+    out_profile(args, profiler)
 
 
 def init_classes(args: Args):
@@ -177,56 +183,20 @@ def get_dir_matches(input_fstrs: list[FileStr]) -> list[FileStr]:
     return matching_fstrs
 
 
-def process_repos_unicore(
-    args: Args,
-    repo_lists: list[list[GIRepo]],
-    len_repos: int,
-    outfile_base: FileStr,
-    gui_window: sg.Window | None,
-    start_time: float,
-    shared_data: DictProxy,
-):
-    if len_repos == 1:
-        process_len1_repo(
-            args,
-            repo_lists[0][0],
-            outfile_base,
-            gui_window,
-            start_time,
-            shared_data,  # Pass shared_data to process_len1_repo
-        )
-    elif len_repos > 1:
-        count = 1
-        runs = 0
-        while repo_lists:
-            repos = repo_lists.pop(0)
-            count, files_to_open = process_multirepos_unicore(
-                args,
-                repos,
-                len_repos,
-                outfile_base,
-                count,
-                gui_window,
-            )
-            runs += 1
-        log_end_time(start_time)
-        if runs == 1 and files_to_open:  # type: ignore
-            open_files(files_to_open, args.blame_history)
-
-
-# Process a single repository in case len(repos) == 1 which also means on a single core.
-def process_len1_repo(
+def process_unicore_repo(
     args: Args,
     repo: GIRepo,
     outfile_base: str,
     gui_window: sg.Window | None,
     start_time: float,
-    shared_data: DictProxy,
-):
+    shared_data_dict: DictProxy,
+) -> None:
+    # Process a single repository in case len(repos) == 1 which also means on a single core.
+
     args.multi_core = False
     file_to_open = ""
     html_code = ""
-    name = ""
+    repo_name = ""
 
     log("Output in folder " + str(repo.path.parent))
     log(f"    {repo.name} repository ({1} of {1}) ")
@@ -239,42 +209,51 @@ def process_len1_repo(
                     log("")
                 else:  # args.dry_run == 0
                     log("        ", end="")
-                    _, file_to_open, (html_code, name) = write_repo_output(
+                    _, file_to_open, (html_code, repo_name) = process_repo_output(
                         args,
                         repo,
                         1,
                         outfile_base,
-                        gui_window,
                     )
             else:
                 log("No statistics matching filters found")
     log_end_time(start_time)
-    if file_to_open:
-        open_files([file_to_open], args.blame_history)
-    elif html_code:
-        if args.blame_history == DYNAMIC:
-            if gui_window:
-                shared_data["html_code"] = html_code  # Store html_code in shared_data
-                gui_window.write_event_value(Keys.start_flask_server, shared_data)
-            else:
-                try:
-                    open_web_browser_for_flask_server()
-                    server_thread = start_flask_server_in_thread_with_html(
-                        html_code, name, load_css()
-                    )
-                    server_thread.join()  # Wait for the server thread to finish
-                except KeyboardInterrupt:
-                    os._exit(0)
-        else:
-            open_webview(html_code, name)
+    if file_to_open:  # format must be "html" or "excel"
+        open_files([file_to_open])
+    elif html_code and not gui_window:  # format must be "auto"
+        if args.blame_history in {STATIC, NONE}:
+            open_webview(html_code, repo_name)
+        else:  # args.blame_history == DYNAMIC
+            try:
+                open_web_browser_for_flask_server()
+                server_thread = start_flask_server_in_thread_with_html(
+                    html_code, repo_name, load_css()
+                )
+                server_thread.join()  # Wait for the server thread to finish
+            except KeyboardInterrupt:
+                os._exit(0)
+    elif html_code and gui_window:  # format must be "auto"
+        if args.blame_history in {STATIC, NONE}:
+            gui_window.write_event_value(Keys.open_webview, (html_code, repo.name))
+        else:  # args.blame_history == DYNAMIC
+            shared_data_dict.update(
+                {
+                    "html_code": html_code,
+                    "repo_name": repo_name,
+                    "css_code": load_css(),
+                }
+            )
+            print("Starting flask server from GUI")
+            gui_window.write_event_value(Keys.start_flask_server, shared_data_dict)
+    else:
+        log("No html code to show")
 
 
-def write_repo_output(  # pylint: disable=too-many-locals
+def process_repo_output(  # pylint: disable=too-many-locals
     args: Args,
     repo: GIRepo,
     len_repos: int,  # Total number of repositories being analyzed
     outfile_base: str,
-    gui_window: sg.Window | None = None,
 ) -> tuple[
     list[FileStr],  # Files to log
     FileStr,  # File to open
@@ -339,21 +318,57 @@ def write_repo_output(  # pylint: disable=too-many-locals
     # statement has already been executed.
     out_format = formats[0]
 
-    if len_repos == 1 and out_format == "auto" and gui_window:
-        html_code = get_repo_html(repo, args.blame_skip)
-        gui_window.write_event_value(Keys.open_webview, (html_code, repo.name))
-        return [], "", ("", "")
-
+    # Determine the file to open and webview data based on the output format and number
+    # of repositories.
     file_to_open, webview_data = get_output_file_and_webview_data(
         args, repo, len_repos, outfilestr, out_format
     )
-
     return files_to_log, file_to_open, webview_data
+
+
+def process_unicore_repos(
+    args: Args,
+    repo_lists: list[list[GIRepo]],
+    len_repos: int,
+    outfile_base: FileStr,
+    start_time: float,
+) -> None:
+    """Processes repositories on a single core.
+
+    Outputs repositories in batches, where each batch contains repositories
+    from a single folder.
+
+    Args:
+        args: Command-line arguments.
+        repo_lists: List of lists of repositories to process.
+        len_repos: Total number of repositories.
+        outfile_base: Base name for output files.
+        gui_window: GUI window instance, if any.
+        start_time: Start time of the process.
+        shared_data: Shared data dictionary for inter-process communication.
+    """
+
+    count = 1
+    runs = 0
+    while repo_lists:
+        # output a batch of repos from the same folder in a single run
+        repos = repo_lists.pop(0)
+        count, files_to_open = process_unicore_repo_batch(
+            args,
+            repos,
+            len_repos,
+            outfile_base,
+            count,
+        )
+        runs += 1
+    log_end_time(start_time)
+    if runs == 1 and files_to_open:  # type: ignore
+        open_files(files_to_open)
 
 
 def get_output_file_and_webview_data(
     args: Args, repo: GIRepo, len_repos: int, outfilestr: str, out_format: str
-):
+) -> tuple[FileStr, tuple[Html, str]]:
     file_to_open: FileStr = ""
     webview_data: tuple[str, str] = "", ""
     if len_repos == 1:
@@ -376,13 +391,12 @@ def get_output_file_and_webview_data(
 
 
 # Process multiple repos on a single core.
-def process_multirepos_unicore(
+def process_unicore_repo_batch(
     args: Args,
     repos: list[GIRepo],
     len_repos: int,
     outfile_base: str,
     count: int,
-    gui_window: sg.Window | None,
 ) -> tuple[int, list[FileStr]]:
     log("Output in folder " + str(repos[0].path.parent))
     with ThreadPoolExecutor(max_workers=5) as thread_executor:
@@ -402,18 +416,17 @@ def process_multirepos_unicore(
                 if dry_run == 1:
                     log("")
                 else:  # dry_run == 0
-                    _, file_to_open, _ = write_repo_output(
+                    _, file_to_open, _ = process_repo_output(
                         args,
                         repo,
                         len_repos,
                         outfile_base,
-                        gui_window,
                     )
                     if file_to_open:
                         if platform.system() == "Windows":
                             # Windows cannot open multiple files at once in a
                             # browser, so files are opened one by one.
-                            open_files([file_to_open], args.blame_history)
+                            open_files([file_to_open])
                         else:
                             files_to_open.append(file_to_open)
             count += 1
@@ -421,23 +434,21 @@ def process_multirepos_unicore(
 
 
 # Process multiple repositories in case len(repos) > 1 on multiple cores.
-def process_multirepos_multicore(
+def process_multicore_repos(
     args: Args,
     repo_lists: list[list[GIRepo]],
     len_repos: int,
     outfile_base: FileStr,
-    gui_window: sg.Window | None,
     start_time: float,
-):
+) -> None:
     with ProcessPoolExecutor() as process_executor:
         future_to_repo = {
             process_executor.submit(
-                process_repo_in_process_pool,
+                process_multicore_repo,
                 args,
                 repo,
                 len_repos,
                 outfile_base,
-                gui_window,
             ): repo
             for repos in repo_lists
             for repo in repos
@@ -464,12 +475,11 @@ def process_multirepos_multicore(
         log_end_time(start_time)
 
 
-def process_repo_in_process_pool(
+def process_multicore_repo(
     args: Args,
     repo: GIRepo,
     len_repos: int,
     outfile_base: str,
-    gui_window: sg.Window | None,
 ) -> tuple[bool, list[FileStr]]:
     init_classes(args)
     with ThreadPoolExecutor(max_workers=5) as thread_executor:
@@ -479,11 +489,10 @@ def process_repo_in_process_pool(
         if dry_run <= 1:
             stats_found = repo.run(thread_executor)
         if dry_run == 0 and stats_found:
-            files_to_log, _, _ = write_repo_output(
+            files_to_log, _, _ = process_repo_output(
                 args,
                 repo,
                 len_repos,
                 outfile_base,
-                gui_window,
             )
     return stats_found, files_to_log
