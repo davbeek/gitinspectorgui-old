@@ -52,28 +52,6 @@ def load_table(table_id) -> Html:
         )
 
 
-@app.route("/increment-tabs", methods=["POST"])
-def increment_tabs() -> str:
-    global active_tabs
-    with active_tabs_lock:
-        active_tabs += 1
-    return "Tab count incremented"
-
-
-@app.route("/decrement-tabs", methods=["POST"])
-def decrement_tabs() -> str:
-    global active_tabs
-    with active_tabs_lock:
-        active_tabs -= 1
-        if active_tabs <= 0:
-            shutdown_server = request.environ.get("werkzeug.server.shutdown")
-            if shutdown_server is not None:
-                shutdown_server()
-            else:
-                os._exit(0)
-    return "Tab count decremented"
-
-
 @app.route("/shutdown", methods=["POST"])
 def shutdown() -> str:
     shutdown_server = request.environ.get("werkzeug.server.shutdown")

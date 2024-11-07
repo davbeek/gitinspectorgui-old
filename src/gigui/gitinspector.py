@@ -26,11 +26,6 @@ from gigui.keys import Keys
 from gigui.output import stat_rows
 from gigui.output.blame_rows import BlameBaseRows
 from gigui.output.excel import Book
-from gigui.output.flask_server import (
-    load_css,
-    open_web_browser_for_flask_server,
-    start_flask_server_in_thread_with_html,
-)
 from gigui.output.html import (
     BlameBaseTableSoup,
     BlameTablesSoup,
@@ -38,6 +33,11 @@ from gigui.output.html import (
     get_repo_html,
 )
 from gigui.output.stat_rows import TableRows
+from gigui.output.werkzeug_server import (
+    load_css,
+    open_web_browser_for_werkzeug_server,
+    start_werkzeug_server_in_thread_with_html,
+)
 from gigui.repo import GIRepo, get_repos, total_len
 from gigui.repo_reader import RepoReader
 from gigui.typedefs import FileStr, Html
@@ -225,8 +225,8 @@ def process_unicore_repo(
             open_webview(html_code, repo_name)
         else:  # args.blame_history == DYNAMIC
             try:
-                open_web_browser_for_flask_server()
-                server_thread = start_flask_server_in_thread_with_html(
+                open_web_browser_for_werkzeug_server()
+                server_thread = start_werkzeug_server_in_thread_with_html(
                     html_code, repo_name, load_css()
                 )
                 server_thread.join()  # Wait for the server thread to finish

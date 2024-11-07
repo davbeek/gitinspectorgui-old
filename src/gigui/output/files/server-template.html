@@ -241,17 +241,12 @@
     <script>
         let serverActive = true;
 
-        // Increment the tab count when the page loads
-        window.addEventListener('load', function () {
-            fetch('/increment-tabs', { method: 'POST' });
-        });
-
-        // Decrement the tab count when the page unloads
-        window.addEventListener('beforeunload', function () {
-            if (serverActive) {
-                navigator.sendBeacon('/decrement-tabs');
-            }
-        });
+        // Remove or comment out the beforeunload event to prevent server shutdown
+        // window.addEventListener('beforeunload', function () {
+        //     if (serverActive) {
+        //         navigator.sendBeacon('/shutdown');
+        //     }
+        // });
     </script>
 </body>
 
