@@ -1,14 +1,16 @@
 import logging
+import multiprocessing
 import re
-import threading
-import webbrowser
+import time
+
+# import webbrowser
+from multiprocessing import Process, Queue
 from pathlib import Path
 
 import requests  # type: ignore
-from werkzeug.exceptions import HTTPException, NotFound
 from werkzeug.routing import Map, Rule
-from werkzeug.serving import make_server
-from werkzeug.wrappers import Response
+from werkzeug.serving import run_simple
+from werkzeug.wrappers import Request, Response
 
 from gigui import shared_data
 from gigui.constants import DYNAMIC, STATIC
@@ -53,18 +55,11 @@ def on_load_table(table_id) -> Response:
         )
 
 
-def on_shutdown() -> Response:
-    print("on_shutdown called")
-    if server is not None:
-        server.shutdown()
-    return Response("Server shutting down...", content_type="text/plain")
-
-
 def on_serve_initial_html() -> Response:
-    print("on_serve_initial_html called")
     """
     Serve the initial HTML code when the server is accessed.
     """
+    print("on_serve_initial_html called")
     html_code = f"""
     <html>
     <head>
@@ -80,81 +75,39 @@ def on_serve_initial_html() -> Response:
     return response
 
 
-def application(environ, start_response):
-    print("application called")
-    urls = url_map.bind_to_environ(environ)
-    try:
-        endpoint, args = urls.match()
-        print(f"Matched endpoint: {endpoint}, args: {args}")
-        if endpoint == "load_table":
-            response = on_load_table(**args)
-        elif endpoint == "shutdown":
-            response = on_shutdown()
-        elif endpoint == "serve_initial_html":
-            response = on_serve_initial_html()
-        else:
-            response = NotFound()
-    except HTTPException as e:
-        response = e
-    return response(environ, start_response)
+def send_terminate_token() -> None:
+    url = "http://localhost:8080/?token=xyz123"  # token value xyz123 doesn't matter
+    requests.get(url, timeout=1)  # Added timeout argument
 
 
-def start_werkzeug_server() -> None:
-    global server
-    if server is None:
-        print("Starting Werkzeug server")
-        server = make_server("localhost", 8080, application)
-        server.serve_forever()
-    else:
-        print("Werkzeug server already running")
-
-
-def start_werkzeug_server_in_thread() -> threading.Thread:
-    global server
-    print("Starting Werkzeug server in thread")
-    server_thread = threading.Thread(target=start_werkzeug_server)
-    server_thread.daemon = (
-        True  # This ensures the thread will exit when the main program exits
-    )
-    server_thread.start()
-    return server_thread
-
-
-def start_werkzeug_server_in_thread_with_html(
+def start_werkzeug_server_in_process_with_html(
     html_code: Html, repo_name: str, css_code: str
-) -> threading.Thread:
-    print(
-        f"start_werkzeug_server_in_thread_with_html called with repo_name: {repo_name}"
-    )
+) -> None:
+    print(f"Start werkzeug sever with html called for repo: {repo_name}")
     shared_data.html_code = html_code
     shared_data.repo_name = repo_name
     shared_data.css_code = css_code
 
-    # if server is None:
-    return start_werkzeug_server_in_thread()
+    process_queue: Queue = Queue()
+    server_process: Process = Process(target=get_token, args=(process_queue,))
+    server_process.start()
+
+    # Add a delay to ensure the server is up and running
+    time.sleep(1)
+
+    send_terminate_token()
+
+    process_queue.get(block=True)
+    server_process.terminate()
 
 
-def shutdown_werkzeug_server() -> None:
-    print("shutdown_werkzeug_server called")
-    try:
-        response = requests.post("http://127.0.0.1:8080/shutdown", timeout=5)
-        if response.status_code == 200:
-            logger.info("Werkzeug server shut down successfully.")
-        else:
-            logger.error(f"Failed to shut down Werkzeug server: {response.status_code}")
-    except requests.exceptions.ConnectionError:
-        logger.warning("Werkzeug server is not running.")
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Error shutting down Werkzeug server: {e}")
+def get_token(q: multiprocessing.Queue) -> None:
+    @Request.application
+    def app(request: Request) -> Response:
+        q.put(request.args["token"])
+        return Response("", 204)
 
-
-def open_web_browser_for_werkzeug_server() -> None:
-    """
-    Open the default web browser to display the HTML code served by the Werkzeug server.
-    """
-    print("Opening web browser for Werkzeug server")
-    url = "http://localhost:8080"
-    webbrowser.open(url)
+    run_simple("localhost", 8080, app)
 
 
 def load_css() -> str:

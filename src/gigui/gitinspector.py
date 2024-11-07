@@ -35,8 +35,7 @@ from gigui.output.html import (
 from gigui.output.stat_rows import TableRows
 from gigui.output.werkzeug_server import (
     load_css,
-    open_web_browser_for_werkzeug_server,
-    start_werkzeug_server_in_thread_with_html,
+    start_werkzeug_server_in_process_with_html,
 )
 from gigui.repo import GIRepo, get_repos, total_len
 from gigui.repo_reader import RepoReader
@@ -225,11 +224,10 @@ def process_unicore_repo(
             open_webview(html_code, repo_name)
         else:  # args.blame_history == DYNAMIC
             try:
-                open_web_browser_for_werkzeug_server()
-                server_thread = start_werkzeug_server_in_thread_with_html(
+                start_werkzeug_server_in_process_with_html(
                     html_code, repo_name, load_css()
                 )
-                server_thread.join()  # Wait for the server thread to finish
+                # server_process.join()  # Wait for the server process to finish
             except KeyboardInterrupt:
                 os._exit(0)
     elif html_code and gui_window:  # format must be "auto"

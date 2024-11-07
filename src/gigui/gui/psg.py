@@ -38,10 +38,7 @@ from gigui.gui.psg_support import (
 )
 from gigui.gui.psg_window import make_window
 from gigui.keys import Keys
-from gigui.output.werkzeug_server import (
-    open_web_browser_for_werkzeug_server,
-    start_werkzeug_server_in_thread_with_html,
-)
+from gigui.output.werkzeug_server import start_werkzeug_server_in_process_with_html
 from gigui.tiphelp import Help, Tip
 from gigui.utils import open_webview, str_split_comma
 
@@ -232,12 +229,12 @@ def run_inner(settings: Settings) -> bool:
 
             case keys.start_flask_server:
                 shared_data_dict: DictProxy = values[event]
-                open_web_browser_for_werkzeug_server()
-                start_werkzeug_server_in_thread_with_html(
+                start_werkzeug_server_in_process_with_html(
                     shared_data_dict["html_code"],
                     shared_data_dict["repo_name"],
                     shared_data_dict["css_code"],
                 )
+                # server_process.join()  # Wait for the server process to finish
     return recreate_window
 
 
