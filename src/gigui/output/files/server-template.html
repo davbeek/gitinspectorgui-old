@@ -230,23 +230,15 @@
     </script>
 
     <script>
-        // Set the base URL for the Flask server
-        document.addEventListener("DOMContentLoaded", function () {
-            const baseUrl = window.location.origin;
-            console.log(`Base URL: ${baseUrl}`);
-            // Use the base URL in your fetch requests or other dynamic URLs
+        window.addEventListener('beforeunload', function () {
+            // Dynamically determine the port number from the current URL
+            const port = window.location.port;
+            console.log(`Attempting to send shutdown request to port: ${port}`);
+            // Make an HTTP request to the custom endpoint to trigger send_terminate_token
+            const url = `http://localhost:${port}/shutdown`;
+            const data = new Blob([], { type: 'application/x-www-form-urlencoded' });
+            navigator.sendBeacon(url, data);
         });
-    </script>
-
-    <script>
-        let serverActive = true;
-
-        // Remove or comment out the beforeunload event to prevent server shutdown
-        // window.addEventListener('beforeunload', function () {
-        //     if (serverActive) {
-        //         navigator.sendBeacon('/shutdown');
-        //     }
-        // });
     </script>
 </body>
 
