@@ -5,7 +5,6 @@ import sys
 import time
 from datetime import datetime
 from multiprocessing import Process
-from multiprocessing.managers import DictProxy  # type: ignore[import]
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +17,7 @@ from gigui.constants import (
     AVAILABLE_FORMATS,
     DEBUG_SHOW_MAIN_EVENT_LOOP,
     DEFAULT_EXTENSIONS,
+    DYNAMIC,
 )
 from gigui.gitinspector import main as gitinspector_main
 from gigui.gui.psg_support import (
@@ -38,7 +38,6 @@ from gigui.gui.psg_support import (
 )
 from gigui.gui.psg_window import make_window
 from gigui.keys import Keys
-from gigui.output.werkzeug_main import start_werkzeug_server_in_process_with_html
 from gigui.tiphelp import Help, Tip
 from gigui.utils import open_webview, str_split_comma
 
@@ -227,14 +226,6 @@ def run_inner(settings: Settings) -> bool:
                 webview_process.daemon = True
                 webview_process.start()
 
-            case keys.start_flask_server:
-                shared_data_dict: DictProxy = values[event]
-                start_werkzeug_server_in_process_with_html(
-                    shared_data_dict["html_code"],
-                    shared_data_dict["repo_name"],
-                    shared_data_dict["css_code"],
-                )
-                # server_process.join()  # Wait for the server process to finish
     return recreate_window
 
 
@@ -259,6 +250,10 @@ def execute(  # pylint: disable=too-many-branches
 
     if not state.outfile_base:
         popup("Error", "Output file base empty")
+        return
+
+    if values[keys.blame_history] == DYNAMIC:
+        popup("Error", "Dynmic blame history not supported in GUI")
         return
 
     args = Args()

@@ -4,8 +4,6 @@ import os
 import platform
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from cProfile import Profile
-from multiprocessing import Manager
-from multiprocessing.managers import DictProxy, SyncManager
 from pathlib import Path
 
 import PySimpleGUI as sg  # type: ignore
@@ -60,8 +58,6 @@ def main(args: Args, start_time: float, gui_window: sg.Window | None = None) -> 
         profiler = Profile()
         profiler.enable()
 
-    manager: SyncManager
-
     logger.info(f"{args = }")
     init_classes(args)
     repo_lists: list[list[GIRepo]] = []
@@ -100,10 +96,6 @@ def main(args: Args, start_time: float, gui_window: sg.Window | None = None) -> 
     if not args.format:
         args.format = [DEFAULT_FORMAT]
 
-    # Create a Manager for synchronization between gui and flask server
-    manager = Manager()
-    shared_data_dict: DictProxy[str, str] = manager.dict()
-
     # Process a single repository
     if len_repos == 1:
         process_unicore_repo(
@@ -112,7 +104,6 @@ def main(args: Args, start_time: float, gui_window: sg.Window | None = None) -> 
             outfile_base,
             gui_window,
             start_time,
-            shared_data_dict,
         )
         return
 
@@ -188,7 +179,6 @@ def process_unicore_repo(
     outfile_base: str,
     gui_window: sg.Window | None,
     start_time: float,
-    shared_data_dict: DictProxy,
 ) -> None:
     # Process a single repository in case len(repos) == 1 which also means on a single core.
 
@@ -234,15 +224,7 @@ def process_unicore_repo(
         if args.blame_history in {STATIC, NONE}:
             gui_window.write_event_value(Keys.open_webview, (html_code, repo.name))
         else:  # args.blame_history == DYNAMIC
-            shared_data_dict.update(
-                {
-                    "html_code": html_code,
-                    "repo_name": repo_name,
-                    "css_code": load_css(),
-                }
-            )
-            print("Starting flask server from GUI")
-            gui_window.write_event_value(Keys.start_flask_server, shared_data_dict)
+            logger.error("Dynamic blame history is not supported in GUI mode.")
     else:
         log("No html code to show")
 

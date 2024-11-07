@@ -48,9 +48,8 @@ class Keys(KeysArgs):
     # Logging
     log: str = "log"
     debug: str = "debug"
-    # Opening view and flask server
+    # Opening webview
     open_webview: str = "open_webview"
-    start_flask_server: str = "start_flask_server"
     # Complete settings column
     config_column: str = "config_column"
     # Top row
