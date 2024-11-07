@@ -4,8 +4,8 @@ import webbrowser
 from multiprocessing import Process, Queue
 from pathlib import Path
 
-from gigui import shared_data
 from gigui.constants import DYNAMIC, STATIC
+from gigui.output import html  # to use the shared global variable current_repo
 from gigui.output.blame_rows import BlameHistoryRows
 from gigui.output.html import BlameHistoryStaticTableSoup, BlameTableSoup, logger
 from gigui.output.werkzeug_server import PORT, run_server
@@ -27,9 +27,9 @@ def start_werkzeug_server_in_process_with_html(
     shared_data_dict["html_code"] = html_code
     shared_data_dict["repo_name"] = repo_name
     shared_data_dict["css_code"] = css_code
-    shared_data_dict["blame_history"] = shared_data.current_repo.blame_history
-    shared_data_dict["fstrs"] = shared_data.current_repo.fstrs
-    shared_data_dict["nr2sha"] = shared_data.current_repo.nr2sha
+    shared_data_dict["blame_history"] = html.current_repo.blame_history
+    shared_data_dict["fstrs"] = html.current_repo.fstrs
+    shared_data_dict["nr2sha"] = html.current_repo.nr2sha
 
     # Start the server in a separate process and communicate with it via the queue and
     # shared data dictionary.
@@ -89,37 +89,33 @@ def load_css() -> str:
 
 # Runs in main process
 def get_fstr_commit_table(file_nr, commit_nr) -> Html:
-    rows, iscomments = BlameHistoryRows(
-        shared_data.current_repo
-    ).get_fstr_sha_blame_rows(
-        shared_data.current_repo.fstrs[file_nr],
-        shared_data.current_repo.nr2sha[commit_nr],
+    rows, iscomments = BlameHistoryRows(html.current_repo).get_fstr_sha_blame_rows(
+        html.current_repo.fstrs[file_nr],
+        html.current_repo.nr2sha[commit_nr],
         html=True,
     )
-    table = BlameHistoryStaticTableSoup(shared_data.current_repo).get_table(
-        rows, iscomments
-    )
-    html = str(table)
-    html = html.replace("&amp;nbsp;", "&nbsp;")
-    html = html.replace("&amp;lt;", "&lt;")
-    html = html.replace("&amp;gt;", "&gt;")
-    html = html.replace("&amp;quot;", "&quot;")
-    return html
+    table = BlameHistoryStaticTableSoup(html.current_repo).get_table(rows, iscomments)
+    html_code = str(table)
+    html_code = html_code.replace("&amp;nbsp;", "&nbsp;")
+    html_code = html_code.replace("&amp;lt;", "&lt;")
+    html_code = html_code.replace("&amp;gt;", "&gt;")
+    html_code = html_code.replace("&amp;quot;", "&quot;")
+    return html_code
 
 
 # Runs in main process
 def generate_fstr_commit_table(file_nr, commit_nr) -> Html:
-    fstr: FileStr = shared_data.current_repo.fstrs[file_nr]
-    sha: SHALong = shared_data.current_repo.nr2sha[commit_nr]
-    rows, iscomments = BlameHistoryRows(
-        shared_data.current_repo
-    ).generate_fstr_sha_blame_rows(fstr, sha, html=True)
-    table = BlameTableSoup(shared_data.current_repo).get_table(
+    fstr: FileStr = html.current_repo.fstrs[file_nr]
+    sha: SHALong = html.current_repo.nr2sha[commit_nr]
+    rows, iscomments = BlameHistoryRows(html.current_repo).generate_fstr_sha_blame_rows(
+        fstr, sha, html=True
+    )
+    table = BlameTableSoup(html.current_repo).get_table(
         rows, iscomments, file_nr, commit_nr
     )
-    html = str(table)
-    html = html.replace("&amp;nbsp;", "&nbsp;")
-    html = html.replace("&amp;lt;", "&lt;")
-    html = html.replace("&amp;gt;", "&gt;")
-    html = html.replace("&amp;quot;", "&quot;")
-    return html
+    html_code = str(table)
+    html_code = html_code.replace("&amp;nbsp;", "&nbsp;")
+    html_code = html_code.replace("&amp;lt;", "&lt;")
+    html_code = html_code.replace("&amp;gt;", "&gt;")
+    html_code = html_code.replace("&amp;quot;", "&quot;")
+    return html_code

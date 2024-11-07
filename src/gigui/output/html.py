@@ -5,7 +5,6 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup, Tag
 
-from gigui import shared_data
 from gigui.constants import DYNAMIC, NONE, STATIC
 from gigui.output.blame_rows import (
     BlameHistoryRows,
@@ -68,6 +67,10 @@ BG_AUTHOR_COLORS: list[str] = [
 BG_ROW_COLORS: list[str] = ["bg-row-light-green", "bg-white"]
 
 logger = logging.getLogger(__name__)
+
+# Global definition of the current repository. Defined in this module instead of in
+# shared_data to prevent circular imports.
+current_repo: GIRepo
 
 
 class TableRootSoup:
@@ -492,7 +495,8 @@ def get_repo_html(
     Generate html with complete analysis results of the provided repository.
     """
 
-    shared_data.current_repo = repo
+    global current_repo
+    current_repo = repo
 
     # Load the template file.
     module_dir = Path(__file__).resolve().parent
