@@ -38,7 +38,7 @@ from gigui.gui.psg_support import (
 )
 from gigui.gui.psg_window import make_window
 from gigui.keys import Keys
-from gigui.output.werkzeug_server import start_werkzeug_server_in_process_with_html
+from gigui.output.werkzeug_main import start_werkzeug_server_in_process_with_html
 from gigui.tiphelp import Help, Tip
 from gigui.utils import open_webview, str_split_comma
 

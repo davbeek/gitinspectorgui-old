@@ -42,24 +42,6 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
-        // Function to dynamically load the CSS content from the global variable css_code
-        function loadCustomCSS() {
-            var cssCode = `{{ css_code | safe }}`;
-            var styleTag = document.querySelector('style');
-            if (styleTag) {
-                styleTag.innerHTML = cssCode;
-            } else {
-                styleTag = document.createElement('style');
-                styleTag.innerHTML = cssCode;
-                document.head.appendChild(styleTag);
-            }
-        }
-
-        // Call the function to load the custom CSS
-        loadCustomCSS();
-    </script>
-
-    <script>
         // Adjust the top position of the header rows based on the height of the tab row
         window.addEventListener('load', function () {
             var tabRow = document.getElementById('tabRow');

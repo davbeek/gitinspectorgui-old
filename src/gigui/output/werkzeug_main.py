@@ -1,0 +1,125 @@
+import multiprocessing
+import re
+import webbrowser
+from multiprocessing import Process, Queue
+from pathlib import Path
+
+from gigui import shared_data
+from gigui.constants import DYNAMIC, STATIC
+from gigui.output.blame_rows import BlameHistoryRows
+from gigui.output.html import BlameHistoryStaticTableSoup, BlameTableSoup, logger
+from gigui.output.werkzeug_server import PORT, run_server
+from gigui.typedefs import FileStr, Html, SHALong
+
+server = None  # pylint: disable=invalid-name
+
+
+# This the main function that is called from the main process to start the server.
+# It starts the server in a separate process and communicates with it via a queue.
+# It also opens the web browser to serve the initial contents.
+# The server process is terminated when the main process receives a shutdown request via
+# the queue.
+def start_werkzeug_server_in_process_with_html(
+    html_code: Html, repo_name: str, css_code: str
+) -> None:
+    manager = multiprocessing.Manager()
+    shared_data_dict = manager.dict()
+    shared_data_dict["html_code"] = html_code
+    shared_data_dict["repo_name"] = repo_name
+    shared_data_dict["css_code"] = css_code
+    shared_data_dict["blame_history"] = shared_data.current_repo.blame_history
+    shared_data_dict["fstrs"] = shared_data.current_repo.fstrs
+    shared_data_dict["nr2sha"] = shared_data.current_repo.nr2sha
+
+    # Start the server in a separate process and communicate with it via the queue and
+    # shared data dictionary.
+    # The target function get_token is the main process of the server process.
+    process_queue: Queue = Queue()
+    server_process: Process = Process(
+        target=run_server, args=(process_queue, shared_data_dict)
+    )
+    server_process.start()
+
+    # Open the web browser to serve the initial contents
+    webbrowser.open(f"http://localhost:{PORT}")
+
+    while True:
+        request = process_queue.get()
+        if request == "shutdown":
+            break
+        if request[0] == "load_table":
+            table_id = request[1]
+            table_html = handle_load_table(table_id, shared_data_dict)
+            process_queue.put(table_html)
+        else:
+            print(f"Unknown request: {request}")
+
+    server_process.terminate()
+
+
+# Runs in main process
+def handle_load_table(table_id, shared_data_dict) -> Html:
+    # Extract file_nr and commit_nr from table_id
+    table_html: Html = ""
+    match = re.match(r"file-(\d+)-sha-(\d+)", table_id)
+    if match:
+        file_nr = int(match.group(1))
+        commit_nr = int(match.group(2))
+        blame_history = shared_data_dict["blame_history"]
+        if blame_history == STATIC:
+            table_html = get_fstr_commit_table(file_nr, commit_nr)
+        elif blame_history == DYNAMIC:
+            table_html = generate_fstr_commit_table(file_nr, commit_nr)
+        else:  # NONE
+            table_html = "Blame history is not enabled."
+            logger.error("Error in blame history option: blame history is not enabled.")
+    else:
+        table_html = (
+            "Invalid table_id, should have the format 'file-<file_nr>-sha-<commit_nr>'"
+        )
+    return table_html
+
+
+# Is called by main process
+def load_css() -> str:
+    css_file = Path(__file__).parent / "files" / "styles.css"
+    with open(css_file, "r", encoding="utf-8") as f:
+        return f.read()
+
+
+# Runs in main process
+def get_fstr_commit_table(file_nr, commit_nr) -> Html:
+    rows, iscomments = BlameHistoryRows(
+        shared_data.current_repo
+    ).get_fstr_sha_blame_rows(
+        shared_data.current_repo.fstrs[file_nr],
+        shared_data.current_repo.nr2sha[commit_nr],
+        html=True,
+    )
+    table = BlameHistoryStaticTableSoup(shared_data.current_repo).get_table(
+        rows, iscomments
+    )
+    html = str(table)
+    html = html.replace("&amp;nbsp;", "&nbsp;")
+    html = html.replace("&amp;lt;", "&lt;")
+    html = html.replace("&amp;gt;", "&gt;")
+    html = html.replace("&amp;quot;", "&quot;")
+    return html
+
+
+# Runs in main process
+def generate_fstr_commit_table(file_nr, commit_nr) -> Html:
+    fstr: FileStr = shared_data.current_repo.fstrs[file_nr]
+    sha: SHALong = shared_data.current_repo.nr2sha[commit_nr]
+    rows, iscomments = BlameHistoryRows(
+        shared_data.current_repo
+    ).generate_fstr_sha_blame_rows(fstr, sha, html=True)
+    table = BlameTableSoup(shared_data.current_repo).get_table(
+        rows, iscomments, file_nr, commit_nr
+    )
+    html = str(table)
+    html = html.replace("&amp;nbsp;", "&nbsp;")
+    html = html.replace("&amp;lt;", "&lt;")
+    html = html.replace("&amp;gt;", "&gt;")
+    html = html.replace("&amp;quot;", "&quot;")
+    return html
