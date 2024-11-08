@@ -1,5 +1,6 @@
 import multiprocessing
 import re
+import socket
 import webbrowser
 from multiprocessing import Process, Queue
 from multiprocessing.managers import DictProxy, SyncManager
@@ -39,17 +40,21 @@ def start_werkzeug_server_in_process_with_html(
     shared_data_dict["fstrs"] = html.current_repo.fstrs
     shared_data_dict["nr2sha"] = html.current_repo.nr2sha
 
+    port: int = PORT
+    while is_port_in_use(port):
+        port += 1
+
     try:
         # Start the server in a separate process and communicate with it via the queue and
         # shared data dictionary.
         # The target function get_token is the main process of the server process.
         server_process = Process(
-            target=run_server, args=(process_queue, shared_data_dict)
+            target=run_server, args=(process_queue, shared_data_dict, port)
         )
         server_process.start()
 
         # Open the web browser to serve the initial contents
-        webbrowser.open(f"http://localhost:{PORT}")
+        webbrowser.open(f"http://localhost:{port}")
 
         while True:
             request = process_queue.get()
@@ -66,6 +71,13 @@ def start_werkzeug_server_in_process_with_html(
     except Exception as e:
         server_process.terminate()  # type: ignore #
         raise e
+
+
+def is_port_in_use(port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        in_use: bool = s.connect_ex(("localhost", port)) == 0
+        print(f"Port {port} is in use: {in_use}")
+        return in_use
 
 
 # Runs in main process

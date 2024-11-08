@@ -24,7 +24,7 @@ url_map = Map(
 # This is the main function that runs on the server. It catches all requests from
 # javascript and either calls server functions defined here, or sends the requests to
 # the main process via the queue.
-def run_server(q: multiprocessing.Queue, shared_data_dict) -> None:
+def run_server(q: multiprocessing.Queue, shared_data_dict, port: int) -> None:
     @Request.application
     def app(request: Request) -> Response:
         if request.path == "/":
@@ -46,7 +46,7 @@ def run_server(q: multiprocessing.Queue, shared_data_dict) -> None:
         else:
             return Response("Not found", status=404)
 
-    run_simple("localhost", PORT, app)
+    run_simple("localhost", port, app)
 
 
 # Runs in server process
