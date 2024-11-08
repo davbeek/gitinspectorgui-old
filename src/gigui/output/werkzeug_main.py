@@ -1,6 +1,7 @@
 import multiprocessing
 import re
 import socket
+import time  # Add this import
 import webbrowser
 from multiprocessing import Process, Queue
 from multiprocessing.managers import DictProxy, SyncManager
@@ -52,6 +53,9 @@ def start_werkzeug_server_in_process_with_html(
             target=run_server, args=(process_queue, shared_data_dict, port)
         )
         server_process.start()
+
+        # Add a small delay to ensure the server is fully started
+        time.sleep(0.2)
 
         # Open the web browser to serve the initial contents
         webbrowser.open(f"http://localhost:{port}")
