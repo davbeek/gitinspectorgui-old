@@ -32,7 +32,10 @@ def run_server(q: multiprocessing.Queue, shared_data_dict) -> None:
 
         elif request.path == "/shutdown":
             q.put("shutdown")  # value "shutdown" doesn't matter, send to main process
-            return Response("Server is shutting down", content_type="text/plain")
+            return Response(
+                "Server is shutting down",
+                content_type="text/plain",
+            )  # Response is sent to the client browser, but in this case it doesn't matter
 
         elif request.path.startswith("/load-table/"):
             table_id = request.path.split("/")[-1]

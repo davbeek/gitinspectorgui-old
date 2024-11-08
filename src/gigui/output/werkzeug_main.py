@@ -2,6 +2,7 @@ import multiprocessing
 import re
 import webbrowser
 from multiprocessing import Process, Queue
+from multiprocessing.managers import DictProxy, SyncManager
 from pathlib import Path
 
 from gigui.constants import DYNAMIC, STATIC
@@ -22,7 +23,14 @@ server = None  # pylint: disable=invalid-name
 def start_werkzeug_server_in_process_with_html(
     html_code: Html, repo_name: str, css_code: str
 ) -> None:
+    server_process: Process
+    process_queue: Queue
+    manager: SyncManager
+    shared_data_dict: DictProxy
+
+    process_queue = Queue()
     manager = multiprocessing.Manager()
+
     shared_data_dict = manager.dict()
     shared_data_dict["html_code"] = html_code
     shared_data_dict["repo_name"] = repo_name
@@ -31,30 +39,33 @@ def start_werkzeug_server_in_process_with_html(
     shared_data_dict["fstrs"] = html.current_repo.fstrs
     shared_data_dict["nr2sha"] = html.current_repo.nr2sha
 
-    # Start the server in a separate process and communicate with it via the queue and
-    # shared data dictionary.
-    # The target function get_token is the main process of the server process.
-    process_queue: Queue = Queue()
-    server_process: Process = Process(
-        target=run_server, args=(process_queue, shared_data_dict)
-    )
-    server_process.start()
+    try:
+        # Start the server in a separate process and communicate with it via the queue and
+        # shared data dictionary.
+        # The target function get_token is the main process of the server process.
+        server_process = Process(
+            target=run_server, args=(process_queue, shared_data_dict)
+        )
+        server_process.start()
 
-    # Open the web browser to serve the initial contents
-    webbrowser.open(f"http://localhost:{PORT}")
+        # Open the web browser to serve the initial contents
+        webbrowser.open(f"http://localhost:{PORT}")
 
-    while True:
-        request = process_queue.get()
-        if request == "shutdown":
-            break
-        if request[0] == "load_table":
-            table_id = request[1]
-            table_html = handle_load_table(table_id, shared_data_dict)
-            process_queue.put(table_html)
-        else:
-            print(f"Unknown request: {request}")
+        while True:
+            request = process_queue.get()
+            if request == "shutdown":
+                break
+            if request[0] == "load_table":
+                table_id = request[1]
+                table_html = handle_load_table(table_id, shared_data_dict)
+                process_queue.put(table_html)
+            else:
+                print(f"Unknown request: {request}")
 
-    server_process.terminate()
+        server_process.terminate()
+    except Exception as e:
+        server_process.terminate()  # type: ignore #
+        raise e
 
 
 # Runs in main process

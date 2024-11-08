@@ -36,8 +36,6 @@ packages = [{ include = "gigui", from = "src" }]
 [tool.poetry.dependencies]
 bs4 = "*"
 colorlog = "*"
-flask = "^3.0.3"
-flask-cors = "^5.0.0"
 gitpython = ">=3.1.30"
 jinja2 = "*"
 jsonschema = "*"
@@ -45,6 +43,7 @@ platformdirs = "*"
 pysimplegui-4-foss = "^4.60.4.1"
 python = ">=3.12.4,<3.13"
 pywebview = "^5.2"
+werkzeug = "^3.1.2"
 xlsxwriter = "*"
 
 [tool.poetry.group.dev.dependencies]
