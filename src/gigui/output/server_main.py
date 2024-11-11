@@ -11,7 +11,7 @@ from gigui.constants import DYNAMIC, STATIC
 from gigui.output import html  # to use the shared global variable current_repo
 from gigui.output.blame_rows import BlameHistoryRows
 from gigui.output.html import BlameHistoryStaticTableSoup, BlameTableSoup, logger
-from gigui.output.werkzeug_server import PORT, run_server
+from gigui.output.server import PORT, run_server
 from gigui.typedefs import FileStr, Html, SHALong
 
 server = None  # pylint: disable=invalid-name
@@ -80,7 +80,6 @@ def start_werkzeug_server_in_process_with_html(
 def is_port_in_use(port: int) -> bool:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         in_use: bool = s.connect_ex(("localhost", port)) == 0
-        print(f"Port {port} is in use: {in_use}")
         return in_use
 
 
@@ -109,7 +108,7 @@ def handle_load_table(table_id, shared_data_dict) -> Html:
 
 # Is called by main process
 def load_css() -> str:
-    css_file = Path(__file__).parent / "files" / "styles.css"
+    css_file = Path(__file__).parent / "static" / "styles.css"
     with open(css_file, "r", encoding="utf-8") as f:
         return f.read()
 

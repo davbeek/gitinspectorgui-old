@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title></title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+    </style>
+</head>
+
+<body>
+    <div style="margin-right: auto; margin-left: 0;">
+        <div class="sticky" id="tabRow" style="overflow-x: auto;">
+            <ul class="nav nav-tabs flex-nowrap" id="tab-buttons">
+                <li class="nav-item">
+                    <button class="nav-link active" id="authors-tab" data-bs-toggle="tab"
+                        data-bs-target="#authors">Authors</button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" id="authors-files-tab" data-bs-toggle="tab"
+                        data-bs-target="#authors-files">Authors-Files</button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" id="files-authors-tab" data-bs-toggle="tab"
+                        data-bs-target="#files-authors">Files-Authors</button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" id="files-tab" data-bs-toggle="tab" data-bs-target="#files">Files</button>
+                </li>
+            </ul>
+        </div>
+        <div class="tab-content" id="tab-contents">
+            <div class="tab-pane fade show active" id="authors"></div>
+            <div class="tab-pane fade" id="authors-files"></div>
+            <div class="tab-pane fade" id="files-authors"></div>
+            <div class="tab-pane fade" id="files"></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+
+</html>

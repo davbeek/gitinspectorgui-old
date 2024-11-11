@@ -30,11 +30,11 @@ from gigui.output.html import (
     TableSoup,
     get_repo_html,
 )
-from gigui.output.stat_rows import TableRows
-from gigui.output.werkzeug_main import (
+from gigui.output.server_main import (
     load_css,
     start_werkzeug_server_in_process_with_html,
 )
+from gigui.output.stat_rows import TableRows
 from gigui.repo import GIRepo, get_repos, total_len
 from gigui.repo_reader import RepoReader
 from gigui.typedefs import FileStr, Html

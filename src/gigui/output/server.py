@@ -1,5 +1,6 @@
 import logging
 import multiprocessing
+from pathlib import Path
 
 from werkzeug.routing import Map, Rule
 from werkzeug.serving import run_simple
@@ -63,5 +64,22 @@ def on_serve_initial_html(shared_data_dict) -> Response:
     html_code = html_code.replace(
         "</title>", f"{shared_data_dict['repo_name']}</title>"
     )
+
+    # Read and insert JavaScript files
+    js_files = [
+        "adjustHeader.js",
+        "updateRows.js",
+        "tabActivation.js",
+        "truncateTabNames.js",
+        "shutdown.js",
+    ]
+    js_code = ""
+    for js_file in js_files:
+        js_path = Path(__file__).parent / "static" / "js" / js_file
+        with open(js_path, "r", encoding="utf-8") as f:
+            js_code += f"<script>{f.read()}</script>\n"
+
+    html_code = html_code.replace("</body>", f"{js_code}</body>")
+
     response = Response(html_code, content_type="text/html; charset=utf-8")
     return response
