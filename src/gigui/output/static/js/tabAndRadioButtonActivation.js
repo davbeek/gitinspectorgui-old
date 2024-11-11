@@ -47,13 +47,16 @@ document.addEventListener("DOMContentLoaded", function () {
                 const tableId = radioButton.id.replace('button-', '');
                 const existingTable = tableContainer.querySelector(`table#${tableId}`);
 
+                // <%= browser_id %> will be replaced with the actual browser ID
+                const browserId = '<%= browser_id %>';
+
                 if (existingTable) {
                     // Show the existing table
                     existingTable.style.display = '';
                 } else {
                     // Fetch and insert the table if not already in the DOM
                     console.log(`Fetching table with id: ${tableId}`);
-                    fetch(`/load-table/${tableId}`)
+                    fetch(`/load-table/${tableId}?id=${browserId}`)
                         .then(response => response.text())
                         .then(html => {
                             const tempDiv = document.createElement('div');

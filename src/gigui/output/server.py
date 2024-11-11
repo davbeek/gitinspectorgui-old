@@ -47,9 +47,13 @@ def run_server(q: Queue, html_code: Html, browser_id: str, port: int) -> None:
 
         elif request.path.startswith("/load-table/"):
             table_id = request.path.split("/")[-1]
-            q.put(("load_table", table_id))  # Send to main process
-            table_html = q.get()  # Wait for response from main process
-            return Response(table_html, content_type="text/html")
+            load_table_id = request.args.get("id")
+            if load_table_id == browser_id:
+                q.put(("load_table", table_id, browser_id))  # Send to main process
+                table_html = q.get()  # Wait for response from main process
+                return Response(table_html, content_type="text/html")
+            else:
+                return Response("Invalid browser ID", status=403)
 
         else:
             return Response("Not found", status=404)

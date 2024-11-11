@@ -512,17 +512,17 @@ def get_repo_html(
     title_tag: Tag = soup.find(name="title")  # type: ignore
     title_tag.string = f"{repo.name} viewer"
 
-    # authors_tag: Tag = soup.find(id="authors")  # type: ignore
-    # authors_tag.append(AuthorsTableSoup(repo).get_table())
+    authors_tag: Tag = soup.find(id="authors")  # type: ignore
+    authors_tag.append(AuthorsTableSoup(repo).get_table())
 
-    # authors_files_tag: Tag = soup.find(id="authors-files")  # type: ignore
-    # authors_files_tag.append(AuthorsFilesTableSoup(repo).get_table())
+    authors_files_tag: Tag = soup.find(id="authors-files")  # type: ignore
+    authors_files_tag.append(AuthorsFilesTableSoup(repo).get_table())
 
-    # files_authors_tag: Tag = soup.find(id="files-authors")  # type: ignore
-    # files_authors_tag.append(FilesAuthorsTableSoup(repo).get_table())
+    files_authors_tag: Tag = soup.find(id="files-authors")  # type: ignore
+    files_authors_tag.append(FilesAuthorsTableSoup(repo).get_table())
 
-    # files_tag: Tag = soup.find(id="files")  # type: ignore
-    # files_tag.append(FilesTableSoup(repo).get_table())
+    files_tag: Tag = soup.find(id="files")  # type: ignore
+    files_tag.append(FilesTableSoup(repo).get_table())
 
     # Add blame output if not skipped.
     if not blame_skip:

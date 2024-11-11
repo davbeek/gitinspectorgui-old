@@ -52,7 +52,7 @@ def start_werkzeug_server_in_process_with_html(html_code: Html, css_code: str) -
             request = process_queue.get()
             if request[0] == "shutdown" and request[1] == browser_id:
                 break
-            if request[0] == "load_table":
+            if request[0] == "load_table" and request[2] == browser_id:
                 table_id = request[1]
                 table_html = handle_load_table(
                     table_id, html.current_repo.blame_history
@@ -98,6 +98,9 @@ def create_html_document(html_code: Html, css_code: str, browser_id: str) -> Htm
             js_code = f.read()
             if js_file == "shutdown.js":
                 # Insert the browser ID into the shutdown.js code
+                js_code = js_code.replace("<%= browser_id %>", browser_id)
+            elif js_file == "tabAndRadioButtonActivation.js":
+                # Insert the browser ID option into the js code
                 js_code = js_code.replace("<%= browser_id %>", browser_id)
 
             html_js_code += f"<script>{js_code}</script>\n"
