@@ -1,11 +1,10 @@
-import multiprocessing
 import re
 import socket
 import time  # Add this import
 import webbrowser
 from multiprocessing import Process, Queue
-from multiprocessing.managers import DictProxy, SyncManager
 from pathlib import Path
+from uuid import uuid4
 
 from gigui.constants import DYNAMIC, STATIC
 from gigui.output import html  # to use the shared global variable current_repo
@@ -14,32 +13,20 @@ from gigui.output.html import BlameHistoryStaticTableSoup, BlameTableSoup, logge
 from gigui.output.server import PORT, run_server
 from gigui.typedefs import FileStr, Html, SHALong
 
-server = None  # pylint: disable=invalid-name
-
 
 # This the main function that is called from the main process to start the server.
 # It starts the server in a separate process and communicates with it via a queue.
 # It also opens the web browser to serve the initial contents.
 # The server process is terminated when the main process receives a shutdown request via
 # the queue.
-def start_werkzeug_server_in_process_with_html(
-    html_code: Html, repo_name: str, css_code: str
-) -> None:
+def start_werkzeug_server_in_process_with_html(html_code: Html, css_code: str) -> None:
     server_process: Process
     process_queue: Queue
-    manager: SyncManager
-    shared_data_dict: DictProxy
 
     process_queue = Queue()
-    manager = multiprocessing.Manager()
+    browser_id = str(uuid4())[-12:]
 
-    shared_data_dict = manager.dict()
-    shared_data_dict["html_code"] = html_code
-    shared_data_dict["repo_name"] = repo_name
-    shared_data_dict["css_code"] = css_code
-    shared_data_dict["blame_history"] = html.current_repo.blame_history
-    shared_data_dict["fstrs"] = html.current_repo.fstrs
-    shared_data_dict["nr2sha"] = html.current_repo.nr2sha
+    html_code = create_html_document(html_code, css_code, browser_id)
 
     port: int = PORT
     while is_port_in_use(port):
@@ -48,9 +35,9 @@ def start_werkzeug_server_in_process_with_html(
     try:
         # Start the server in a separate process and communicate with it via the queue and
         # shared data dictionary.
-        # The target function get_token is the main process of the server process.
         server_process = Process(
-            target=run_server, args=(process_queue, shared_data_dict, port)
+            target=run_server,
+            args=(process_queue, html_code, browser_id, port),
         )
         server_process.start()
 
@@ -58,23 +45,65 @@ def start_werkzeug_server_in_process_with_html(
         time.sleep(0.2)
 
         # Open the web browser to serve the initial contents
-        webbrowser.open(f"http://localhost:{port}")
+        browser = webbrowser.get()
+        browser.open_new_tab(f"http://localhost:{port}")
 
         while True:
             request = process_queue.get()
-            if request == "shutdown":
+            if request[0] == "shutdown" and request[1] == browser_id:
                 break
             if request[0] == "load_table":
                 table_id = request[1]
-                table_html = handle_load_table(table_id, shared_data_dict)
+                table_html = handle_load_table(
+                    table_id, html.current_repo.blame_history
+                )
                 process_queue.put(table_html)
             else:
-                print(f"Unknown request: {request}")
+                logger.error(f"Unknown request: {request}")
 
         server_process.terminate()
+        server_process.join()  # Ensure the process is fully terminated
     except Exception as e:
-        server_process.terminate()  # type: ignore #
+        server_process.terminate()  # type: ignore
+        server_process.join()  # type: ignore # Ensure the process is fully terminated
+        print(f"Catching exception, before reraise: {e}")  # Print the error message
         raise e
+
+
+def create_html_document(html_code: Html, css_code: str, browser_id: str) -> Html:
+
+    # Prefix browser ID to the HTML title
+    html_code = html_code.replace("<title>", f"<title>{browser_id} - ")
+
+    # Insert CSS code
+    html_code = html_code.replace(
+        "</head>",
+        f"<style>{css_code}</style></head>",
+    )
+
+    # Read and insert JavaScript files
+    js_files = [
+        "adjustHeader.js",
+        "updateTableOnCodeButtonClick.js",
+        "tabAndRadioButtonActivation.js",
+        "truncateTabNames.js",
+        "generateRandomQuery.js",
+        "shutdown.js",
+    ]
+    html_js_code: Html = ""
+    js_code: str
+    for js_file in js_files:
+        js_path = Path(__file__).parent / "static" / "js" / js_file
+        with open(js_path, "r", encoding="utf-8") as f:
+            js_code = f.read()
+            if js_file == "shutdown.js":
+                # Insert the browser ID into the shutdown.js code
+                js_code = js_code.replace("<%= browser_id %>", browser_id)
+
+            html_js_code += f"<script>{js_code}</script>\n"
+
+    html_code = html_code.replace("</body>", f"{html_js_code}</body>")
+    return html_code
 
 
 def is_port_in_use(port: int) -> bool:
@@ -83,38 +112,27 @@ def is_port_in_use(port: int) -> bool:
         return in_use
 
 
-# Runs in main process
-def handle_load_table(table_id, shared_data_dict) -> Html:
+def handle_load_table(table_id: str, blame_history: str) -> Html:
     # Extract file_nr and commit_nr from table_id
     table_html: Html = ""
     match = re.match(r"file-(\d+)-sha-(\d+)", table_id)
     if match:
         file_nr = int(match.group(1))
         commit_nr = int(match.group(2))
-        blame_history = shared_data_dict["blame_history"]
         if blame_history == STATIC:
             table_html = get_fstr_commit_table(file_nr, commit_nr)
         elif blame_history == DYNAMIC:
             table_html = generate_fstr_commit_table(file_nr, commit_nr)
         else:  # NONE
-            table_html = "Blame history is not enabled."
-            logger.error("Error in blame history option: blame history is not enabled.")
+            logger.error("Error: blame history option is not enabled.")
     else:
-        table_html = (
+        logger.error(
             "Invalid table_id, should have the format 'file-<file_nr>-sha-<commit_nr>'"
         )
     return table_html
 
 
-# Is called by main process
-def load_css() -> str:
-    css_file = Path(__file__).parent / "static" / "styles.css"
-    with open(css_file, "r", encoding="utf-8") as f:
-        return f.read()
-
-
-# Runs in main process
-def get_fstr_commit_table(file_nr, commit_nr) -> Html:
+def get_fstr_commit_table(file_nr: int, commit_nr: int) -> Html:
     rows, iscomments = BlameHistoryRows(html.current_repo).get_fstr_sha_blame_rows(
         html.current_repo.fstrs[file_nr],
         html.current_repo.nr2sha[commit_nr],
@@ -129,8 +147,7 @@ def get_fstr_commit_table(file_nr, commit_nr) -> Html:
     return html_code
 
 
-# Runs in main process
-def generate_fstr_commit_table(file_nr, commit_nr) -> Html:
+def generate_fstr_commit_table(file_nr: int, commit_nr: int) -> Html:
     fstr: FileStr = html.current_repo.fstrs[file_nr]
     sha: SHALong = html.current_repo.nr2sha[commit_nr]
     rows, iscomments = BlameHistoryRows(html.current_repo).generate_fstr_sha_blame_rows(

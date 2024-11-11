@@ -1,9 +1,15 @@
-window.addEventListener('beforeunload', function () {
-    // Dynamically determine the port number from the current URL
+window.addEventListener('beforeunload', function (event) {
     const port = window.location.port;
-    console.log(`Attempting to send shutdown request to port: ${port}`);
-    // Make an HTTP request to the custom endpoint to trigger send_terminate_token
-    const url = `http://localhost:${port}/shutdown`;
-    const data = new Blob([], { type: 'application/x-www-form-urlencoded' });
-    navigator.sendBeacon(url, data);
+    const browserId = '<%= browser_id %>'; // This will be replaced with the actual browser ID
+    const url = `http://localhost:${port}/shutdown?id=${browserId}`; // Include the browser ID in the URL
+
+    if (navigator.sendBeacon) {
+        const data = new Blob([], { type: 'application/x-www-form-urlencoded' });
+        navigator.sendBeacon(url, data);
+    } else {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', url, false);
+        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        xhr.send();
+    }
 });
