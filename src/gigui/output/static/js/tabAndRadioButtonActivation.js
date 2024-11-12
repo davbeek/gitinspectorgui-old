@@ -55,7 +55,6 @@ document.addEventListener("DOMContentLoaded", function () {
                     existingTable.style.display = '';
                 } else {
                     // Fetch and insert the table if not already in the DOM
-                    console.log(`Fetching table with id: ${tableId}`);
                     fetch(`/load-table/${tableId}?id=${browserId}`)
                         .then(response => response.text())
                         .then(html => {

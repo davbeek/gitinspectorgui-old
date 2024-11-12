@@ -72,9 +72,6 @@ def start_werkzeug_server_in_process_with_html(html_code: Html, css_code: str) -
 
 def create_html_document(html_code: Html, css_code: str, browser_id: str) -> Html:
 
-    # Prefix browser ID to the HTML title
-    html_code = html_code.replace("<title>", f"<title>{browser_id} - ")
-
     # Insert CSS code
     html_code = html_code.replace(
         "</head>",
