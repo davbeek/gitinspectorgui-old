@@ -14,6 +14,8 @@ from gigui._logging import set_logging_level_from_verbosity
 from gigui.constants import (
     AUTO,
     AVAILABLE_FORMATS,
+    BLAME_EXCLUSION_CHOICES,
+    BLAME_EXCLUSIONS_DEFAULT,
     BLAME_HISTORY_CHOICES,
     BLAME_HISTORY_DEFAULT,
     DEFAULT_COPY_MOVE,
@@ -42,7 +44,7 @@ class Args:
     depth: int = SUBDIR_NESTING_DEPTH
     format: list[str] = field(default_factory=lambda: [AUTO])
     scaled_percentages: bool = False
-    blame_hide_exclusions: bool = False
+    blame_exclusions: str = BLAME_EXCLUSIONS_DEFAULT
     blame_skip: bool = False
     blame_history: str = BLAME_HISTORY_DEFAULT
     subfolder: str = ""
@@ -262,7 +264,7 @@ class SettingsFile:
             "scaled_percentages": {"type": "boolean"},
             "n_files": {"type": "integer"},
             "include_files": {"type": "array", "items": {"type": "string"}},
-            "blame_hide_exclusions": {"type": "boolean"},
+            "blame_exclusions": {"type": "string", "enum": BLAME_EXCLUSION_CHOICES},
             "blame_skip": {"type": "boolean"},
             "blame_history": {"type": "string", "enum": BLAME_HISTORY_CHOICES},
             "show_renames": {"type": "boolean"},

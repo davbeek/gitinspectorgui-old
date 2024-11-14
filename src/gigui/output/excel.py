@@ -519,9 +519,7 @@ class Book:
         fstr2iscomments: dict[FileStr, list[bool]] = {}
 
         for fstr in self.repo.fstrs:
-            rows, iscomments = BlameRows(self.repo).get_fstr_blame_rows(
-                fstr, html=False
-            )
+            rows, iscomments = BlameRows(self.repo).get_fstr_blame_rows(fstr)
             if rows:
                 fstrs.append(fstr)
                 fstr2rows[fstr] = rows

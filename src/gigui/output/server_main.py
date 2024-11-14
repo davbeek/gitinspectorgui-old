@@ -66,7 +66,6 @@ def start_werkzeug_server_in_process_with_html(html_code: Html, css_code: str) -
     except Exception as e:
         server_process.terminate()  # type: ignore
         server_process.join()  # type: ignore # Ensure the process is fully terminated
-        print(f"Catching exception, before reraise: {e}")  # Print the error message
         raise e
 
 
@@ -134,9 +133,7 @@ def handle_load_table(table_id: str, blame_history: str) -> Html:
 
 def get_fstr_commit_table(file_nr: int, commit_nr: int) -> Html:
     rows, iscomments = BlameHistoryRows(html.current_repo).get_fstr_sha_blame_rows(
-        html.current_repo.fstrs[file_nr],
-        html.current_repo.nr2sha[commit_nr],
-        html=True,
+        html.current_repo.fstrs[file_nr], html.current_repo.nr2sha[commit_nr]
     )
     table = BlameHistoryStaticTableSoup(html.current_repo).get_table(rows, iscomments)
     html_code = str(table)
@@ -151,7 +148,7 @@ def generate_fstr_commit_table(file_nr: int, commit_nr: int) -> Html:
     fstr: FileStr = html.current_repo.fstrs[file_nr]
     sha: SHALong = html.current_repo.nr2sha[commit_nr]
     rows, iscomments = BlameHistoryRows(html.current_repo).generate_fstr_sha_blame_rows(
-        fstr, sha, html=True
+        fstr, sha
     )
     table = BlameTableSoup(html.current_repo).get_table(
         rows, iscomments, file_nr, commit_nr

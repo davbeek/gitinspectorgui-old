@@ -88,7 +88,7 @@ class TableRows:
                 stat.line_count,
                 stat.insertions,
                 stat.stability,
-                len(stat.commits),
+                len(stat.sha_shorts),
             ]
             + ([stat.deletions, stat.age] if self.deletions else [stat.age])
         )

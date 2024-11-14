@@ -25,12 +25,12 @@ class CommitGroup:
     insertions: int
     deletions: int
     date_sum: int
-    commits: set[SHAShort]
+    sha_shorts: set[SHAShort]
 
 
 class Stat:
     def __init__(self) -> None:
-        self.commits: set[SHAShort] = set()
+        self.sha_shorts: set[SHAShort] = set()
         self.insertions: int = 0
         self.deletions: int = 0
         self.date_sum: int = 0  # Sum of Unix timestamps in seconds
@@ -65,14 +65,14 @@ class Stat:
         return self.__repr__()
 
     def add(self, other: "Stat"):
-        self.commits = self.commits | other.commits
+        self.sha_shorts = self.sha_shorts | other.sha_shorts
         self.insertions = self.insertions + other.insertions
         self.deletions = self.deletions + other.deletions
         self.date_sum = self.date_sum + other.date_sum
         self.line_count = self.line_count + other.line_count
 
     def add_commit_group(self, commit_group: CommitGroup):
-        self.commits |= commit_group.commits
+        self.sha_shorts |= commit_group.sha_shorts
         self.insertions += commit_group.insertions
         self.deletions += commit_group.deletions
         self.date_sum += commit_group.date_sum

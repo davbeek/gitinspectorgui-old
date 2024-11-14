@@ -5,7 +5,7 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup, Tag
 
-from gigui.constants import DYNAMIC, NONE, STATIC
+from gigui.constants import DYNAMIC, HIDE, NONE, SHOW, STATIC
 from gigui.output.blame_rows import (
     BlameHistoryRows,
     BlameRows,
@@ -90,7 +90,7 @@ class TableRootSoup:
 
 
 class TableSoup(TableRootSoup):
-    blame_hide_exclusions: bool
+    blame_exclusions: str
     empty_lines: bool
     subfolder: FileStr
 
@@ -114,21 +114,19 @@ class TableSoup(TableRootSoup):
             th["class"] = header_class
             th.string = header_string
             if column_header == "Code":
-                button = self.soup.new_tag("button")
-                if self.blame_hide_exclusions:
-                    button["class"] = "blame-exclusions-button pressed"
-                else:
-                    button["class"] = "blame-exclusions-button"
-                button.string = "Hide blame exclusions"
-                th.append(button)
-
-                button = self.soup.new_tag("button")
-                if self.empty_lines:  # include and show empty lines
-                    button["class"] = "blame-empty-lines-button"
-                else:
-                    button["class"] = "blame-empty-lines-button pressed"
-                button.string = "Hide empty lines"
-                th.append(button)
+                if self.blame_exclusions in {HIDE, SHOW}:
+                    exclusions_button = self.soup.new_tag("button")
+                    empty_lines_button = self.soup.new_tag("button")
+                    if self.blame_exclusions == HIDE:
+                        exclusions_button["class"] = "blame-exclusions-button pressed"
+                        empty_lines_button["class"] = "blame-empty-lines-button pressed"
+                    elif self.blame_exclusions == SHOW:
+                        exclusions_button["class"] = "blame-exclusions-button"
+                        empty_lines_button["class"] = "blame-empty-lines-button"
+                    exclusions_button.string = "Hide blame exclusions"
+                    empty_lines_button.string = "Hide empty lines"
+                    th.append(exclusions_button)
+                    th.append(empty_lines_button)
 
                 button = self.soup.new_tag("button")
                 button["class"] = "hide-colors-button"
@@ -307,7 +305,7 @@ class BlameTableSoup(BlameBaseTableSoup):
         iscomments: list[bool]
         table: Tag | None
 
-        rows, iscomments = BlameRows(self.repo).get_fstr_blame_rows(fstr, html=True)
+        rows, iscomments = BlameRows(self.repo).get_fstr_blame_rows(fstr)
         if not rows:
             log(f"No blame output matching filters found for file {fstr}")
             return None
@@ -330,7 +328,7 @@ class BlameHistoryStaticTableSoup(BlameBaseTableSoup):
 
         for sha in self.fstr2shas[fstr]:
             rows, iscomments = BlameHistoryRows(self.repo).get_fstr_sha_blame_rows(
-                fstr, sha, html=True
+                fstr, sha
             )
             if not rows:
                 continue

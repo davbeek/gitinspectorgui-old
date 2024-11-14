@@ -10,6 +10,7 @@ from gigui._logging import add_gui_handler
 from gigui.args_settings import SettingsFile
 from gigui.constants import (
     AUTO,
+    BLAME_EXCLUSION_CHOICES,
     BLAME_HISTORY_CHOICES,
     INIT_COL_PERCENT,
     MAX_COL_HEIGHT,
@@ -280,16 +281,27 @@ def output_formats_frame() -> sg.Frame:
                                 key=keys.show_renames,
                             ),
                             checkbox(
-                                "Scaled percentages",
+                                "Scaled %",
                                 key=keys.scaled_percentages,
-                            ),
-                            checkbox(
-                                "Blame hide exclusions",
-                                key=keys.blame_hide_exclusions,
                             ),
                             checkbox(
                                 "Blame skip",
                                 key=keys.blame_skip,
+                            ),
+                            name_choice(
+                                "Blame exclusions",
+                                tooltip=tip.blame_exclusions,
+                            ),
+                            sg.Combo(
+                                BLAME_EXCLUSION_CHOICES,
+                                default_value=AUTO,
+                                key=keys.blame_exclusions,
+                                enable_events=True,
+                                size=6,
+                                pad=((3, 10), 2),
+                                readonly=True,
+                                text_color="black",
+                                background_color="white",
                             ),
                         ],
                         [

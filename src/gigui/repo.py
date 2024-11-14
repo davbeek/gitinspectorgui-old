@@ -179,8 +179,6 @@ class GIRepo:
 
         self.sha2author_nr = {}
 
-        shas: list[SHALong]
-
         commits: list[GitCommit] = list(self.repo_reader.git_repo.iter_commits())
         commit_nr = len(commits)  # set first commit nr to the number of commits
         for commit in commits:
@@ -196,9 +194,14 @@ class GIRepo:
             commit_nr -= 1
 
         for fstr in self.fstrs:
-            commits = list(self.repo_reader.git_repo.iter_commits(paths=fstr))
-            shas = [commit.hexsha for commit in commits]
-            self.fstr2shas[fstr] = shas
+            sha_shorts = self.fstr2fstat[fstr].stat.sha_shorts
+            sha_longs = [
+                self.repo_reader.sha_short2sha_long[sha_short]
+                for sha_short in sha_shorts
+            ]
+            self.fstr2shas[fstr] = sorted(
+                sha_longs, key=lambda x: self.sha2nr[x], reverse=True
+            )
 
         authors_included: list[Author] = self.repo_reader.persons_db.authors_included
         self.authors_included = sorted(

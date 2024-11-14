@@ -144,7 +144,7 @@ def init_classes(args: Args):
     TableRows.deletions = args.deletions
     TableRows.subfolder = args.subfolder
     BlameBaseTableSoup.blame_history = args.blame_history
-    TableSoup.blame_hide_exclusions = args.blame_hide_exclusions
+    TableSoup.blame_exclusions = args.blame_exclusions
     TableSoup.empty_lines = args.empty_lines
     TableSoup.subfolder = args.subfolder
     BlameTablesSoup.subfolder = args.subfolder

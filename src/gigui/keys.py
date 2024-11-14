@@ -13,7 +13,7 @@ class KeysArgs:
     depth: str = "depth"
     format: str = "format"
     scaled_percentages: str = "scaled_percentages"
-    blame_hide_exclusions: str = "blame_hide_exclusions"
+    blame_exclusions: str = "blame_exclusions"
     blame_skip: str = "blame_skip"
     blame_history: str = "blame_history"
     subfolder: str = "subfolder"

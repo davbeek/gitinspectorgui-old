@@ -44,8 +44,11 @@ class Tip:
         "Show percentages that are scaled (multiplied) by the number of authors in "
         "the repository"
     )
-    blame_hide_exclusions: str = (
-        "Omit from blame output: comments, empty lines and author lines that are excluded"
+    blame_exclusions: str = (
+        "Deal with: comments, empty and author lines that are excluded in html output, "
+        "show: add and start by showing, "
+        "hide: add and start by hiding, "
+        "remove: do not add"
     )
     blame_skip: str = "Do not generate blame worksheets or blame tabs"
     blame_history: str = (

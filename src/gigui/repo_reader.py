@@ -40,8 +40,10 @@ class RepoReader:
         # or else at the first commit of the repo. The list includes merge commits and
         # is sorted by commit date.
         self.commits: list[Commit]
+
         self.head_commit: GitCommit
         self.sha2commit: dict[SHAShort | SHALong, Commit] = {}
+        self.sha_short2sha_long: dict[SHAShort, SHALong] = {}
 
         # Set of short SHAs of commits in the repo that are excluded by the
         # --ex-revision parameter together with the --ex-message parameter.
@@ -204,6 +206,7 @@ class RepoReader:
             commits.append(commit)
             self.sha2commit[sha_short] = commit
             self.sha2commit[sha_long] = commit
+            self.sha_short2sha_long[sha_short] = sha_long
 
         commits.sort(key=lambda x: x.date)
         self.commits = commits
@@ -285,7 +288,7 @@ class RepoReader:
 
     # pylint: disable=too-many-locals
     def _process_commit_lines_for(self, lines_str: str) -> list[CommitGroup]:
-        commits: list[CommitGroup] = []
+        commit_groups: list[CommitGroup] = []
         lines = lines_str.splitlines()
         while lines:
             line = lines.pop(0)
@@ -347,22 +350,22 @@ class RepoReader:
                 fstr = split[1]
 
             if (
-                len(commits) > 1
-                and fstr == commits[-1].fstr
-                and author == commits[-1].author
+                len(commit_groups) > 1
+                and fstr == commit_groups[-1].fstr
+                and author == commit_groups[-1].author
             ):
-                commits[-1].date_sum += int(timestamp) * insertions
-                commits[-1].commits |= {sha_short}
-                commits[-1].insertions += insertions
-                commits[-1].deletions += deletions
+                commit_groups[-1].date_sum += int(timestamp) * insertions
+                commit_groups[-1].sha_shorts |= {sha_short}
+                commit_groups[-1].insertions += insertions
+                commit_groups[-1].deletions += deletions
             else:
-                commit = CommitGroup(
+                commit_group = CommitGroup(
                     date_sum=int(timestamp) * insertions,
                     author=author,
                     fstr=fstr,
                     insertions=insertions,
                     deletions=deletions,
-                    commits={sha_short},
+                    sha_shorts={sha_short},
                 )
-                commits.append(commit)
-        return commits
+                commit_groups.append(commit_group)
+        return commit_groups

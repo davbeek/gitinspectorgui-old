@@ -3,6 +3,7 @@ from argparse import Action, ArgumentParser, ArgumentTypeError, BooleanOptionalA
 
 from gigui.constants import (
     AVAILABLE_FORMATS,
+    BLAME_EXCLUSION_CHOICES,
     BLAME_HISTORY_CHOICES,
     FIX_TYPE,
     VIEWER_CHOICES,
@@ -118,9 +119,9 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
         help=hlp.scaled_percentages,
     )
     group_generation.add_argument(
-        "--blame-hide-exclusions",
-        action=BooleanOptionalAction,
-        help=hlp.blame_hide_exclusions,
+        "--blame-exclusions",
+        choices=BLAME_EXCLUSION_CHOICES,
+        help=hlp.blame_exclusions,
     )
     group_generation.add_argument(
         "--blame-skip",

@@ -2,6 +2,7 @@ from typing import Counter
 
 from gigui.args_settings import Args
 from gigui.blame_reader import Blame
+from gigui.constants import REMOVE
 from gigui.data import PersonsDB
 from gigui.repo import GIRepo
 from gigui.typedefs import FileStr, Row, SHALong
@@ -28,9 +29,7 @@ class BlameBaseRows:
 
         self.persons_db: PersonsDB = self.repo.persons_db
 
-    def get_blame_rows(
-        self, html: bool, blames: list[Blame]
-    ) -> tuple[list[Row], list[bool]]:
+    def get_blame_rows(self, blames: list[Blame]) -> tuple[list[Row], list[bool]]:
         rows: list[Row] = []
         is_comments: list[bool] = []
         line_nr = 1
@@ -41,10 +40,9 @@ class BlameBaseRows:
             for line, is_comment in zip(b.lines, b.is_comment_lines):
                 exclude_comment = is_comment and not self.args.comments
                 exclude_empty = line.strip() == "" and not self.args.empty_lines
-                if (
-                    self.args.blame_hide_exclusions
-                    and not html
-                    and (exclude_comment or exclude_empty)
+                exclude_author = author in self.args.ex_authors
+                if self.args.blame_exclusions == REMOVE and (
+                    exclude_comment or exclude_empty or exclude_author
                 ):
                     line_nr += 1
                 else:
@@ -69,11 +67,9 @@ class BlameRows(BlameBaseRows):
         super().__init__(repo)
         self.fstr2blames: dict[FileStr, list[Blame]] = repo.blame_reader.fstr2blames
 
-    def get_fstr_blame_rows(
-        self, fstr: FileStr, html: bool
-    ) -> tuple[list[Row], list[bool]]:
+    def get_fstr_blame_rows(self, fstr: FileStr) -> tuple[list[Row], list[bool]]:
         blames: list[Blame] = self.fstr2blames[fstr]
-        return self.get_blame_rows(html, blames)
+        return self.get_blame_rows(blames)
 
 
 class BlameHistoryRows(BlameBaseRows):
@@ -86,19 +82,19 @@ class BlameHistoryRows(BlameBaseRows):
 
     # pylint: disable=too-many-locals
     def get_fstr_sha_blame_rows(
-        self, fstr: FileStr, sha: SHALong, html: bool
+        self, fstr: FileStr, sha: SHALong
     ) -> tuple[list[Row], list[bool]]:
         if fstr in self.fstr2sha2blames and sha in self.fstr2sha2blames[fstr]:
             blames: list[Blame] = self.fstr2sha2blames[fstr][sha]
-            return self.get_blame_rows(html, blames)
+            return self.get_blame_rows(blames)
         else:
             return [], []
 
-    def generate_fstr_sha_blame_rows(self, fstr: FileStr, sha: SHALong, html: bool):
+    def generate_fstr_sha_blame_rows(self, fstr: FileStr, sha: SHALong):
         blames: list[Blame] = self.repo.blame_history_reader.generate_blame_history(
             fstr, sha
         )
-        return self.get_blame_rows(html, blames)
+        return self.get_blame_rows(blames)
 
 
 def string2truncated(orgs: list[str], max_length: int) -> dict[str, str]:
