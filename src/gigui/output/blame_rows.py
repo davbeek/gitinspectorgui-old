@@ -5,7 +5,7 @@ from gigui.blame_reader import Blame
 from gigui.constants import REMOVE
 from gigui.data import PersonsDB
 from gigui.repo import GIRepo
-from gigui.typedefs import FileStr, Row, SHALong
+from gigui.typedefs import FileStr, Row, SHAShort
 
 
 def header_blames() -> list[str]:
@@ -51,7 +51,7 @@ class BlameBaseRows:
                         author,
                         b.date.strftime("%Y-%m-%d"),
                         b.message,
-                        b.sha_long[:7],
+                        b.sha_short[:7],
                         b.commit_nr,
                         line_nr,
                         line,
@@ -76,23 +76,32 @@ class BlameHistoryRows(BlameBaseRows):
     def __init__(self, repo: GIRepo):
         super().__init__(repo)
 
-        self.fstr2sha2blames: dict[FileStr, dict[SHALong, list[Blame]]] = (
+        self.fstr2sha2blames: dict[FileStr, dict[SHAShort, list[Blame]]] = (
             repo.blame_history_reader.fstr2sha2blames
         )
 
-    # pylint: disable=too-many-locals
-    def get_fstr_sha_blame_rows(
-        self, fstr: FileStr, sha: SHALong
+    # Only called for STATIC blame history, where the blame rows should already be
+    # available.
+    def get_fr_sha_blame_rows(
+        self, fstr_root: FileStr, sha_short: SHAShort
     ) -> tuple[list[Row], list[bool]]:
-        if fstr in self.fstr2sha2blames and sha in self.fstr2sha2blames[fstr]:
-            blames: list[Blame] = self.fstr2sha2blames[fstr][sha]
-            return self.get_blame_rows(blames)
-        else:
-            return [], []
+        blames: list[Blame] = self.fstr2sha2blames[fstr_root][sha_short]
+        return self.get_blame_rows(blames)
 
-    def generate_fstr_sha_blame_rows(self, fstr: FileStr, sha: SHALong):
-        blames: list[Blame] = self.repo.blame_history_reader.generate_blame_history(
-            fstr, sha
+    # For DYNAMIC blame history
+    def generate_fr_sha_blame_rows(self, fstr_root: FileStr, sha_short: SHAShort):
+        blames: list[Blame] = self.repo.blame_history_reader.generate_fr_blame_history(
+            fstr_root, sha_short
+        )
+        return self.get_blame_rows(blames)
+
+    def generate_fr_f_sha_blame_rows(
+        self, fstr_root: FileStr, fstr: FileStr, sha_short: SHAShort
+    ):
+        blames: list[Blame] = (
+            self.repo.blame_history_reader.generate_fr_f_blame_history(
+                fstr_root, fstr, sha_short
+            )
         )
         return self.get_blame_rows(blames)
 

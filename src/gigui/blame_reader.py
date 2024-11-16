@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 
 from git import Commit as GitCommit
-from git import GitCommandError, Repo
+from git import Repo
 
 from gigui.comment import get_is_comment_lines
 from gigui.constants import STATIC
@@ -18,7 +18,6 @@ from gigui.typedefs import (
     SHALong,
     SHAShort,
 )
-from gigui.utils import log
 
 
 # Commit that is used to order and number commits by date, starting at 1 for the
@@ -26,7 +25,6 @@ from gigui.utils import log
 @dataclass
 class Commit:
     sha_short: SHAShort
-    sha_long: SHALong
     date: int
 
 
@@ -36,7 +34,7 @@ class Blame:
     email: Email
     date: datetime
     message: str
-    sha_long: SHALong
+    sha_short: SHAShort
     commit_nr: int
     is_comment_lines: list[bool]
     lines: BlameLines
@@ -51,13 +49,19 @@ class BlameBaseReader:
         self,
         git_repo: Repo,
         ex_sha_shorts: set[SHAShort],
+        sha_long2sha_short: dict[SHALong, SHAShort],
+        sha_short2sha_long: dict[SHAShort, SHALong],
+        sha_short2nr: dict[SHAShort, int],
         all_fstrs: list[FileStr],
         fstrs: list[FileStr],
         fstr2fstat: dict[FileStr, FileStat],
         persons_db: PersonsDB,
     ):
-        self.git_repo = git_repo
-        self.ex_sha_shorts = ex_sha_shorts
+        self.git_repo: Repo = git_repo
+        self.ex_sha_shorts: set[SHAShort] = ex_sha_shorts
+        self.sha_long2sha_short: dict[SHALong, SHAShort] = sha_long2sha_short
+        self.sha_short2sha_long: dict[SHAShort, SHALong] = sha_short2sha_long
+        self.sha_short2nr: dict[SHAShort, int] = sha_short2nr
 
         # Unfiltered list of files, may still include files that belong completely to an
         # excluded author.
@@ -74,35 +78,8 @@ class BlameBaseReader:
 
         self.fstr2blames: dict[FileStr, list[Blame]] = {}
 
-        # Set of all commit SHAs to commit numbers. The commits have been added in
-        # reverse order, so starting with the initial commit with nr 1.
-        self.sha2nr: dict[SHALong, int] = {}
-        self.fstr2names: dict[FileStr, list[FileStr]] = {}
-        self._set_sha2nr()
-        self._set_fstr2names()
-
-    # Need to number the complete list of all commits, because even when --since
-    # severely restricts the number of commits to analyse, the result of git blame
-    # always needs a commit that changed the file in question, even when there is no
-    # such commit that satisfies the --since criterion.
-    def _set_sha2nr(self) -> None:
-        c: GitCommit
-        i: int
-        commits = list(self.git_repo.iter_commits())
-        i = len(commits)
-        for c in commits:
-            self.sha2nr[c.hexsha] = i
-            i -= 1
-
-    def _set_fstr2names(self):
-        for fstr in self.fstrs:
-            names = self.fstr2fstat[fstr].names[:]  # make a copy]
-            if not names or not names[0] == fstr:
-                names.insert(0, fstr)
-            self.fstr2names[fstr] = names
-
     def _get_git_blames_for(
-        self, fstr: FileStr, root_sha: SHALong
+        self, fstr: FileStr, start_sha_short: SHAShort
     ) -> tuple[GitBlames, FileStr]:
         copy_move_int2opts: dict[int, list[str]] = {
             0: [],
@@ -124,7 +101,7 @@ class BlameBaseReader:
             blame_opts.append(f"--ignore-revs-file={str(ignore_revs_path)}")
 
         # Run the git command to get the blames for the file.
-        git_blames: GitBlames = self._run_git_command(root_sha, fstr, blame_opts)
+        git_blames: GitBlames = self._run_git_command(start_sha_short, fstr, blame_opts)
         return git_blames, fstr
 
     def _process_git_blames(self, fstr: FileStr, git_blames: GitBlames) -> list[Blame]:
@@ -141,18 +118,19 @@ class BlameBaseReader:
             email = c.author.email  # type: ignore
             self.persons_db.add_person(author, email)
 
-            nr = self.sha2nr[c.hexsha]  # type: ignore
             lines: BlameLines = b[1]  # type: ignore
             is_comment_lines: list[bool]
             is_comment_lines, _ = get_is_comment_lines(
                 extension, lines, in_multi_comment
             )
+            sha_short = self.sha_long2sha_short[c.hexsha]
+            nr = self.sha_short2nr[sha_short]
             blame: Blame = Blame(
                 author,  # type: ignore
                 email,  # type: ignore
                 c.committed_datetime,  # type: ignore
                 c.message,  # type: ignore
-                c.hexsha,  # type: ignore
+                sha_short,
                 nr,  # commit number
                 is_comment_lines,
                 lines,  # type: ignore
@@ -162,12 +140,13 @@ class BlameBaseReader:
 
     def _run_git_command(
         self,
-        root_sha: SHALong,
+        start_sha_short: SHAShort,
         fstr: FileStr,
         blame_opts: list[str],
     ) -> GitBlames:
+        start_sha_long = self.sha_short2sha_long[start_sha_short]
         git_blames: GitBlames = self.git_repo.blame(
-            root_sha, fstr, rev_opts=blame_opts
+            start_sha_long, fstr, rev_opts=blame_opts
         )  # type: ignore
         return git_blames
 
@@ -177,9 +156,9 @@ class BlameReader(BlameBaseReader):
     comments: bool
     empty_lines: bool
 
-    def __init__(self, head_sha: SHALong, *args, **kwargs):
+    def __init__(self, head_sha_short: SHAShort, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.head_sha: SHALong = head_sha
+        self.head_sha_short: SHAShort = head_sha_short
 
     # Set the fstr2blames dictionary, but also add the author and email of each
     # blame to the persons list. This is necessary, because the blame functionality
@@ -188,11 +167,11 @@ class BlameReader(BlameBaseReader):
         git_blames: GitBlames
         blames: list[Blame]
 
-        self._set_fstr2names()
-
         if self.multi_thread:
             futures = [
-                thread_executor.submit(self._get_git_blames_for, fstr, self.head_sha)
+                thread_executor.submit(
+                    self._get_git_blames_for, fstr, self.head_sha_short
+                )
                 for fstr in self.all_fstrs
             ]
             for future in as_completed(futures):
@@ -201,7 +180,7 @@ class BlameReader(BlameBaseReader):
                 self.fstr2blames[fstr] = blames
         else:  # single thread
             for fstr in self.all_fstrs:
-                git_blames, fstr = self._get_git_blames_for(fstr, self.head_sha)
+                git_blames, fstr = self._get_git_blames_for(fstr, self.head_sha_short)
                 blames = self._process_git_blames(fstr, git_blames)
                 self.fstr2blames[fstr] = blames  # type: ignore
 
@@ -262,65 +241,66 @@ class BlameHistoryReader(BlameBaseReader):
     def __init__(
         self,
         fstr2blames: dict[FileStr, list[Blame]],
-        fstr2shas: dict[FileStr, list[SHALong]],
+        fr2f2sha_shorts: dict[FileStr, dict[FileStr, list[SHAShort]]],
         *args,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self.fstr2blames: dict[FileStr, list[Blame]] = fstr2blames
-        self.fstr2shas: dict[FileStr, list[SHALong]] = fstr2shas
+        self.fr2f2sha_shorts: dict[FileStr, dict[FileStr, list[SHAShort]]] = (
+            fr2f2sha_shorts
+        )
 
         # Dict from a file to all its previous names (due to renaming) in the repo
         self.fstr2names: dict[FileStr, list[FileStr]] = {}
 
-        self.fstr2sha2blames: dict[FileStr, dict[SHALong, list[Blame]]] = {}
+        self.fstr2sha2blames: dict[FileStr, dict[SHAShort, list[Blame]]] = {}
         self.run()
 
     def run(self) -> None:
         git_blames: GitBlames
         blames: list[Blame]
 
-        self._set_fstr2names()
-
         if self.blame_history == STATIC:
-            for fstr in self.fstrs:
-                head_sha = self.fstr2shas[fstr][0]
-                self.fstr2sha2blames[fstr] = {}
-                self.fstr2sha2blames[fstr][head_sha] = self.fstr2blames[fstr]
-                shas = self.fstr2shas[fstr]
-                for sha in shas:
-                    if not self.fstr2names[fstr]:
-                        break
-                    git_blames, _ = self._get_git_blames_for(fstr, sha)
-                    blames = self._process_git_blames(fstr, git_blames)
-                    self.fstr2sha2blames[fstr][sha] = blames
+            for root_fstr in self.fstrs:
+                head_sha = self.fr2f2sha_shorts[root_fstr][root_fstr][0]
+                self.fstr2sha2blames[root_fstr] = {}
+                self.fstr2sha2blames[root_fstr][head_sha] = self.fstr2blames[root_fstr]
+                for fstr, sha_shorts in self.fr2f2sha_shorts[root_fstr].items():
+                    for sha_short in sha_shorts:
+                        if fstr == root_fstr and sha_short == head_sha:
+                            continue
+                        git_blames, _ = self._get_git_blames_for(fstr, sha_short)
+                        # root_str needed only for file extension to determine
+                        # comment lines
+                        blames = self._process_git_blames(root_fstr, git_blames)
+                        self.fstr2sha2blames[root_fstr][sha_short] = blames
 
         # Assume that no new authors are found when using earlier root commit_shas, so
         # do not update authors of the blames with the possibly newly found persons as
         # in BlameReader.run().
 
-    def _run_git_command(
-        self,
-        root_sha: SHALong,
-        fstr: FileStr,
-        blame_opts: list[str],
-    ) -> GitBlames:
-        while True:
-            try:
-                fstr_name = self.fstr2names[fstr][0]
-                git_blames: GitBlames = self.git_repo.blame(
-                    root_sha, fstr_name, rev_opts=blame_opts
-                )  # type: ignore
-                break  # Exit the loop if no exception is raised
-            except GitCommandError:
-                self.fstr2names[fstr].pop(0)
-                if not self.fstr2names[fstr]:
-                    log(f"GitCommandError for blame of file {fstr}, sha {root_sha}")
-                    return [[]]
-        return git_blames
-
-    def generate_blame_history(self, fstr: FileStr, sha: SHALong) -> list[Blame]:
+    def generate_fr_blame_history(
+        self, root_fstr: FileStr, sha_short: SHAShort
+    ) -> list[Blame]:
         git_blames: GitBlames
-        git_blames, _ = self._get_git_blames_for(fstr, sha)
-        blames: list[Blame] = self._process_git_blames(fstr, git_blames)
+        fstr: FileStr = self.get_file_for_sha_short(root_fstr, sha_short)
+        git_blames, _ = self._get_git_blames_for(fstr, sha_short)
+        blames: list[Blame] = self._process_git_blames(root_fstr, git_blames)
         return blames
+
+    def generate_fr_f_blame_history(
+        self, root_fstr: FileStr, fstr: FileStr, sha_short: SHAShort
+    ) -> list[Blame]:
+        git_blames: GitBlames
+        git_blames, _ = self._get_git_blames_for(fstr, sha_short)
+        blames: list[Blame] = self._process_git_blames(root_fstr, git_blames)
+        return blames
+
+    def get_file_for_sha_short(
+        self, root_fstr: FileStr, sha_short: SHAShort
+    ) -> FileStr:
+        for fstr, sha_shorts in self.fr2f2sha_shorts[root_fstr].items():
+            if sha_short in sha_shorts:
+                return fstr
+        raise ValueError(f"SHA {sha_short} not found in {root_fstr} SHAs")

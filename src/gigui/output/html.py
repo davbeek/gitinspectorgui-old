@@ -23,7 +23,7 @@ from gigui.output.stat_rows import (
     header_files_authors,
 )
 from gigui.repo import GIRepo
-from gigui.typedefs import Author, FileStr, Html, Row, SHALong
+from gigui.typedefs import Author, FileStr, Html, Row, SHAShort
 from gigui.utils import get_relative_fstr, log
 
 MAX_LENGTH_TAB_NAME = 160
@@ -83,8 +83,8 @@ class TableRootSoup:
 
     def _get_color_for_sha_nr(self, sha_nr: int) -> str:
 
-        sha = self.repo.nr2sha[sha_nr]
-        author = self.repo.sha2author[sha]
+        sha = self.repo.nr2sha_short[sha_nr]
+        author = self.repo.sha_short2author[sha]
         color_class = self._get_color_for_author(author)
         return color_class
 
@@ -317,23 +317,24 @@ class BlameTableSoup(BlameBaseTableSoup):
 class BlameHistoryStaticTableSoup(BlameBaseTableSoup):
     def __init__(self, repo: GIRepo) -> None:
         super().__init__(repo)
-        self.fstr2shas: dict[FileStr, list[SHALong]] = self.repo.fstr2shas
+        self.fstr2sha_shorts: dict[FileStr, list[SHAShort]] = self.repo.fstr2sha_shorts
 
     def get_fstr_tables(
-        self, fstr: FileStr, sha2nr: dict[SHALong, int], blame_tab_index: int
+        self,
+        fstr_root: FileStr,
+        sha_short2nr: dict[SHAShort, int],
+        blame_tab_index: int,
     ) -> list[Tag]:
         tables: list[Tag] = []
-        if fstr not in self.fstr2shas:
+        if fstr_root not in self.fstr2sha_shorts:
             return []
-
-        for sha in self.fstr2shas[fstr]:
-            rows, iscomments = BlameHistoryRows(self.repo).get_fstr_sha_blame_rows(
-                fstr, sha
+        for sha_short in self.fstr2sha_shorts[fstr_root]:
+            rows, iscomments = BlameHistoryRows(self.repo).get_fr_sha_blame_rows(
+                fstr_root, sha_short
             )
             if not rows:
                 continue
-
-            nr = sha2nr[sha]
+            nr = sha_short2nr[sha_short]
             table = self.get_table(rows, iscomments)
             table["id"] = f"file-{blame_tab_index}-sha-{nr}"
             tables.append(table)
@@ -354,7 +355,7 @@ class BlameTablesSoup(TableRootSoup):
         fstr2table: dict[FileStr, Tag] = {}
         fstr2tables: dict[FileStr, list[Tag]] = {}
         fstrs: list[FileStr] = []
-        sha2nr: dict[SHALong, int] = self.repo.blame_reader.sha2nr
+        sha_short2nr: dict[SHAShort, int] = self.repo.blame_reader.sha_short2nr
         nav_ul: Tag = self.global_soup.find(id="tab-buttons")  # type: ignore
         tab_div: Tag = self.global_soup.find(id="tab-contents")  # type: ignore
 
@@ -362,7 +363,7 @@ class BlameTablesSoup(TableRootSoup):
         for fstr in self.repo.fstrs:
             if self.blame_history == STATIC:
                 tables = BlameHistoryStaticTableSoup(self.repo).get_fstr_tables(
-                    fstr, sha2nr, blame_tab_index
+                    fstr, sha_short2nr, blame_tab_index
                 )
                 if tables:
                     fstr2tables[fstr] = tables
@@ -401,8 +402,8 @@ class BlameTablesSoup(TableRootSoup):
 
             if self.blame_history in {STATIC, DYNAMIC}:
                 self._add_radio_buttons(
-                    self.repo.fstr2shas[fstr],
-                    sha2nr,
+                    self.repo.fstr2sha_shorts[fstr],
+                    sha_short2nr,
                     blame_container,
                     blame_tab_index,
                 )
@@ -444,8 +445,8 @@ class BlameTablesSoup(TableRootSoup):
 
     def _add_radio_buttons(
         self,
-        shas: list[SHALong],
-        sha2nr: dict[SHALong, int],
+        sha_shorts: list[SHAShort],
+        sha2nr: dict[SHAShort, int],
         parent: Tag,
         blame_tab_index: int,
     ) -> None:
@@ -454,8 +455,8 @@ class BlameTablesSoup(TableRootSoup):
             "div", attrs={"class": "radio-container sticky"}
         )
 
-        for sha in shas:
-            sha_nr = sha2nr[sha]
+        for sha_short in sha_shorts:
+            sha_nr = sha2nr[sha_short]
             button_id = f"button-file-{blame_tab_index}-sha-{sha_nr}"
             color_class = self._get_color_for_sha_nr(sha_nr)
             radio_button = self.global_soup.new_tag(

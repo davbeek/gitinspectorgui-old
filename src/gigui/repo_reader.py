@@ -28,7 +28,12 @@ class RepoReader:
     # Here the values of the --ex-revision parameter are stored as a set.
     ex_revs: set[Rev] = set()
 
-    def __init__(self, name: str, location: PathLike, persons_db: PersonsDB):
+    def __init__(
+        self,
+        name: str,
+        location: PathLike,
+        persons_db: PersonsDB,
+    ):
         self.name: str = name
         self.persons_db: PersonsDB = persons_db
 
@@ -42,8 +47,11 @@ class RepoReader:
         self.commits: list[Commit]
 
         self.head_commit: GitCommit
-        self.sha2commit: dict[SHAShort | SHALong, Commit] = {}
-        self.sha_short2sha_long: dict[SHAShort, SHALong] = {}
+        self.head_sha_short: SHAShort
+
+        self.fr2f2a2sha_short_set: dict[
+            FileStr, dict[FileStr, dict[Author, set[SHAShort]]]
+        ] = {}
 
         # Set of short SHAs of commits in the repo that are excluded by the
         # --ex-revision parameter together with the --ex-message parameter.
@@ -64,12 +72,29 @@ class RepoReader:
         self.thread_executor: ThreadPoolExecutor
         self.blame_reader: BlameReader
 
+        self.sha_short2sha_long: dict[SHAShort, SHALong] = {}
+        self.sha_long2sha_short: dict[SHALong, SHAShort] = {}
+        self.sha_short2nr: dict[SHAShort, int] = {}
+        self.nr2sha_short: dict[int, SHAShort] = {}
+
+        # Use git log to get both long and short SHAs
+        log_output = self.git.log("--pretty=format:%H %h")
+        lines = log_output.splitlines()
+        line_nr = len(lines)  # set first line nr to the number of commits
+        for line in lines:
+            sha_long, sha_short = line.split()
+            self.sha_short2sha_long[sha_short] = sha_long
+            self.sha_long2sha_short[sha_long] = sha_short
+            self.sha_short2nr[sha_short] = line_nr
+            self.nr2sha_short[line_nr] = sha_short
+            line_nr -= 1
+
     @property
     def git(self):
         return self.git_repo.git
 
     def run(self, thread_executor: ThreadPoolExecutor) -> None:
-        self._set_head_commit()
+        self._set_head_attrs()
 
         # Set list top level fstrs (based on until par and allowed file extensions)
         self.fstrs = self._get_worktree_files()
@@ -77,13 +102,12 @@ class RepoReader:
         self._set_fstr2lines()
         self._get_commits_first_pass()
 
-        # print(f"{"    Calc commit for":22}{self.git_repo.working_dir}")
         self._set_fstr2commits(thread_executor)
 
     def get_person(self, author: Author | None) -> Person:
         return self.persons_db.get_person(author)
 
-    def _set_head_commit(self) -> None:
+    def _set_head_attrs(self) -> None:
         since = self.since
         until = self.until
 
@@ -96,6 +120,7 @@ class RepoReader:
             since_until_kwargs = {"until": until}
 
         self.head_commit = next(self.git_repo.iter_commits(**since_until_kwargs))
+        self.head_sha_short = self.sha_long2sha_short[self.head_commit.hexsha]
 
     # Get list of top level files (based on the until parameter) that satisfy the
     # required extensions and do not match the exclude file patterns.
@@ -202,11 +227,8 @@ class RepoReader:
             author = lines.pop(0)
             email = lines.pop(0)
             self.persons_db.add_person(author, email)
-            commit = Commit(sha_short, sha_long, timestamp)
+            commit = Commit(sha_short, timestamp)
             commits.append(commit)
-            self.sha2commit[sha_short] = commit
-            self.sha2commit[sha_long] = commit
-            self.sha_short2sha_long[sha_short] = sha_long
 
         commits.sort(key=lambda x: x.date)
         self.commits = commits
@@ -252,13 +274,13 @@ class RepoReader:
             for future in as_completed(futures):
                 lines_str, fstr = future.result()
                 self.fstr2commit_groups[fstr] = self._process_commit_lines_for(
-                    lines_str
+                    lines_str, fstr
                 )
         else:  # single thread
             for fstr in self.fstrs:
                 lines_str, fstr = self._get_commit_lines_for(fstr)
                 self.fstr2commit_groups[fstr] = self._process_commit_lines_for(
-                    lines_str
+                    lines_str, fstr
                 )
         reduce_commits()
 
@@ -287,7 +309,9 @@ class RepoReader:
         return lines_str, fstr
 
     # pylint: disable=too-many-locals
-    def _process_commit_lines_for(self, lines_str: str) -> list[CommitGroup]:
+    def _process_commit_lines_for(
+        self, lines_str: str, fstr_root: FileStr
+    ) -> list[CommitGroup]:
         commit_groups: list[CommitGroup] = []
         lines = lines_str.splitlines()
         while lines:
@@ -348,6 +372,15 @@ class RepoReader:
                 # prev_name = split[0]
                 # new_name = split[1]
                 fstr = split[1]
+
+            target = self.fr2f2a2sha_short_set
+            if fstr_root not in target:
+                target[fstr_root] = {}
+            if fstr not in target[fstr_root]:
+                target[fstr_root][fstr] = {}
+            if author not in target[fstr_root][fstr]:
+                target[fstr_root][fstr][author] = set()
+            target[fstr_root][fstr][author].add(sha_short)
 
             if (
                 len(commit_groups) > 1

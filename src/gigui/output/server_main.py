@@ -6,12 +6,12 @@ from multiprocessing import Process, Queue
 from pathlib import Path
 from uuid import uuid4
 
-from gigui.constants import DYNAMIC, STATIC
+from gigui.constants import DYNAMIC
 from gigui.output import html  # to use the shared global variable current_repo
 from gigui.output.blame_rows import BlameHistoryRows
-from gigui.output.html import BlameHistoryStaticTableSoup, BlameTableSoup, logger
+from gigui.output.html import BlameTableSoup, logger
 from gigui.output.server import PORT, run_server
-from gigui.typedefs import FileStr, Html, SHALong
+from gigui.typedefs import FileStr, Html, SHAShort
 
 
 # This the main function that is called from the main process to start the server.
@@ -118,9 +118,7 @@ def handle_load_table(table_id: str, blame_history: str) -> Html:
     if match:
         file_nr = int(match.group(1))
         commit_nr = int(match.group(2))
-        if blame_history == STATIC:
-            table_html = get_fstr_commit_table(file_nr, commit_nr)
-        elif blame_history == DYNAMIC:
+        if blame_history == DYNAMIC:
             table_html = generate_fstr_commit_table(file_nr, commit_nr)
         else:  # NONE
             logger.error("Error: blame history option is not enabled.")
@@ -131,24 +129,12 @@ def handle_load_table(table_id: str, blame_history: str) -> Html:
     return table_html
 
 
-def get_fstr_commit_table(file_nr: int, commit_nr: int) -> Html:
-    rows, iscomments = BlameHistoryRows(html.current_repo).get_fstr_sha_blame_rows(
-        html.current_repo.fstrs[file_nr], html.current_repo.nr2sha[commit_nr]
-    )
-    table = BlameHistoryStaticTableSoup(html.current_repo).get_table(rows, iscomments)
-    html_code = str(table)
-    html_code = html_code.replace("&amp;nbsp;", "&nbsp;")
-    html_code = html_code.replace("&amp;lt;", "&lt;")
-    html_code = html_code.replace("&amp;gt;", "&gt;")
-    html_code = html_code.replace("&amp;quot;", "&quot;")
-    return html_code
-
-
+# For DYNAMIC blame history
 def generate_fstr_commit_table(file_nr: int, commit_nr: int) -> Html:
-    fstr: FileStr = html.current_repo.fstrs[file_nr]
-    sha: SHALong = html.current_repo.nr2sha[commit_nr]
-    rows, iscomments = BlameHistoryRows(html.current_repo).generate_fstr_sha_blame_rows(
-        fstr, sha
+    root_fstr: FileStr = html.current_repo.fstrs[file_nr]
+    sha_short: SHAShort = html.current_repo.nr2sha_short[commit_nr]
+    rows, iscomments = BlameHistoryRows(html.current_repo).generate_fr_sha_blame_rows(
+        root_fstr, sha_short
     )
     table = BlameTableSoup(html.current_repo).get_table(
         rows, iscomments, file_nr, commit_nr

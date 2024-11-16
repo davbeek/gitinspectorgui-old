@@ -10,7 +10,7 @@ from git import InvalidGitRepositoryError, NoSuchPathError, PathLike, Repo
 from gigui.blame_reader import BlameHistoryReader, BlameReader
 from gigui.data import CommitGroup, FileStat, Person, PersonsDB, PersonStat
 from gigui.repo_reader import RepoReader
-from gigui.typedefs import Author, FileStr, SHALong
+from gigui.typedefs import Author, FileStr, SHALong, SHAShort
 from gigui.utils import divide_to_percentage, log
 
 logger = logging.getLogger(__name__)
@@ -41,20 +41,24 @@ class GIRepo:
         # Valid only after self.run has been called. This call calculates the sorted
         # versions of self.fstrs and self.star_fstrs.
         self.fstrs: list[str] = []
-        self.star_fstrs: list[str]
+        self.star_fstrs: list[str] = []
 
         # Sorted list of non-excluded authors, valid only after self.run has been called.
-        self.authors_included: list[Author]
+        self.authors_included: list[Author] = []
+
+        self.fr2f2a2sha_shorts: dict[
+            FileStr, dict[FileStr, dict[Author, list[SHAShort]]]
+        ] = {}
+        self.fr2f2sha_shorts: dict[FileStr, dict[FileStr, list[SHAShort]]] = {}
 
         # Valid only after self.run has been called with option --blame-history.
-        self.fstr2shas: dict[FileStr, list[SHALong]]
+        self.fstr2sha_shorts: dict[FileStr, list[SHAShort]] = {}
 
-        self.author2nr: dict[Author, int]  # does not include "*" as author
-        self.author_star2nr: dict[Author, int]  # includes "*" as author
-        self.sha2nr: dict[SHALong, int]
-        self.nr2sha: dict[int, SHALong]
-        self.sha2author: dict[SHALong, Author]
-        self.sha2author_nr: dict[SHALong, int]
+        self.author2nr: dict[Author, int] = {}  # does not include "*" as author
+        self.author_star2nr: dict[Author, int] = {}  # includes "*" as author
+
+        self.sha_short2author: dict[SHAShort, Author] = {}
+        self.sha_short2author_nr: dict[SHAShort, int] = {}
 
     def run(self, thread_executor: ThreadPoolExecutor) -> bool:
         """
@@ -70,13 +74,16 @@ class GIRepo:
             if not success:
                 return False
 
-            self._set_shared_data()
+            self._set_final_data()
             if self.blame_history != "none":
                 self.blame_history_reader = BlameHistoryReader(
                     self.blame_reader.fstr2blames,
-                    self.fstr2shas,
+                    self.fr2f2sha_shorts,
                     self.repo_reader.git_repo,
                     self.repo_reader.ex_sha_shorts,
+                    self.sha_long2sha_short,
+                    self.sha_short2sha_long,
+                    self.sha_short2nr,
                     self.repo_reader.fstrs,
                     self.fstrs,
                     self.fstr2fstat,
@@ -91,9 +98,12 @@ class GIRepo:
 
         # Use results from repo_reader to initialize the other classes.
         self.blame_reader = BlameReader(
-            self.repo_reader.head_commit.hexsha,
+            self.repo_reader.head_sha_short,
             self.repo_reader.git_repo,
             self.repo_reader.ex_sha_shorts,
+            self.sha_long2sha_short,
+            self.sha_short2sha_long,
+            self.sha_short2nr,
             self.repo_reader.fstrs,  # unfiltered files
             self.fstrs,  # filtered files, no files from excluded authors
             self.fstr2fstat,
@@ -167,41 +177,32 @@ class GIRepo:
     def get_person(self, author: Author | None) -> Person:
         return self.repo_reader.get_person(author)
 
-    def _set_shared_data(self) -> None:
-        self.sha2author = {}
-        self.sha2nr = {}
-        self.nr2sha = {}
+    def _set_final_data(self) -> None:
 
-        self.fstr2shas = {}
-
-        self.author_star2nr = {}
-        self.author2nr = {}
-
-        self.sha2author_nr = {}
-
+        # calculate self.sha_long2author
         commits: list[GitCommit] = list(self.repo_reader.git_repo.iter_commits())
-        commit_nr = len(commits)  # set first commit nr to the number of commits
         for commit in commits:
-            sha = commit.hexsha
-
-            # calculate self.sha2author
+            sha_long = commit.hexsha
+            sha_short = self.sha_long2sha_short[sha_long]
             author = self.get_person(commit.author.name).author
-            self.sha2author[sha] = author
+            self.sha_short2author[sha_short] = author
 
-            # calculate self.sha2nr and self.nr2sha
-            self.sha2nr[sha] = commit_nr
-            self.nr2sha[commit_nr] = sha
-            commit_nr -= 1
+        self.fr2f2a2sha_shorts = self.fr2f2a2sha_set_to_list(
+            self.repo_reader.fr2f2a2sha_short_set
+        )
+
+        self.fr2f2sha_shorts = self.fr2f2sha_set_to_list(
+            self.get_fr2f2sha_set(self.repo_reader.fr2f2a2sha_short_set)
+        )
 
         for fstr in self.fstrs:
-            sha_shorts = self.fstr2fstat[fstr].stat.sha_shorts
-            sha_longs = [
-                self.repo_reader.sha_short2sha_long[sha_short]
-                for sha_short in sha_shorts
-            ]
-            self.fstr2shas[fstr] = sorted(
-                sha_longs, key=lambda x: self.sha2nr[x], reverse=True
+            sha_shorts_fr = set()
+            for sha_shorts in self.fr2f2sha_shorts[fstr].values():
+                sha_shorts_fr.update(sha_shorts)
+            sha_shorts_fr_sorted = sorted(
+                sha_shorts_fr, key=lambda x: self.sha_short2nr[x], reverse=True
             )
+            self.fstr2sha_shorts[fstr] = sha_shorts_fr_sorted
 
         authors_included: list[Author] = self.repo_reader.persons_db.authors_included
         self.authors_included = sorted(
@@ -217,8 +218,67 @@ class GIRepo:
 
         self.author2nr = {k: v for k, v in self.author_star2nr.items() if k != "*"}
 
-        for sha, author in self.sha2author.items():
-            self.sha2author_nr[sha] = self.author2nr[author]
+        for sha_short, author in self.sha_short2author.items():
+            self.sha_short2author_nr[sha_short] = self.author2nr[author]
+
+    # from set to list
+    def fr2f2a2sha_set_to_list(
+        self, source: dict[FileStr, dict[FileStr, dict[Author, set[SHAShort]]]]
+    ) -> dict[FileStr, dict[FileStr, dict[Author, list[SHAShort]]]]:
+        target: dict[FileStr, dict[FileStr, dict[Author, list[SHAShort]]]] = {}
+        for fstr_root, fstr_root_dict in source.items():
+            target[fstr_root] = {}
+            for fstr, fstr_dict in fstr_root_dict.items():
+                target[fstr_root][fstr] = {}
+                for author, sha_shorts in fstr_dict.items():
+                    person_author = self.get_person(author).author
+                    sha_shorts_sorted = sorted(
+                        sha_shorts, key=lambda x: self.sha_short2nr[x], reverse=True
+                    )
+                    target[fstr_root][fstr][person_author] = sha_shorts_sorted
+        return target
+
+    def get_fr2f2sha_set(
+        self, source: dict[FileStr, dict[FileStr, dict[Author, set[SHAShort]]]]
+    ) -> dict[FileStr, dict[FileStr, set[SHAShort]]]:
+        target: dict[FileStr, dict[FileStr, set[SHAShort]]] = {}
+        for fstr_root, fstr_root_dict in source.items():
+            target[fstr_root] = {}
+            for fstr, fstr_dict in fstr_root_dict.items():
+                target[fstr_root][fstr] = set()
+                for sha_shorts in fstr_dict.values():
+                    target[fstr_root][fstr].update(sha_shorts)
+        return target
+
+    def fr2f2sha_set_to_list(
+        self, source: dict[FileStr, dict[FileStr, set[SHAShort]]]
+    ) -> dict[FileStr, dict[FileStr, list[SHAShort]]]:
+        target: dict[FileStr, dict[FileStr, list[SHAShort]]] = {}
+        for fstr_root, fstr_root_dict in source.items():
+            target[fstr_root] = {}
+            for fstr, sha_shorts in fstr_root_dict.items():
+                target[fstr_root][fstr] = sorted(
+                    sha_shorts, key=lambda x: self.sha_short2nr[x], reverse=True
+                )
+        return target
+
+    # sha_short2sha_long and sha_long2sha_short should be defined and available as soon
+    # as possible, because they are used in many places.
+    @property
+    def sha_short2sha_long(self) -> dict[SHAShort, SHALong]:
+        return self.repo_reader.sha_short2sha_long
+
+    @property
+    def sha_long2sha_short(self) -> dict[SHALong, SHAShort]:
+        return self.repo_reader.sha_long2sha_short
+
+    @property
+    def sha_short2nr(self) -> dict[SHAShort, int]:
+        return self.repo_reader.sha_short2nr
+
+    @property
+    def nr2sha_short(self) -> dict[int, SHAShort]:
+        return self.repo_reader.nr2sha_short
 
 
 class StatTables:
