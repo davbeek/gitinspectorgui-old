@@ -165,6 +165,10 @@ def get_dir_matches(input_fstrs: list[FileStr]) -> list[FileStr]:
     matching_fstrs: list[FileStr] = []
     for pattern in input_fstrs:
         matches = glob.glob(pattern)
+        if not matches:
+            logger.warning(
+                f'No repositories found for input folder pattern "{pattern}"'
+            )
         for match in matches:
             if os.path.isdir(match) and match not in matching_fstrs:
                 matching_fstrs.append(match)
