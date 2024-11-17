@@ -151,14 +151,26 @@ class RepoReader:
     # - match the required file extensions
     def _get_biggest_worktree_files(self, n: int) -> list[FileStr]:
         # Get the files with their file sizes that match the required extensions
-        def get_worktree_files_sizes() -> list[tuple[FileStr, int]]:
+        def get_subfolder_blobs() -> list:
             return [
-                (blob.path, blob.size)  # type: ignore
+                blob
                 for blob in self.head_commit.tree.traverse()
                 if (
                     (blob.type == "blob")  # type: ignore
-                    and ((blob.path.split(".")[-1] in self.extensions))  # type: ignore
                     and fnmatch(blob.path, f"{self.subfolder}*")  # type: ignore
+                )
+            ]
+
+        def get_worktree_files_sizes() -> list[tuple[FileStr, int]]:
+            blobs: list = get_subfolder_blobs()
+            if not blobs:
+                logging.warning(f"No files found in subfolder {self.subfolder}")
+                return []
+            return [
+                (blob.path, blob.size)  # type: ignore
+                for blob in blobs
+                if (
+                    ((blob.path.split(".")[-1] in self.extensions))  # type: ignore
                     and not self._matches_ex_file(blob.path)  # type: ignore
                 )
             ]
