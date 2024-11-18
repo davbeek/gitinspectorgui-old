@@ -33,7 +33,7 @@ def main() -> None:
     define_arguments(parser)
     namespace = parser.parse_args()
 
-    settings: Settings = load_settings()
+    settings: Settings = load_settings(namespace.save, namespace.save_as)
     cli_args: CLIArgs = settings.to_cli_args()
 
     cli_args.update_with_namespace(namespace)
@@ -80,16 +80,15 @@ def main() -> None:
         gitinspector.main(args, start_time)
 
 
-def load_settings() -> Settings:
+def load_settings(save: bool, save_as: str) -> Settings:
     settings: Settings
     error: str
     settings, error = SettingsFile.load()
     set_logging_level_from_verbosity(settings.verbosity)
     if error:
-        log(
-            """Cannot load settings file, loading default settings.
-            Save settings to resolve the issue."""
-        )
+        log("Cannot load settings file, loading default settings.")
+        if not save and not save_as:
+            log("Save settings so that they can be found next time.")
 
     return settings
 
@@ -97,6 +96,7 @@ def load_settings() -> Settings:
 def handle_settings_file(namespace: Namespace, cli_args: CLIArgs):
     if namespace.show:
         SettingsFile.show()
+
     elif namespace.save or namespace.save_as is not None:
         input_fstrs_resolved = [
             str(Path(fstr).resolve()) for fstr in cli_args.input_fstrs
@@ -106,36 +106,38 @@ def handle_settings_file(namespace: Namespace, cli_args: CLIArgs):
             settings = cli_args.create_settings()
             settings.save()
         else:  # save_as
-            path = namespace.save_as
-            if not path:
+            path_str = namespace.save_as
+            if not path_str:
                 print("Please specify a path for the settings file.")
                 return
             settings = cli_args.create_settings()
-            if Path(path).suffix == ".json":
+
+            if Path(path_str).suffix == ".json":
+                path = Path(path_str).resolve()
                 settings.save_as(path)
                 print(f"Settings saved to {path}.")
             else:
-                print(f"PATH {path} should be a JSON file.")
+                print(f"PATH {path_str} should be a JSON file.")
+
     elif namespace.reset:
         SettingsFile.reset()
         log(f"Settings file reset to {SettingsFile.get_location()}.")
         settings, _ = SettingsFile.load()
         settings.log()
+
     elif namespace.load is not None:
-        path = namespace.load
-        if not path:
+        path_str = namespace.load
+        if not path_str:
             print("Please specify a path for the settings file.")
             return
-
-        settings, error = SettingsFile.load_from(path)
+        settings, error = SettingsFile.load_from(path_str)
         if error:
-            logger.error(f"Error loading settings from {path}: {error}")
+            logger.error(f"Error loading settings from {path_str}: {error}")
             return
-
-        SettingsFile.set_location(path)
+        SettingsFile.set_location(path_str)
         # The loaded settings are ignored, because the program exits immediately after
         # executing this command.
-        log(f"Settings loaded from {path}.")
+        log(f"Settings loaded from {path_str}.")
 
 
 if __name__ == "__main__":

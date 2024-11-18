@@ -135,7 +135,7 @@ class Settings(Args):
         settings_dict = asdict(self)
         for key, value in settings_dict.items():
             key = key.replace("_", "-")
-            log(f"{key:21}: {value}")
+            log(f"{key:22}: {value}")
 
     @classmethod
     def create_from_settings_dict(
