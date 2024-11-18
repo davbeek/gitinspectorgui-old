@@ -321,7 +321,7 @@ class SettingsFile:
     @classmethod
     def show(cls):
         path = cls.get_location()
-        log(f"Settings file location: {path}")
+        log(f"{path}:")
         settings, _ = cls.load()
         if not shared_data.gui:
             settings.log()
