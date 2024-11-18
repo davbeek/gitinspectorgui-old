@@ -1,5 +1,10 @@
 import datetime
-from argparse import Action, ArgumentParser, ArgumentTypeError, BooleanOptionalAction
+from argparse import (  # type: ignore
+    Action,
+    ArgumentParser,
+    ArgumentTypeError,
+    BooleanOptionalAction,
+)
 
 from gigui.constants import (
     AVAILABLE_FORMATS,
@@ -20,19 +25,16 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
     mutex_group.add_argument(
         "--gui",
         action="store_true",
-        default=False,
         help=hlp.gui,
     )
     mutex_group.add_argument(
         "--show",
         action="store_true",
-        default=False,
         help=hlp.show,
     )
     mutex_group.add_argument(
         "--save",
         action="store_true",
-        default=False,
         help=hlp.save,
     )
     mutex_group.add_argument(
@@ -50,7 +52,6 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
     mutex_group.add_argument(
         "--reset",
         action="store_true",
-        default=False,
         help=hlp.reset,
     )
     mutex_group.add_argument(
@@ -224,7 +225,6 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
     group_general.add_argument(
         "--multi-thread",
         action=BooleanOptionalAction,
-        default=False,
         help=hlp.multi_thread,
     )
     group_general.add_argument(
