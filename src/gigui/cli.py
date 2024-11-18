@@ -34,6 +34,8 @@ def main() -> None:
     namespace = parser.parse_args()
 
     settings: Settings = load_settings(namespace.save, namespace.save_as)
+    gui_settings_full_path = settings.gui_settings_full_path
+
     cli_args: CLIArgs = settings.to_cli_args()
 
     cli_args.update_with_namespace(namespace)
@@ -46,11 +48,12 @@ def main() -> None:
         logger.warning(f"Format auto has priority: ignoring {", ".join(others)}")
         cli_args.format = ["auto"]
 
-    # Replace "." by current working dir
-    input_fstr = [
+    # Replace "." by current working dir and resolve paths.
+    input_fstrs = [
         (os.getcwd() if fstr == "." else fstr) for fstr in cli_args.input_fstrs
     ]
-    cli_args.input_fstrs = input_fstr
+    input_fstrs_resolved = [str(Path(fstr).resolve()) for fstr in input_fstrs]
+    cli_args.input_fstrs = input_fstrs_resolved
 
     if len(cli_args.input_fstrs) == 0:
         cli_args.input_fstrs.append(os.getcwd())
@@ -75,7 +78,7 @@ def main() -> None:
     args: Args = cli_args.create_args()
 
     if namespace.gui:
-        run_gui(settings)
+        run_gui(Settings.from_args(args, gui_settings_full_path))
     else:
         gitinspector.main(args, start_time)
 
@@ -98,10 +101,6 @@ def handle_settings_file(namespace: Namespace, cli_args: CLIArgs):
         SettingsFile.show()
 
     elif namespace.save or namespace.save_as is not None:
-        input_fstrs_resolved = [
-            str(Path(fstr).resolve()) for fstr in cli_args.input_fstrs
-        ]
-        cli_args.input_fstrs = input_fstrs_resolved
         if namespace.save:
             settings = cli_args.create_settings()
             settings.save()

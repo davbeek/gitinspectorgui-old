@@ -87,6 +87,12 @@ class Settings(Args):
 
     gui_settings_full_path: bool = False
 
+    @classmethod
+    def from_args(cls, args: Args, gui_settings_full_path: bool) -> "Settings":
+        # Create a Settings object using the instance variables from Args and the given
+        # gui_settings_full_path
+        return cls(gui_settings_full_path=gui_settings_full_path, **args.__dict__)
+
     def create_settings_file(self, settings_path: Path):
         settings_dict = asdict(self)
         with open(settings_path, "w", encoding="utf-8") as f:

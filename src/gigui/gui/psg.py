@@ -155,7 +155,6 @@ def run_inner(settings: Settings) -> bool:
                 state.gui_settings_full_path = not state.gui_settings_full_path
                 if state.gui_settings_full_path:
                     update_settings_file_str(True, window)
-                    SettingsFile.show()
                 else:
                     update_settings_file_str(False, window)
 
