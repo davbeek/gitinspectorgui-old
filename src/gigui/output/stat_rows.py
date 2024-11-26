@@ -35,7 +35,7 @@ def header_authors(html: bool = True) -> list[str]:
                 "Stability",
                 "Commits",
             ]
-            + (["Deletions", "Age"] if deletions else ["Age"])
+            + (["Deletions", "Age Y:M:D"] if deletions else ["Age Y:M:D"])
         )
     else:
         return header_prefix + header_stat()
@@ -70,7 +70,7 @@ class TableRows:
         self.repo = repo
         self.rows: list[Row] = []
 
-    def _get_stat_values(self, stat: Stat, nr_authors: int = 2) -> list[Any]:
+    def _get_stat_values(self, stat: Stat, nr_authors: int = -1) -> list[Any]:
         return (
             [
                 percentage_to_out(stat.percent_lines),
@@ -81,7 +81,7 @@ class TableRows:
                     percentage_to_out(stat.percent_lines * nr_authors),
                     percentage_to_out(stat.percent_insertions * nr_authors),
                 ]
-                if scaled_percentages
+                if scaled_percentages and not nr_authors == -1
                 else []
             )
             + [
@@ -100,12 +100,13 @@ class AuthorsTableRows(TableRows):
         row: Row
         rows: list[Row] = []
         id_val: int = 0
+        nr_authors = len(self.repo.real_authors_included)
         for author in self.repo.authors_included:
             person = self.repo.get_person(author)
             row = [id_val, person.authors_str] + (
                 ["", person.emails_str] if html else [person.emails_str]
             )  # type: ignore
-            row.extend(self._get_stat_values(a2p[author].stat, len(a2p)))
+            row.extend(self._get_stat_values(a2p[author].stat, nr_authors))
             rows.append(row)
             id_val += 1
         return rows

@@ -221,6 +221,10 @@ class GIRepo:
         for sha_short, author in self.sha_short2author.items():
             self.sha_short2author_nr[sha_short] = self.author2nr[author]
 
+    @property
+    def real_authors_included(self) -> list[Author]:
+        return [author for author in self.authors_included if not author == "*"]
+
     # from set to list
     def fr2f2a2sha_set_to_list(
         self, source: dict[FileStr, dict[FileStr, dict[Author, set[SHAShort]]]]
