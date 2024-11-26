@@ -61,7 +61,8 @@ def main(args: Args, start_time: float, gui_window: sg.Window | None = None) -> 
     repo_lists: list[list[GIRepo]] = []
 
     dir_strs = get_dir_matches(args.input_fstrs)
-    for dir_str in dir_strs:
+    dirs_sorted = sorted(dir_strs)
+    for dir_str in dirs_sorted:
         repo_lists.extend(get_repos(Path(dir_str), args.depth))
 
     len_repos = total_len(repo_lists)
