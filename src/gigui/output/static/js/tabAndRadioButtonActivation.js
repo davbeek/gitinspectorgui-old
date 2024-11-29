@@ -21,6 +21,13 @@ document.addEventListener("DOMContentLoaded", function () {
                 clickFirstRadioButton(tabContent);
                 activatedTabs.add(targetId);
             }
+
+            // Adjust the position of the radio button row for the active tab
+            const radioButtonRow = tabContent.querySelector('.radio-container');
+            if (radioButtonRow) {
+                radioButtonRow.style.position = 'sticky';
+                radioButtonRow.style.top = tabRow.offsetHeight + 'px';
+            }
         });
     });
 
@@ -53,6 +60,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 if (existingTable) {
                     // Show the existing table
                     existingTable.style.display = '';
+                    adjustHeaderRowPosition(existingTable);
                 } else {
                     // Fetch and insert the table if not already in the DOM
                     fetch(`/load-table/${tableId}?id=${browserId}`)
@@ -63,10 +71,24 @@ document.addEventListener("DOMContentLoaded", function () {
                             const table = tempDiv.querySelector('table');
                             table.id = tableId; // Ensure the table has the correct id
                             tableContainer.appendChild(table);
+                            adjustHeaderRowPosition(table);
                         })
                         .catch(error => console.error('Error loading table:', error));
                 }
             });
         });
     });
+
+    function adjustHeaderRowPosition(table) {
+        const tabRow = document.getElementById('tabRow');
+        const tabRowHeight = tabRow.offsetHeight;
+        const radioButtonRow = table.closest('.tab-pane').querySelector('.radio-container');
+        const radioButtonRowHeight = radioButtonRow ? radioButtonRow.offsetHeight : 0;
+        const headerRow = table.querySelector('.headerRow');
+
+        if (headerRow) {
+            headerRow.style.position = 'sticky';
+            headerRow.style.top = (tabRowHeight + radioButtonRowHeight) + 'px';
+        }
+    }
 });

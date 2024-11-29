@@ -79,7 +79,6 @@ def create_html_document(html_code: Html, css_code: str, browser_id: str) -> Htm
 
     # Read and insert JavaScript files
     js_files = [
-        "adjustHeader.js",
         "updateTableOnCodeButtonClick.js",
         "tabAndRadioButtonActivation.js",
         "truncateTabNames.js",
