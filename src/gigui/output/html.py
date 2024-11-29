@@ -132,7 +132,7 @@ class TableSoup(TableRootSoup):
                 button["class"] = "hide-colors-button"
                 button.string = "Hide colors"
                 th.append(button)
-            thead.append(th)
+            tr.append(th)
         table.insert(0, thead)  # ensure thead comes before tbody
 
 
