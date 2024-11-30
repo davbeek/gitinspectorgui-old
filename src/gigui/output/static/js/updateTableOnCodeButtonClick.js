@@ -51,6 +51,9 @@ document.addEventListener("DOMContentLoaded", function () {
             };
 
             button.onclick = function () {
+                // Store the current scroll position as a relative value
+                const storeY = window.scrollY / document.documentElement.scrollHeight;
+
                 // Toggle the value of the global variables instead of toggling the 'pressed' class
                 if (button.classList.contains('blame-exclusions-button')) {
                     isExclusionsPressed = !isExclusionsPressed;
@@ -61,6 +64,9 @@ document.addEventListener("DOMContentLoaded", function () {
                 }
                 updateRows();
                 updateButtonStates();
+
+                // Restore the scroll position as a relative value
+                window.scrollTo({ top: storeY * document.documentElement.scrollHeight, behavior: 'instant' });
             };
         });
     };
