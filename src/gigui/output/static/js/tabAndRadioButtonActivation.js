@@ -48,8 +48,8 @@ document.addEventListener("DOMContentLoaded", function () {
         var tableContainer = blameContainer.querySelector('.table-container');
         radioButtons.forEach(function (radioButton) {
             radioButton.addEventListener('click', function () {
-                // Store the current scroll position
-                storeY = window.scrollY;
+                // Store the current scroll position as a relative value
+                storeY = window.scrollY / document.documentElement.scrollHeight;
 
                 // Hide all tables in the .table-container
                 tableContainer.querySelectorAll('table').forEach(table => table.style.display = 'none');
@@ -65,8 +65,8 @@ document.addEventListener("DOMContentLoaded", function () {
                     // Show the existing table
                     existingTable.style.display = '';
                     adjustHeaderRowPosition(existingTable);
-                    // Restore the scroll position
-                    window.scrollTo({ top: storeY, behavior: 'instant' });
+                    // Restore the scroll position as a relative value
+                    window.scrollTo({ top: storeY * document.documentElement.scrollHeight, behavior: 'instant' });
                 } else {
                     // Fetch and insert the table if not already in the DOM
                     fetch(`/load-table/${tableId}?id=${browserId}`)
@@ -78,8 +78,8 @@ document.addEventListener("DOMContentLoaded", function () {
                             table.id = tableId; // Ensure the table has the correct id
                             tableContainer.appendChild(table);
                             adjustHeaderRowPosition(table);
-                            // Restore the scroll position
-                            window.scrollTo({ top: storeY, behavior: 'instant' });
+                            // Restore the scroll position as a relative value
+                            window.scrollTo({ top: storeY * document.documentElement.scrollHeight, behavior: 'instant' });
                         })
                         .catch(error => console.error('Error loading table:', error));
                 }
