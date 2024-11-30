@@ -1,3 +1,6 @@
+// Functions to handle tab and radio button activation. Only used for options
+// --blame-history=dynamic.
+
 // Add event listeners for tab activation and radio button clicks
 document.addEventListener("DOMContentLoaded", function () {
     // Function to click the first radio button in the active tab

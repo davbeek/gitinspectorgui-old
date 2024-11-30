@@ -5,8 +5,11 @@ from gigui.data import FileStat, PersonStat, Stat
 from gigui.repo import GIRepo
 from gigui.typedefs import Author, FileStr, Row
 
-deletions: bool = False
-scaled_percentages: bool = False
+# Global variables to store the value of CLI or GUI options
+# Set by gitinspector.init_classes
+# noqa: F821 (undefined name) is added in the code to suppress the flake8 error
+deletions: bool
+scaled_percentages: bool
 
 
 def header_stat() -> list[str]:
@@ -17,12 +20,14 @@ def header_stat() -> list[str]:
         "Insertions",
         "Stability",
         "Commits",
-    ] + (["Deletions", "Age Y:M:D"] if deletions else ["Age Y:M:D"])
+    ] + (
+        ["Deletions", "Age Y:M:D"] if deletions else ["Age Y:M:D"]  # noqa: F821
+    )
 
 
 def header_authors(html: bool = True) -> list[str]:
     header_prefix = ["ID", "Author"] + (["Empty", "Email"] if html else ["Email"])
-    if scaled_percentages:
+    if scaled_percentages:  # noqa: F821
         return (
             header_prefix
             + [
@@ -35,7 +40,7 @@ def header_authors(html: bool = True) -> list[str]:
                 "Stability",
                 "Commits",
             ]
-            + (["Deletions", "Age Y:M:D"] if deletions else ["Age Y:M:D"])
+            + (["Deletions", "Age Y:M:D"] if deletions else ["Age Y:M:D"])  # noqa: F821
         )
     else:
         return header_prefix + header_stat()
@@ -81,7 +86,7 @@ class TableRows:
                     percentage_to_out(stat.percent_lines * nr_authors),
                     percentage_to_out(stat.percent_insertions * nr_authors),
                 ]
-                if scaled_percentages and not nr_authors == -1
+                if scaled_percentages and not nr_authors == -1  # noqa: F821
                 else []
             )
             + [
@@ -90,7 +95,9 @@ class TableRows:
                 stat.stability,
                 len(stat.sha_shorts),
             ]
-            + ([stat.deletions, stat.age] if self.deletions else [stat.age])
+            + (
+                [stat.deletions, stat.age] if self.deletions else [stat.age]
+            )  # noqa: F821
         )
 
 

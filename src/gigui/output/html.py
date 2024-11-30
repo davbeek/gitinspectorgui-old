@@ -117,12 +117,8 @@ class TableSoup(TableRootSoup):
                 if self.blame_exclusions in {HIDE, SHOW}:
                     exclusions_button = self.soup.new_tag("button")
                     empty_lines_button = self.soup.new_tag("button")
-                    if self.blame_exclusions == HIDE:
-                        exclusions_button["class"] = "blame-exclusions-button pressed"
-                        empty_lines_button["class"] = "blame-empty-lines-button pressed"
-                    elif self.blame_exclusions == SHOW:
-                        exclusions_button["class"] = "blame-exclusions-button"
-                        empty_lines_button["class"] = "blame-empty-lines-button"
+                    exclusions_button["class"] = "blame-exclusions-button"
+                    empty_lines_button["class"] = "blame-empty-lines-button"
                     exclusions_button.string = "Hide blame exclusions"
                     empty_lines_button.string = "Hide empty lines"
                     th.append(exclusions_button)

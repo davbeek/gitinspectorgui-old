@@ -1,17 +1,13 @@
-// Function to update the visibility of rows based on the state of the buttons:
+// Add event listeners to the buttons in the Code column of the blame tables to update
+// the visibility of rows based on the state of the buttons:
 // .blame-exclusions-button, .blame-empty-lines-button, and .hide-colors-button
+
 document.addEventListener("DOMContentLoaded", function () {
 
+    // Update the visibility of rows based on the state of the buttons:
     const updateRows = () => {
         document.querySelectorAll('table').forEach(table => {
-            const exclusionsButton = table.querySelector('.blame-exclusions-button');
-            const emptyLinesButton = table.querySelector('.blame-empty-lines-button');
-            const hideColorsButton = table.querySelector('.hide-colors-button');
-
-            const isExclusionsPressed = exclusionsButton ? exclusionsButton.classList.contains('pressed') : false;
-            const isEmptyLinesPressed = emptyLinesButton ? emptyLinesButton.classList.contains('pressed') : false;
-            const isHideColorsPressed = hideColorsButton ? hideColorsButton.classList.contains('pressed') : false;
-
+            // Use global variables for button states
             const rows = table.querySelectorAll('tbody tr');
             rows.forEach(row => {
                 const codeCell = row.querySelector('.code-col');
@@ -20,15 +16,30 @@ document.addEventListener("DOMContentLoaded", function () {
                 const isEmptyLine = codeCell && codeCell.textContent.trim() === '';
                 const isExcludedAuthor = firstCell && secondCell && firstCell.textContent.trim() === '0' && !secondCell.textContent.includes('*');
 
+                // isExclusionsPressed and isEmptyLinesPressed are globally declared in
+                // globals.js
                 row.style.display = (isExcludedAuthor && isExclusionsPressed)
                     || (isEmptyLine && isEmptyLinesPressed) ? 'none' : '';
 
+                // isHideColorsPressed is globally declared in globals.js
                 if (isHideColorsPressed) {
                     row.classList.add('hide-colors');
                 } else {
                     row.classList.remove('hide-colors');
                 }
             });
+        });
+    };
+
+    const updateButtonStates = () => {
+        document.querySelectorAll('.blame-exclusions-button').forEach(button => {
+            button.classList.toggle('pressed', isExclusionsPressed);
+        });
+        document.querySelectorAll('.blame-empty-lines-button').forEach(button => {
+            button.classList.toggle('pressed', isEmptyLinesPressed);
+        });
+        document.querySelectorAll('.hide-colors-button').forEach(button => {
+            button.classList.toggle('pressed', isHideColorsPressed);
         });
     };
 
@@ -40,8 +51,16 @@ document.addEventListener("DOMContentLoaded", function () {
             };
 
             button.onclick = function () {
-                button.classList.toggle('pressed');
+                // Toggle the value of the global variables instead of toggling the 'pressed' class
+                if (button.classList.contains('blame-exclusions-button')) {
+                    isExclusionsPressed = !isExclusionsPressed;
+                } else if (button.classList.contains('blame-empty-lines-button')) {
+                    isEmptyLinesPressed = !isEmptyLinesPressed;
+                } else if (button.classList.contains('hide-colors-button')) {
+                    isHideColorsPressed = !isHideColorsPressed;
+                }
                 updateRows();
+                updateButtonStates();
             };
         });
     };
@@ -51,12 +70,15 @@ document.addEventListener("DOMContentLoaded", function () {
         for (const mutation of mutationsList) {
             if (mutation.type === 'childList') {
                 addEventListenersToButtons();
+                updateButtonStates(); // Ensure new buttons have the correct initial state
             }
         }
     });
 
     observer.observe(document.body, { childList: true, subtree: true });
 
-    // Initial call to add event listeners to existing buttons
+    // Initial call to add event listeners to existing buttons and update their states
     addEventListenersToButtons();
+    updateRows(); // Ensure rows are updated based on the initial state
+    updateButtonStates(); // Ensure buttons have the correct initial state
 });

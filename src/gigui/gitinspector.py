@@ -15,13 +15,14 @@ from gigui.constants import (
     DEFAULT_FILE_BASE,
     DEFAULT_FORMAT,
     DYNAMIC,
+    HIDE,
     MAX_BROWSER_TABS,
     NONE,
     STATIC,
 )
 from gigui.data import FileStat, Person
 from gigui.keys import Keys
-from gigui.output import stat_rows
+from gigui.output import server_main, stat_rows
 from gigui.output.blame_rows import BlameBaseRows
 from gigui.output.excel import Book
 from gigui.output.html import (
@@ -158,6 +159,7 @@ def init_classes(args: Args):
     Person.ex_email_patterns = args.ex_emails
     stat_rows.deletions = args.deletions
     stat_rows.scaled_percentages = args.scaled_percentages
+    server_main.blame_exclusions_hide = args.blame_exclusions == HIDE
 
 
 # Normally, the input paths have already been expanded by the shell, but in case the
