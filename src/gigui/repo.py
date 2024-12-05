@@ -70,7 +70,7 @@ class GIRepo:
 
         success: bool
         try:
-            success = self._run_blame_no_history(thread_executor)
+            success = self._run_no_history(thread_executor)
             if not success:
                 return False
 
@@ -93,7 +93,7 @@ class GIRepo:
         finally:
             self.repo_reader.git_repo.close()
 
-    def _run_blame_no_history(self, thread_executor: ThreadPoolExecutor) -> bool:
+    def _run_no_history(self, thread_executor: ThreadPoolExecutor) -> bool:
         self.repo_reader.run(thread_executor)
 
         # Use results from repo_reader to initialize the other classes.
