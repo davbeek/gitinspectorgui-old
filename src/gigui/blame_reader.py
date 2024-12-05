@@ -1,3 +1,4 @@
+import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime
@@ -18,6 +19,8 @@ from gigui.typedefs import (
     SHALong,
     SHAShort,
 )
+
+logger = logging.getLogger(__name__)
 
 
 # Commit that is used to order and number commits by date, starting at 1 for the
@@ -150,7 +153,8 @@ class BlameBaseReader:
                 start_sha_long, fstr, rev_opts=blame_opts
             )  # type: ignore
             return git_blames
-        except GitCommandError:
+        except GitCommandError as e:
+            logger.info(f"GitCommandError: {e}")
             return []
 
 
