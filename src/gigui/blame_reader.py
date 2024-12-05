@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 
 from git import Commit as GitCommit
-from git import Repo
+from git import GitCommandError, Repo
 
 from gigui.comment import get_is_comment_lines
 from gigui.constants import STATIC
@@ -145,10 +145,13 @@ class BlameBaseReader:
         blame_opts: list[str],
     ) -> GitBlames:
         start_sha_long = self.sha_short2sha_long[start_sha_short]
-        git_blames: GitBlames = self.git_repo.blame(
-            start_sha_long, fstr, rev_opts=blame_opts
-        )  # type: ignore
-        return git_blames
+        try:
+            git_blames: GitBlames = self.git_repo.blame(
+                start_sha_long, fstr, rev_opts=blame_opts
+            )  # type: ignore
+            return git_blames
+        except GitCommandError:
+            return []
 
 
 class BlameReader(BlameBaseReader):
