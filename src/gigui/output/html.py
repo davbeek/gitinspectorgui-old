@@ -66,6 +66,15 @@ BG_AUTHOR_COLORS: list[str] = [
 
 BG_ROW_COLORS: list[str] = ["bg-row-light-green", "bg-white"]
 
+
+# Global variables to store the value of CLI or GUI options
+# Set by gitinspector.init_classes
+# blame_exclusions_hide is true when --blame_exclusions=hide.
+# blame_history is the value of the --blame-history option.
+# noqa: F821 (undefined name) is added in the code to suppress the flake8 error
+blame_exclusions_hide: bool  # noqa: F821
+blame_history: str
+
 logger = logging.getLogger(__name__)
 
 # Global definition of the current repository. Defined in this module instead of in
@@ -495,12 +504,13 @@ def get_repo_html(
 
     # Load the template file.
     module_dir = Path(__file__).resolve().parent
-    if repo.blame_history == DYNAMIC:
-        html_path = module_dir / "static" / "server-template.html"
-    else:
-        html_path = module_dir / "static" / "template.html"
+    html_path = module_dir / "static" / "template.html"
     with open(html_path, "r", encoding="utf-8") as f:
         html_template = f.read()
+
+    if not blame_history == DYNAMIC:
+        # If blame_history == DYNAMIC, create_html_document is called in server_main.py
+        html_template = create_html_document(html_template, load_css())
 
     soup = BeautifulSoup(html_template, "html.parser")
 
@@ -536,3 +546,57 @@ def load_css() -> str:
     css_file = Path(__file__).parent / "static" / "styles.css"
     with open(css_file, "r", encoding="utf-8") as f:
         return f.read()
+
+
+def create_html_document(
+    html_code: Html, css_code: str, browser_id: str | None = None
+) -> Html:
+
+    # Insert CSS code
+    html_code = html_code.replace(
+        "</head>",
+        f"<style>{css_code}</style></head>",
+    )
+
+    # Read and insert JavaScript files
+    if browser_id:  # dynamic blame history
+        js_files = [
+            # "adjust-header-row-pos.js",
+            "browser-id.js",
+            "generate-random-query.js",
+            "globals.js",
+            "tab-radio-button-activation.js",
+            "shutdown.js",
+            "truncate-tab-names.js",
+            "update-table-on-button-click.js",
+        ]
+    else:  # static blame history
+        js_files = [
+            # "adjust-header-row-pos.js",
+            "globals.js",
+            "tab-radio-button-activation.js",
+            "truncate-tab-names.js",
+            "update-table-on-button-click.js",
+        ]
+    html_js_code: Html = ""
+    js_code: str
+    for js_file in js_files:
+        js_path = Path(__file__).parent / "static" / "js" / js_file
+        with open(js_path, "r", encoding="utf-8") as f:
+            js_code = f.read()
+
+        match js_file:
+            case "globals.js":
+                # Insert the value of --blame-exclusions=hide in the js code
+                js_code = js_code.replace(
+                    "<%= blame_exclusions_hide %>",
+                    str(blame_exclusions_hide),  # noqa: F821
+                )
+            case "browser-id.js":
+                # Insert the browser ID option in the js code
+                js_code = js_code.replace("<%= browser_id %>", browser_id)  # type: ignore
+
+        html_js_code += f"\n<script>\n{js_code}</script>\n"
+
+    html_code = html_code.replace("</body>", f"{html_js_code}</body>")
+    return html_code

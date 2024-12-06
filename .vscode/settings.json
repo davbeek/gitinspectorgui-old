@@ -55,6 +55,10 @@
         "black"
     ],
     //
+    "[javascript]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    //
     "[python]": {
         "editor.defaultFormatter": "ms-python.black-formatter",
         "editor.formatOnSave": true,
@@ -64,7 +68,7 @@
         //
         // required for isort, see setting "isort.args"
         "editor.codeActionsOnSave": {
-            "source.organizeImports": "explicit"
+            "source.organizeImports": "explicit",
         },
     },
     //
@@ -156,4 +160,5 @@
         "worktree",
         "xlsxwriter"
     ],
+    "prettier.tabWidth": 4,
 }

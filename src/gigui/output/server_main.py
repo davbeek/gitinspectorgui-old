@@ -3,21 +3,14 @@ import socket
 import time  # Add this import
 import webbrowser
 from multiprocessing import Process, Queue
-from pathlib import Path
 from uuid import uuid4
 
 from gigui.constants import DYNAMIC
 from gigui.output import html  # to use the shared global variable current_repo
 from gigui.output.blame_rows import BlameHistoryRows
-from gigui.output.html import BlameTableSoup, logger
+from gigui.output.html import BlameTableSoup, create_html_document, load_css, logger
 from gigui.output.server import PORT, run_server
 from gigui.typedefs import FileStr, Html, SHAShort
-
-# Global variable to store the value of CLI or GUI options
-# Set by gitinspector.init_classes
-# blame_exclusions_hide is true when --blame_exclusions=hide.
-# noqa: F821 (undefined name) is added in the code to suppress the flake8 error
-blame_exclusions_hide: bool  # noqa: F821
 
 
 # This the main function that is called from the main process to start the server.
@@ -25,14 +18,14 @@ blame_exclusions_hide: bool  # noqa: F821
 # It also opens the web browser to serve the initial contents.
 # The server process is terminated when the main process receives a shutdown request via
 # the queue.
-def start_werkzeug_server_in_process_with_html(html_code: Html, css_code: str) -> None:
+def start_werkzeug_server_in_process_with_html(html_code: Html) -> None:
     server_process: Process
     process_queue: Queue
 
     process_queue = Queue()
     browser_id = str(uuid4())[-12:]
 
-    html_code = create_html_document(html_code, css_code, browser_id)
+    html_code = create_html_document(html_code, load_css(), browser_id)
 
     port: int = PORT
     while is_port_in_use(port):
@@ -73,48 +66,6 @@ def start_werkzeug_server_in_process_with_html(html_code: Html, css_code: str) -
         server_process.terminate()  # type: ignore
         server_process.join()  # type: ignore # Ensure the process is fully terminated
         raise e
-
-
-def create_html_document(html_code: Html, css_code: str, browser_id: str) -> Html:
-
-    # Insert CSS code
-    html_code = html_code.replace(
-        "</head>",
-        f"<style>{css_code}</style></head>",
-    )
-
-    # Read and insert JavaScript files
-    js_files = [
-        "globals.js",
-        "updateTableOnCodeButtonClick.js",
-        "tabAndRadioButtonActivation.js",
-        "truncateTabNames.js",
-        "generateRandomQuery.js",
-        "shutdown.js",
-    ]
-    html_js_code: Html = ""
-    js_code: str
-    for js_file in js_files:
-        js_path = Path(__file__).parent / "static" / "js" / js_file
-        with open(js_path, "r", encoding="utf-8") as f:
-            js_code = f.read()
-            if js_file == "shutdown.js":
-                # Insert the browser ID in the js code
-                js_code = js_code.replace("<%= browser_id %>", browser_id)
-            elif js_file == "tabAndRadioButtonActivation.js":
-                # Insert the browser ID option in the js code
-                js_code = js_code.replace("<%= browser_id %>", browser_id)
-            elif js_file == "globals.js":
-                # Insert the value of --blame-exclusions=hide in the js code
-                js_code = js_code.replace(
-                    "<%= blame_exclusions_hide %>",
-                    str(blame_exclusions_hide),  # noqa: F821
-                )
-
-            html_js_code += f"<script>{js_code}</script>\n"
-
-    html_code = html_code.replace("</body>", f"{html_js_code}</body>")
-    return html_code
 
 
 def is_port_in_use(port: int) -> bool:

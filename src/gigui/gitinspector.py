@@ -22,7 +22,7 @@ from gigui.constants import (
 )
 from gigui.data import FileStat, Person
 from gigui.keys import Keys
-from gigui.output import server_main, stat_rows
+from gigui.output import html, stat_rows
 from gigui.output.blame_rows import BlameBaseRows
 from gigui.output.excel import Book
 from gigui.output.html import (
@@ -30,7 +30,6 @@ from gigui.output.html import (
     BlameTablesSoup,
     TableSoup,
     get_repo_html,
-    load_css,
 )
 from gigui.output.server_main import start_werkzeug_server_in_process_with_html
 from gigui.output.stat_rows import TableRows
@@ -159,7 +158,8 @@ def init_classes(args: Args):
     Person.ex_email_patterns = args.ex_emails
     stat_rows.deletions = args.deletions
     stat_rows.scaled_percentages = args.scaled_percentages
-    server_main.blame_exclusions_hide = args.blame_exclusions == HIDE
+    html.blame_exclusions_hide = args.blame_exclusions == HIDE
+    html.blame_history = args.blame_history
 
 
 # Normally, the input paths have already been expanded by the shell, but in case the
@@ -219,7 +219,7 @@ def process_unicore_repo(
             open_webview(html_code, repo_name)
         else:  # args.blame_history == DYNAMIC
             try:
-                start_werkzeug_server_in_process_with_html(html_code, load_css())
+                start_werkzeug_server_in_process_with_html(html_code)
                 # server_process.join()  # Wait for the server process to finish
             except KeyboardInterrupt:
                 os._exit(0)
