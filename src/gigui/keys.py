@@ -11,6 +11,7 @@ class KeysArgs:
     outfile_base: str = "outfile_base"
     fix: str = "fix"
     depth: str = "depth"
+    view: str = "view"
     format: str = "format"
     scaled_percentages: str = "scaled_percentages"
     blame_exclusions: str = "blame_exclusions"
@@ -25,7 +26,6 @@ class KeysArgs:
     whitespace: str = "whitespace"
     empty_lines: str = "empty_lines"
     comments: str = "comments"
-    viewer: str = "viewer"
     copy_move: str = "copy_move"
     verbosity: str = "verbosity"
     dry_run: str = "dry_run"
@@ -74,7 +74,7 @@ class Keys(KeysArgs):
     postfix: str = "postfix"
     nofix: str = "nofix"
     # Output formats in table form
-    auto: str = "auto"
+    view: str = "view"
     html: str = "html"
     excel: str = "excel"
     # General configuration

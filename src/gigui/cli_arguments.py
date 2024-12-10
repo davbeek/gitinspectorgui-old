@@ -11,7 +11,6 @@ from gigui.constants import (
     BLAME_EXCLUSION_CHOICES,
     BLAME_HISTORY_CHOICES,
     FIX_TYPE,
-    VIEWER_CHOICES,
 )
 from gigui.tiphelp import Help
 from gigui.utils import get_digit, get_pos_number, get_version, str_split_comma
@@ -101,6 +100,11 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
     # Output generation and formatting
     group_generation = parser.add_argument_group("Output generation and formatting")
     group_generation.add_argument(
+        "--view",
+        action=BooleanOptionalAction,
+        help=hlp.view,
+    )
+    group_generation.add_argument(
         "-F",
         "--format",
         action="append",
@@ -133,12 +137,6 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
         "--blame-history",
         choices=BLAME_HISTORY_CHOICES,
         help=hlp.blame_history,
-    )
-    group_generation.add_argument(
-        "--viewer",
-        type=str,
-        choices=VIEWER_CHOICES,
-        help=hlp.viewer,
     )
     group_generation.add_argument(
         "-v",
@@ -273,7 +271,6 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
 
     # Logging
     group_cli_only = parser.add_argument_group("Logging")
-
     group_cli_only.add_argument(
         "--profile",
         type=get_pos_number,

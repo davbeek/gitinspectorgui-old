@@ -9,13 +9,12 @@ import PySimpleGUI as sg  # type: ignore
 from gigui._logging import add_gui_handler
 from gigui.args_settings import SettingsFile
 from gigui.constants import (
-    AUTO,
     BLAME_EXCLUSION_CHOICES,
     BLAME_HISTORY_CHOICES,
     INIT_COL_PERCENT,
     MAX_COL_HEIGHT,
     NONE,
-    VIEWER_CHOICES,
+    SHOW,
     WINDOW_HEIGHT_CORR,
     WINDOW_SIZE_X,
     WINDOW_SIZE_Y,
@@ -261,8 +260,8 @@ def output_formats_frame() -> sg.Frame:
                         [
                             name_header("Output formats", tooltip=tip.format_excel),
                             checkbox(
-                                keys.auto,
-                                keys.auto,
+                                keys.view,
+                                keys.view,
                             ),
                             checkbox(
                                 keys.html,
@@ -275,18 +274,21 @@ def output_formats_frame() -> sg.Frame:
                             sg.Text("", expand_x=True, background_color="white"),
                         ],
                         [
-                            name_header("Options", ""),
-                            checkbox(
-                                "Show renames",
-                                key=keys.show_renames,
+                            name_header("Blame options", ""),
+                            name_choice(
+                                "Blame history",
+                                tooltip=tip.blame_history,
                             ),
-                            checkbox(
-                                "Scaled %",
-                                key=keys.scaled_percentages,
-                            ),
-                            checkbox(
-                                "Blame skip",
-                                key=keys.blame_skip,
+                            sg.Combo(
+                                BLAME_HISTORY_CHOICES,
+                                default_value=NONE,
+                                key=keys.blame_history,
+                                enable_events=True,
+                                size=6,
+                                pad=((3, 10), 2),
+                                readonly=True,
+                                text_color="black",
+                                background_color="white",
                             ),
                             name_choice(
                                 "Blame exclusions",
@@ -294,7 +296,7 @@ def output_formats_frame() -> sg.Frame:
                             ),
                             sg.Combo(
                                 BLAME_EXCLUSION_CHOICES,
-                                default_value=AUTO,
+                                default_value=SHOW,
                                 key=keys.blame_exclusions,
                                 enable_events=True,
                                 size=6,
@@ -303,23 +305,20 @@ def output_formats_frame() -> sg.Frame:
                                 text_color="black",
                                 background_color="white",
                             ),
+                            checkbox(
+                                "Blame skip",
+                                key=keys.blame_skip,
+                            ),
                         ],
                         [
                             name_header("Options", ""),
-                            name_choice(
-                                "Viewer",
-                                tooltip=tip.viewer,
+                            checkbox(
+                                "Show renames",
+                                key=keys.show_renames,
                             ),
-                            sg.Combo(
-                                VIEWER_CHOICES,
-                                default_value=AUTO,
-                                key=keys.viewer,
-                                enable_events=True,
-                                size=5,
-                                pad=((3, 10), 2),
-                                readonly=True,
-                                text_color="black",
-                                background_color="white",
+                            checkbox(
+                                "Scaled %",
+                                key=keys.scaled_percentages,
                             ),
                             name_choice(
                                 "Debug",
@@ -337,21 +336,6 @@ def output_formats_frame() -> sg.Frame:
                                 keys.dry_run,
                                 list(range(3)),
                                 pad=((3, 13), 0),
-                            ),
-                            name_choice(
-                                "Blame history",
-                                tooltip=tip.blame_history,
-                            ),
-                            sg.Combo(
-                                BLAME_HISTORY_CHOICES,
-                                default_value=NONE,
-                                key=keys.blame_history,
-                                enable_events=True,
-                                size=6,
-                                pad=((3, 10), 2),
-                                readonly=True,
-                                text_color="black",
-                                background_color="white",
                             ),
                         ],
                     ],

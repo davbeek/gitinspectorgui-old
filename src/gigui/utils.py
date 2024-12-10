@@ -42,6 +42,19 @@ def open_files(fstrs: list[str]):
                 raise RuntimeError(f"Unknown platform {platform.system()}")
 
 
+def open_file(fstr: FileStr):
+    if fstr:
+        match platform.system():
+            case "Darwin":
+                subprocess.run(["open", fstr], check=True)
+            case "Linux":
+                subprocess.run(["xdg-open", fstr], check=True)
+            case "Windows":
+                subprocess.run(["start", "", fstr], check=True, shell=True)
+            case _:
+                raise RuntimeError(f"Unknown platform {platform.system()}")
+
+
 def open_webview(html_code: str, repo_name: str):
     webview.create_window(
         f"{repo_name} viewer",

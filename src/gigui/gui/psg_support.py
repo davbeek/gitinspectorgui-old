@@ -6,7 +6,7 @@ from pathlib import Path
 
 import PySimpleGUI as sg  # type: ignore
 
-from gigui.args_settings import AUTO, Settings, SettingsFile
+from gigui.args_settings import Settings, SettingsFile
 from gigui.constants import (
     AVAILABLE_FORMATS,
     DEFAULT_FILE_BASE,
@@ -97,13 +97,10 @@ def window_state_from_settings(window: sg.Window, settings: Settings) -> None:
     window.Element(settings.fix).Update(value=True)  # type: ignore
 
     if settings.format:
-        if AUTO in settings.format:
-            window.Element(AUTO).Update(value=True)  # type:ignore
-        else:
-            for key in set(AVAILABLE_FORMATS) - {AUTO}:
-                window.Element(key).Update(  # type:ignore
-                    value=key in settings.format
-                )
+        for key in set(AVAILABLE_FORMATS):
+            window.Element(key).Update(  # type:ignore
+                value=key in settings.format
+            )
 
     window.write_event_value(keys.input_fstrs, ".".join(settings.input_fstrs))
     window.write_event_value(keys.outfile_base, settings.outfile_base)

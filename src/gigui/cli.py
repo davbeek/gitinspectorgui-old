@@ -9,7 +9,7 @@ from gigui import gitinspector
 from gigui._logging import add_cli_handler, set_logging_level_from_verbosity
 from gigui.args_settings import Args, CLIArgs, Settings, SettingsFile
 from gigui.cli_arguments import define_arguments
-from gigui.constants import DEFAULT_EXTENSIONS, DEFAULT_FORMAT
+from gigui.constants import DEFAULT_EXTENSIONS
 from gigui.gui.psg import run as run_gui
 from gigui.tiphelp import Help
 from gigui.utils import log
@@ -40,13 +40,8 @@ def main() -> None:
 
     cli_args.update_with_namespace(namespace)
 
-    if not cli_args.format:
-        cli_args.format = [DEFAULT_FORMAT]
-
-    if len(cli_args.format) > 1 and "auto" in cli_args.format:
-        others = [x for x in cli_args.format if x != "auto"]
-        logger.warning(f"Format auto has priority: ignoring {", ".join(others)}")
-        cli_args.format = ["auto"]
+    if cli_args.profile:
+        cli_args.view = False
 
     # Replace "." by current working dir and resolve paths.
     input_fstrs = [

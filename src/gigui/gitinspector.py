@@ -1,7 +1,6 @@
 import glob
 import logging
 import os
-import platform
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from cProfile import Profile
 from pathlib import Path
@@ -10,16 +9,7 @@ import PySimpleGUI as sg  # type: ignore
 
 from gigui.args_settings import Args
 from gigui.blame_reader import BlameBaseReader, BlameHistoryReader, BlameReader
-from gigui.constants import (
-    AUTO,
-    DEFAULT_FILE_BASE,
-    DEFAULT_FORMAT,
-    DYNAMIC,
-    HIDE,
-    MAX_BROWSER_TABS,
-    NONE,
-    STATIC,
-)
+from gigui.constants import DEFAULT_FILE_BASE, DYNAMIC, HIDE, STATIC
 from gigui.data import FileStat, Person
 from gigui.keys import Keys
 from gigui.output import html, stat_rows
@@ -35,12 +25,12 @@ from gigui.output.server_main import start_werkzeug_server_in_process_with_html
 from gigui.output.stat_rows import TableRows
 from gigui.repo import GIRepo, get_repos, total_len
 from gigui.repo_reader import RepoReader
-from gigui.typedefs import FileStr, Html
+from gigui.typedefs import FileStr
 from gigui.utils import (
     get_outfile_name,
     log,
     log_end_time,
-    open_files,
+    open_file,
     open_webview,
     out_profile,
 )
@@ -67,33 +57,45 @@ def main(args: Args, start_time: float, gui_window: sg.Window | None = None) -> 
 
     len_repos = total_len(repo_lists)
 
-    if args.blame_history != NONE and "excel" in args.format:
+    if args.blame_history == STATIC and args.format and args.format != ["html"]:
         logging.warning(
-            "Blame history is not not supported and will be ignored for excel output."
-        )
-    if args.blame_history == DYNAMIC and len_repos > 1:
-        logging.warning(
-            "Dynamic blame history is not supported for multiple repositories, exiting."
+            "Static blame history is supported only for html or no output format.\n"
         )
         return
-    if args.blame_history == DYNAMIC and args.format != ["auto"]:
+    if args.blame_history == DYNAMIC and len_repos > 1:
         logging.warning(
-            "Dynamic blame history is not supported for formats other than auto, exiting."
+            "Dynamic blame history is not supported for multiple repositories.\n"
+            "Please select static blame history or a single repository."
+        )
+        return
+    if args.blame_history == DYNAMIC and args.format != []:
+        logging.warning(
+            "Dynamic blame history is available only when no output formats are selected."
         )
         return
     if not len_repos:
-        log("Found no repositories")
+        log("Found no repositories.")
         return
     if len_repos > 1 and args.fix == Keys.nofix:
         log(
-            "Multiple repos detected and nofix option selected."
+            "Multiple repos detected and nofix option selected.\n"
             "Multiple repos need the (default prefix) or postfix option."
+        )
+        return
+    if len_repos > 1 and not args.format:
+        log(
+            "Multiple repos detected and no output format selected.\n"
+            "Please select an output format."
+        )
+        return
+    if not args.view and not args.format:
+        log(
+            "View option not set and no output format selected.\n"
+            "Please set the view option and/or an output format."
         )
         return
 
     outfile_base = args.outfile_base if args.outfile_base else DEFAULT_FILE_BASE
-    if not args.format:
-        args.format = [DEFAULT_FORMAT]
 
     # Process a single repository
     if len_repos == 1:
@@ -188,10 +190,6 @@ def process_unicore_repo(
     # Process a single repository in case len(repos) == 1 which also means on a single core.
 
     args.multi_core = False
-    file_to_open = ""
-    html_code = ""
-    repo_name = ""
-
     log("Output in folder " + str(repo.path.parent))
     log(f"    {repo.name} repository ({1} of {1}) ")
     with ThreadPoolExecutor(max_workers=6) as thread_executor:
@@ -203,33 +201,11 @@ def process_unicore_repo(
                     log("")
                 else:  # args.dry_run == 0
                     log("        ", end="")
-                    _, file_to_open, (html_code, repo_name) = process_repo_output(
-                        args,
-                        repo,
-                        1,
-                        outfile_base,
+                    _ = process_repo_output(
+                        args, repo, 1, outfile_base, gui_window, start_time
                     )
             else:
                 log("No statistics matching filters found")
-    log_end_time(start_time)
-    if file_to_open:  # format must be "html" or "excel"
-        open_files([file_to_open])
-    elif html_code and not gui_window:  # format must be "auto"
-        if args.blame_history in {STATIC, NONE}:
-            open_webview(html_code, repo_name)
-        else:  # args.blame_history == DYNAMIC
-            try:
-                start_werkzeug_server_in_process_with_html(html_code)
-                # server_process.join()  # Wait for the server process to finish
-            except KeyboardInterrupt:
-                os._exit(0)
-    elif html_code and gui_window:  # format must be "auto"
-        if args.blame_history in {STATIC, NONE}:
-            gui_window.write_event_value(Keys.open_webview, (html_code, repo.name))
-        else:  # args.blame_history == DYNAMIC
-            logger.error("Dynamic blame history is not supported in GUI mode.")
-    else:
-        log("No html code to show")
 
 
 def process_repo_output(  # pylint: disable=too-many-locals
@@ -237,17 +213,13 @@ def process_repo_output(  # pylint: disable=too-many-locals
     repo: GIRepo,
     len_repos: int,  # Total number of repositories being analyzed
     outfile_base: str,
-) -> tuple[
-    list[FileStr],  # Files to log
-    FileStr,  # File to open
-    tuple[Html, str],  # (HTML code, name of repository), empty if no webview generated.
-]:
+    gui_window: sg.Window | None = None,
+    start_time: float | None = None,
+) -> list[FileStr]:  # Files to log
     """
     Generate result file(s) for the analysis of the given repository.
 
-    :return: Files that should be logged, files that should be opened, and
-            the (viewed HTML file text and name of repository) pair.
-            The latter is empty if viewing is not requested.
+    :return: Files that should be logged
     """
 
     # Setup logging.
@@ -262,8 +234,8 @@ def process_repo_output(  # pylint: disable=too-many-locals
     files_to_log: list[FileStr] = []
     formats = args.format
 
-    if not repo.authors_included or not formats:
-        return [], "", ("", "")
+    if not repo.authors_included:
+        return []
 
     outfile_name = get_outfile_name(args.fix, outfile_base, repo.name)
     outfilestr = str(repo.path.parent / outfile_name)
@@ -275,10 +247,7 @@ def process_repo_output(  # pylint: disable=too-many-locals
             Book(outfilestr, repo)
 
     # Write the HTML file if requested.
-    if "html" in formats or (
-        formats == ["auto"]
-        and (len_repos > 1 or len_repos == 1 and args.viewer == NONE)
-    ):
+    if "html" in formats:
         logfile(f"{outfile_name}.html")
         if args.dry_run == 0:
             html_code = get_repo_html(repo, args.blame_skip)
@@ -291,22 +260,33 @@ def process_repo_output(  # pylint: disable=too-many-locals
 
     # In dry-run, there is nothing to show.
     if args.dry_run != 0:
-        return [], "", ("", "")
+        return files_to_log
 
-    # If the result files should not be opened, we're done.
-    if len(formats) > 1 or args.profile or args.viewer == NONE:
-        return [], "", ("", "")
+    # If the result files should not be viewed, we're done.
+    if not args.view:
+        return files_to_log
 
-    # not len(formats) > 1 and not len(formats) == 0, because in those cases a return
-    # statement has already been executed.
-    out_format = formats[0]
+    # args.view is True here, so we open the files.
+    if "excel" in formats:
+        open_file(outfilestr + ".xlsx")
 
-    # Determine the file to open and webview data based on the output format and number
-    # of repositories.
-    file_to_open, webview_data = get_output_file_and_webview_data(
-        args, repo, len_repos, outfilestr, out_format
-    )
-    return files_to_log, file_to_open, webview_data
+    if "html" in formats and args.blame_history != DYNAMIC:
+        open_file(outfilestr + ".html")
+        return []
+
+    if len_repos == 1 and not args.format:
+        html_code = get_repo_html(repo, args.blame_skip)
+        if gui_window:
+            gui_window.write_event_value(Keys.open_webview, (html_code, repo.name))
+        elif args.blame_history != DYNAMIC:  # CLI mode, dynamic or no blame history
+            log_end_time(start_time)  # type: ignore
+            open_webview(html_code, repo.name)
+        else:  # CLI mode, dynamic blame history
+            try:
+                start_werkzeug_server_in_process_with_html(html_code)
+            except KeyboardInterrupt:
+                os._exit(0)
+    return []
 
 
 def process_unicore_repos(
@@ -336,7 +316,7 @@ def process_unicore_repos(
     while repo_lists:
         # output a batch of repos from the same folder in a single run
         repos = repo_lists.pop(0)
-        count, files_to_open = process_unicore_repo_batch(
+        count = process_unicore_repo_batch(
             args,
             repos,
             len_repos,
@@ -345,32 +325,6 @@ def process_unicore_repos(
         )
         runs += 1
     log_end_time(start_time)
-    if runs == 1 and files_to_open:  # type: ignore
-        open_files(files_to_open)
-
-
-def get_output_file_and_webview_data(
-    args: Args, repo: GIRepo, len_repos: int, outfilestr: str, out_format: str
-) -> tuple[FileStr, tuple[Html, str]]:
-    file_to_open: FileStr = ""
-    webview_data: tuple[str, str] = "", ""
-    if len_repos == 1:
-        match out_format:
-            case "html":
-                file_to_open = outfilestr + ".html"
-            case "excel":
-                file_to_open = outfilestr + ".xlsx"
-            case "auto":
-                html_code = get_repo_html(repo, args.blame_skip)
-                webview_data = html_code, repo.name
-    else:  # multiple repos
-        if (
-            len_repos <= MAX_BROWSER_TABS
-            and out_format in {"auto", "html"}
-            and args.viewer == AUTO
-        ):
-            file_to_open = outfilestr + ".html"
-    return file_to_open, webview_data
 
 
 # Process multiple repos on a single core.
@@ -380,10 +334,9 @@ def process_unicore_repo_batch(
     len_repos: int,
     outfile_base: str,
     count: int,
-) -> tuple[int, list[FileStr]]:
+) -> int:
     log("Output in folder " + str(repos[0].path.parent))
     with ThreadPoolExecutor(max_workers=5) as thread_executor:
-        files_to_open = []
         for repo in repos:
             dry_run = args.dry_run
             log(f"    {repo.name} repository ({count} of {len_repos})")
@@ -399,21 +352,14 @@ def process_unicore_repo_batch(
                 if dry_run == 1:
                     log("")
                 else:  # dry_run == 0
-                    _, file_to_open, _ = process_repo_output(
+                    _ = process_repo_output(
                         args,
                         repo,
                         len_repos,
                         outfile_base,
                     )
-                    if file_to_open:
-                        if platform.system() == "Windows":
-                            # Windows cannot open multiple files at once in a
-                            # browser, so files are opened one by one.
-                            open_files([file_to_open])
-                        else:
-                            files_to_open.append(file_to_open)
             count += 1
-    return count, files_to_open
+    return count
 
 
 # Process multiple repositories in case len(repos) > 1 on multiple cores.
@@ -472,7 +418,7 @@ def process_multicore_repo(
         if dry_run <= 1:
             stats_found = repo.run(thread_executor)
         if dry_run == 0 and stats_found:
-            files_to_log, _, _ = process_repo_output(
+            files_to_log = process_repo_output(
                 args,
                 repo,
                 len_repos,

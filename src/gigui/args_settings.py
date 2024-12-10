@@ -12,7 +12,6 @@ from git import PathLike
 from gigui import shared_data
 from gigui._logging import set_logging_level_from_verbosity
 from gigui.constants import (
-    AUTO,
     AVAILABLE_FORMATS,
     BLAME_EXCLUSION_CHOICES,
     BLAME_EXCLUSIONS_DEFAULT,
@@ -25,8 +24,6 @@ from gigui.constants import (
     FIX_TYPE,
     PREFIX,
     SUBDIR_NESTING_DEPTH,
-    VIEWER_CHOICES,
-    VIEWER_DEFAULT,
 )
 from gigui.keys import Keys, KeysArgs
 from gigui.utils import log, str_split_comma
@@ -42,7 +39,8 @@ class Args:
     outfile_base: str = DEFAULT_FILE_BASE
     fix: str = PREFIX
     depth: int = SUBDIR_NESTING_DEPTH
-    format: list[str] = field(default_factory=lambda: [AUTO])
+    view: bool = True
+    format: list[str] = field(default_factory=lambda: [])
     scaled_percentages: bool = False
     blame_exclusions: str = BLAME_EXCLUSIONS_DEFAULT
     blame_skip: bool = False
@@ -56,7 +54,6 @@ class Args:
     whitespace: bool = False
     empty_lines: bool = False
     comments: bool = False
-    viewer: str = VIEWER_DEFAULT
     copy_move: int = DEFAULT_COPY_MOVE
     verbosity: int = 0
     dry_run: int = 0
@@ -98,11 +95,6 @@ class Settings(Args):
         with open(settings_path, "w", encoding="utf-8") as f:
             d = json.dumps(settings_dict, indent=4, sort_keys=True)
             f.write(d)
-
-    # Validate the format setting for a setting read from the settings file.
-    def validate_format(self) -> None:
-        if len(self.format) == 0 or AUTO in self.format and len(self.format) > 1:
-            self.format = [AUTO]
 
     def save(self):
         settings_dict = asdict(self)
@@ -259,6 +251,7 @@ class SettingsFile:
             "col_percent": {"type": "integer"},  # Not used in CLI
             "profile": {"type": "integer"},  # Not used in GUI
             "input_fstrs": {"type": "array", "items": {"type": "string"}},
+            "view": {"type": "boolean"},
             "format": {
                 "type": "array",
                 "items": {"type": "string", "enum": AVAILABLE_FORMATS},
@@ -280,7 +273,6 @@ class SettingsFile:
             "whitespace": {"type": "boolean"},
             "empty_lines": {"type": "boolean"},
             "comments": {"type": "boolean"},
-            "viewer": {"type": "string", "enum": VIEWER_CHOICES},
             "copy_move": {"type": "integer"},
             "verbosity": {"type": "integer"},
             "dry_run": {"type": "integer"},
@@ -351,7 +343,6 @@ class SettingsFile:
                 settings_dict = json.loads(s)
                 jsonschema.validate(settings_dict, cls.SETTINGS_SCHEMA)
                 settings = Settings(**settings_dict)
-                settings.validate_format()
                 return settings, ""
         except (
             ValueError,

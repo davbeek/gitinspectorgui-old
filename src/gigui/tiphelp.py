@@ -34,10 +34,7 @@ class Tip:
 
     # Output formats excel
     format_excel: str = "Select output formats to be generated"
-    auto: str = (
-        "Single repo: open webview no output file, "
-        "Multiple repos: open browser on html files"
-    )
+    view: str = "View the generated output"
     html: str = "Generate html output"
     excel: str = "Generate excel output"
     scaled_percentages: str = (
@@ -80,9 +77,6 @@ class Tip:
     whitespace: str = "Include all whitespace in diffs and in copy move detection"
     empty_lines: str = "Include empty lines in blame calculations"
     comments: str = "Include comments in blame output"
-    viewer: str = (
-        "auto: open matching application to view output, none: never open any viewer"
-    )
     copy_move: str = (
         "0: Ignore copy and move of lines, "
         "1: Detect copy move within file, "
@@ -181,9 +175,7 @@ class Help(Tip):
 
     # IO arguments
     format: str = """
-        Define in which format output should be generated (default auto: for single repo
-        open webview but generate no output file,
-        for multiple repos open browser on html files)."""
+        Define in which format output should be generated (default html)."""
 
     # General configuration
     multi_core: str = "Execute multiple repositories using multiple cores."

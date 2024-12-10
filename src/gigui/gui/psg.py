@@ -4,7 +4,6 @@ import multiprocessing
 import sys
 import time
 from datetime import datetime
-from multiprocessing import Process
 from pathlib import Path
 from typing import Any
 
@@ -194,20 +193,6 @@ def run_inner(settings: Settings) -> bool:
                 state.fix = event
                 update_outfile_str(state, window)
 
-            case keys.auto:
-                if values[keys.auto] is True:
-                    window.Element(keys.html).Update(value=False)  # type: ignore
-                    window.Element(keys.excel).Update(value=False)  # type: ignore
-                else:
-                    window.Element(keys.html).Update(value=True)  # type: ignore
-
-            case keys.html | keys.excel:
-                if values[event] is True:
-                    window.Element(keys.auto).Update(value=False)  # type: ignore
-                else:
-                    if all(values[key] == 0 for key in AVAILABLE_FORMATS):
-                        window.Element(keys.auto).Update(value=True)  # type: ignore
-
             case keys.include_files:
                 if values[keys.include_files]:
                     disable_element(window[keys.n_files])  # type: ignore
@@ -219,11 +204,7 @@ def run_inner(settings: Settings) -> bool:
 
             case keys.open_webview:
                 html_code, repo_name = values[event]
-                webview_process = Process(
-                    target=open_webview, args=(html_code, repo_name)
-                )
-                webview_process.daemon = True
-                webview_process.start()
+                open_webview(html_code, repo_name)
 
     return recreate_window
 
@@ -252,7 +233,7 @@ def execute(  # pylint: disable=too-many-branches
         return
 
     if values[keys.blame_history] == DYNAMIC:
-        popup("Error", "Dynmic blame history not supported in GUI")
+        popup("Error", "Dynamic blame history not supported in GUI")
         return
 
     args = Args()
