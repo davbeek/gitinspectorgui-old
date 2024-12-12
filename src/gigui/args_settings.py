@@ -18,7 +18,6 @@ from gigui.constants import (
     BLAME_HISTORY_CHOICES,
     BLAME_HISTORY_DEFAULT,
     DEFAULT_COPY_MOVE,
-    DEFAULT_EXTENSIONS,
     DEFAULT_FILE_BASE,
     DEFAULT_N_FILES,
     FIX_TYPE,
@@ -142,10 +141,7 @@ class Settings(Args):
         settings_schema = SettingsFile.SETTINGS_SCHEMA["properties"]
         settings = cls()
         for key in settings_schema:
-            if key == Keys.extensions and settings_dict[key] == DEFAULT_EXTENSIONS:
-                setattr(settings, key, "")
-            else:
-                setattr(settings, key, settings_dict[key])
+            setattr(settings, key, settings_dict[key])
         return settings
 
     @classmethod
@@ -195,8 +191,6 @@ class CLIArgs(Args):
         for fld in fields(Args):
             sets_dict[fld.name] = args_dict[fld.name]
         settings = Settings.create_from_settings_dict(sets_dict)
-        if self.extensions != DEFAULT_EXTENSIONS:
-            settings.extensions = self.extensions
         logger.info(f"GUISettings from CLIArgs: {settings}")
         return settings
 
