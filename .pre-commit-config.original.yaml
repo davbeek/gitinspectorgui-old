@@ -4,44 +4,44 @@
 
 # See https://pre-commit.com for more information
 # See https://pre-commit.com/hooks.html for more hooks
-default_stages: [commit, push]
+default_stages: [pre-commit, pre-push]
 exclude: .*html
 repos:
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0
-    hooks:
-      - id: trailing-whitespace
-      - id: end-of-file-fixer
-        exclude: .*gitinspector.json  # in tests/data folder
-      - id: check-added-large-files
-        exclude: '.*\.(png|icns)$'
-        # stages: [manual]
-  - repo: https://github.com/psf/black
-    rev: 24.8.0
-    hooks:
-      - id: black
-        language_version: python3.12
-        types: [python]
-        # stages: [manual]
-  - repo: https://github.com/PyCQA/flake8
-    rev: 7.1.1
-    hooks:
-      - id: flake8
-        language_version: python3.12
-        types: [python]
-        # stages: [manual]
-  - repo: https://github.com/pycqa/isort
-    rev: 5.13.2
-    hooks:
-      - id: isort
-        args: ["--profile", "black"]
-        # stages: [manual]
-  - repo: local
-    hooks:
-      - id: pytest
-        name: pytest
-        entry: pytest
-        language: system
-        pass_filenames: false
-        always_run: true
-        stages: [manual]
+    - repo: https://github.com/pre-commit/pre-commit-hooks
+      rev: v5.0.0
+      hooks:
+          - id: trailing-whitespace
+          - id: end-of-file-fixer
+            exclude: .*gitinspector.json # in tests/data folder
+          - id: check-added-large-files
+            exclude: '.*\.(png|icns)$'
+            # stages: [manual]
+    - repo: https://github.com/psf/black
+      rev: 24.10.0
+      hooks:
+          - id: black
+            language_version: python3.12
+            types: [python]
+            # stages: [manual]
+    - repo: https://github.com/PyCQA/flake8
+      rev: 7.1.1
+      hooks:
+          - id: flake8
+            language_version: python3.12
+            types: [python]
+            # stages: [manual]
+    - repo: https://github.com/pycqa/isort
+      rev: 5.13.2
+      hooks:
+          - id: isort
+            args: ["--profile", "black"]
+            # stages: [manual]
+    - repo: local
+      hooks:
+          - id: pytest
+            name: pytest
+            entry: pytest
+            language: system
+            pass_filenames: false
+            always_run: true
+            stages: [manual]

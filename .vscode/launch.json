@@ -16,7 +16,6 @@
                 // ".",
                 // "${workspaceFolder}",
                 // "${workspaceFolder}/../../templates/1dh",
-                // "--gui",
                 // "--ex-author=Bert",
                 // "--ex-file=lib"
                 // "--show-renames",
@@ -28,10 +27,8 @@
                 // "-F=excel",
                 // "-F=html",
                 // "--include-files=plant-usecases.cif",
-                // "-e=html"
                 // "--multi-core",
                 // "--no-multi-thread",
-                // "--viewer=none",
                 // "--blame-history"
             ],
         },
