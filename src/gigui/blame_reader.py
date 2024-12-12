@@ -23,10 +23,10 @@ from gigui.typedefs import (
 logger = logging.getLogger(__name__)
 
 
-# Commit that is used to order and number commits by date, starting at 1 for the
+# SHAShortDate object is used to order and number commits by date, starting at 1 for the
 # initial commit.
 @dataclass
-class Commit:
+class SHAShortDate:
     sha_short: SHAShort
     date: int
 

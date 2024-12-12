@@ -1,16 +1,30 @@
 import copy
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
+from datetime import datetime
 from fnmatch import fnmatch
 
-from git import Commit as GitCommit
-from git import PathLike, Repo
+from git import Repo as GitRepo
+from pygit2 import Blob, Commit, Tree
+from pygit2.enums import DeltaStatus, DiffOption, SortMode
+from pygit2.repository import Repository
 
-from gigui.blame_reader import BlameReader, Commit
+from gigui.blame_reader import BlameReader, SHAShortDate
 from gigui.data import CommitGroup, Person, PersonsDB, RepoStats
 from gigui.typedefs import Author, FileStr, Rev, SHALong, SHAShort
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class CommitData:
+    fstr: FileStr
+    author: Author
+    insertions: int
+    deletions: int
+    timestamp: int
+    sha_short: SHAShort
 
 
 class RepoReader:
@@ -31,7 +45,7 @@ class RepoReader:
     def __init__(
         self,
         name: str,
-        location: PathLike,
+        location: str,
         persons_db: PersonsDB,
     ):
         self.name: str = name
@@ -39,14 +53,16 @@ class RepoReader:
 
         # The default True value of expand_vars can lead to confusing warnings from
         # GitPython:
-        self.git_repo: Repo = Repo(location, expand_vars=False)
+        self.git_repo: GitRepo = GitRepo(location, expand_vars=False)
+
+        self.pygit2_repo = Repository(location)
 
         # List of all commits in the repo starting at the until date parameter (if set),
         # or else at the first commit of the repo. The list includes merge commits and
         # is sorted by commit date.
-        self.commits: list[Commit]
+        self.commits: list[SHAShortDate]
 
-        self.head_commit: GitCommit
+        self.head_commit: Commit
         self.head_sha_short: SHAShort
 
         self.fr2f2a2sha_short_set: dict[
@@ -64,7 +80,7 @@ class RepoReader:
         self.fstrs: list[FileStr] = []
 
         # Dict of file names to their sizes:
-        self.fstr2lines: dict[FileStr, int] = {}
+        self.fstr2line_count: dict[FileStr, int] = {}
 
         self.fstr2commit_groups: dict[FileStr, list[CommitGroup]] = {}
         self.stats = RepoStats()
@@ -77,17 +93,23 @@ class RepoReader:
         self.sha_short2nr: dict[SHAShort, int] = {}
         self.nr2sha_short: dict[int, SHAShort] = {}
 
-        # Use git log to get both long and short SHAs
-        log_output = self.git.log("--pretty=format:%H %h")
-        lines = log_output.splitlines()
-        line_nr = len(lines)  # set first line nr to the number of commits
-        for line in lines:
-            sha_long, sha_short = line.split()
+        commits = self.pygit2_repo.walk(self.pygit2_repo.head.target, SortMode.REVERSE)
+        commit_nr = 1
+        for commit in commits:
+            sha_long = str(commit.id)
+            sha_short = commit.short_id
             self.sha_short2sha_long[sha_short] = sha_long
             self.sha_long2sha_short[sha_long] = sha_short
-            self.sha_short2nr[sha_short] = line_nr
-            self.nr2sha_short[line_nr] = sha_short
-            line_nr -= 1
+            self.sha_short2nr[sha_short] = commit_nr
+            self.nr2sha_short[commit_nr] = sha_short
+            commit_nr += 1
+
+        self.since_timestamp: int
+        self.until_timestamp: int
+        if self.since:
+            self.since_timestamp = self._convert_to_timestamp(self.since)
+        if self.until:
+            self.until_timestamp = self._convert_to_timestamp(self.until)
 
     @property
     def git(self):
@@ -99,7 +121,7 @@ class RepoReader:
         # Set list top level fstrs (based on until par and allowed file extensions)
         self.fstrs = self._get_worktree_files()
 
-        self._set_fstr2lines()
+        self._set_fstr2line_count()
         self._get_commits_first_pass()
 
         self._set_fstr2commits(thread_executor)
@@ -107,20 +129,20 @@ class RepoReader:
     def get_person(self, author: Author | None) -> Person:
         return self.persons_db.get_person(author)
 
+    def _convert_to_timestamp(self, date_str: str) -> int:
+        dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+        return int(dt.timestamp())
+
     def _set_head_attrs(self) -> None:
-        since = self.since
-        until = self.until
+        for commit in self.pygit2_repo.walk(
+            self.pygit2_repo.head.target, SortMode.TIME
+        ):
+            if self.until and commit.commit_time > self.until_timestamp:  # type: ignore
+                continue
+            self.head_commit = commit
+            break
 
-        since_until_kwargs: dict = {}
-        if since and until:
-            since_until_kwargs = {"since": since, "until": until}
-        elif since:
-            since_until_kwargs = {"since": since}
-        elif until:
-            since_until_kwargs = {"until": until}
-
-        self.head_commit = next(self.git_repo.iter_commits(**since_until_kwargs))
-        self.head_sha_short = self.sha_long2sha_short[self.head_commit.hexsha]
+        self.head_sha_short = self.sha_long2sha_short[str(self.head_commit.id)]
 
     # Get list of top level files (based on the until parameter) that satisfy the
     # required extensions and do not match the exclude file patterns.
@@ -132,46 +154,71 @@ class RepoReader:
             matches = self._get_biggest_worktree_files(self.n_files)
         else:  # Get files matching file pattern
             matches = [
-                blob.path  # type: ignore
-                for blob in self.head_commit.tree.traverse()
+                fstr
+                for entry, fstr in self._traverse_tree(self.head_commit.tree)
                 if (
-                    blob.type == "blob"  # type: ignore
-                    and blob.path.split(".")[-1] in self.extensions  # type: ignore
-                    and not self._matches_ex_file(blob.path)  # type: ignore
-                    and any(
-                        fnmatch(blob.path, pattern)  # type: ignore
-                        for pattern in self.include_files
-                    )
-                    and fnmatch(blob.path, f"{self.subfolder}*")  # type: ignore
+                    entry.type_str == "blob"
+                    and fstr.split(".")[-1] in self.extensions
+                    and not self._matches_ex_file(fstr)
+                    and any(fnmatch(fstr, pattern) for pattern in self.include_files)
+                    and fnmatch(fstr, f"{self.subfolder}*")
                 )
             ]
         return matches
+
+    def _traverse_tree(self, tree: Tree, base_path: str = "") -> list[tuple[Blob, str]]:
+        entries: list[tuple[Blob, str]] = []
+        for entry in tree:
+            entry_path = f"{base_path}/{entry.name}" if base_path else entry.name
+            if entry.type_str == "tree":
+                entries.extend(self._traverse_tree(entry, entry_path))  # type: ignore
+            else:
+                entries.append((entry, entry_path))  # type: ignore
+        return entries
+
+    def get_worktree_files_sizes(self) -> list[tuple[FileStr, int]]:
+        def get_subfolder_entries() -> list:
+            return [
+                (entry, fstr)
+                for entry, fstr in self._traverse_tree(self.head_commit.tree)
+                if (entry.type_str == "blob" and fnmatch(fstr, f"{self.subfolder}*"))
+            ]
+
+        entries: list = get_subfolder_entries()
+        if not entries:
+            logging.warning(f"No files found in subfolder {self.subfolder}")
+            return []
+        return [
+            (fstr, entry.size)
+            for entry, fstr in entries
+            if (
+                fstr.split(".")[-1] in self.extensions
+                and not self._matches_ex_file(fstr)
+            )
+        ]
 
     # Get the n biggest files in the worktree that:
     # - match the required file extensions
     def _get_biggest_worktree_files(self, n: int) -> list[FileStr]:
         # Get the files with their file sizes that match the required extensions
-        def get_subfolder_blobs() -> list:
+        def get_subfolder_entries() -> list:
             return [
-                blob
-                for blob in self.head_commit.tree.traverse()
-                if (
-                    (blob.type == "blob")  # type: ignore
-                    and fnmatch(blob.path, f"{self.subfolder}*")  # type: ignore
-                )
+                (entry, fstr)
+                for entry, fstr in self._traverse_tree(self.head_commit.tree)
+                if (entry.type_str == "blob" and fnmatch(fstr, f"{self.subfolder}*"))
             ]
 
         def get_worktree_files_sizes() -> list[tuple[FileStr, int]]:
-            blobs: list = get_subfolder_blobs()
-            if not blobs:
+            entries: list = get_subfolder_entries()
+            if not entries:
                 logging.warning(f"No files found in subfolder {self.subfolder}")
                 return []
             return [
-                (blob.path, blob.size)  # type: ignore
-                for blob in blobs
+                (fstr, entry.size)
+                for entry, fstr in entries
                 if (
-                    ((blob.path.split(".")[-1] in self.extensions))  # type: ignore
-                    and not self._matches_ex_file(blob.path)  # type: ignore
+                    fstr.split(".")[-1] in self.extensions
+                    and not self._matches_ex_file(fstr)
                 )
             ]
 
@@ -186,77 +233,54 @@ class RepoReader:
     def _matches_ex_file(self, fstr: FileStr) -> bool:
         return any(fnmatch(fstr, pattern) for pattern in self.ex_files)
 
-    def _set_fstr2lines(self) -> None:
-        self.fstr2lines["*"] = 0
-        for blob in self.head_commit.tree.traverse():
+    def _set_fstr2line_count(self) -> None:
+        self.fstr2line_count["*"] = 0
+        for blob, fstr in self._traverse_tree(self.head_commit.tree):
             if (
-                blob.type == "blob"  # type: ignore
-                and blob.path in self.fstrs  # type: ignore
-                and blob.path not in self.fstr2lines  # type: ignore
+                blob.type == "blob"
+                and fstr in self.fstrs
+                and fstr not in self.fstr2line_count
             ):
                 # number of lines in blob
                 line_count: int = len(
                     blob.data_stream.read().decode("utf-8").split("\n")  # type: ignore
                 )
-                self.fstr2lines[blob.path] = line_count  # type: ignore
-                self.fstr2lines["*"] += line_count
+                self.fstr2line_count[fstr] = line_count
+                self.fstr2line_count["*"] += line_count
 
     def _get_commits_first_pass(self) -> None:
-        commits: list[Commit] = []
+        commits: list[SHAShortDate] = []
         ex_sha_shorts: set[SHAShort] = set()
         sha_short: SHAShort
         sha_long: SHALong
 
-        # %H: commit hash long (SHAlong)
-        # %h: commit hash long (SHAshort)
-        # %ct: committer date, UNIX timestamp
-        # %s: commit message
-        # %aN: author name, respecting .mailmap
-        # %aE: author email, respecting .mailmap
-        # %n: newline
-        args = self._get_since_until_args()
-        args += [
-            f"{self.head_commit.hexsha}",
-            "--pretty=format:%H%n%h%n%ct%n%s%n%aN%n%aE%n",
-        ]
-        lines_str: str = self.git.log(*args)
-
-        lines = lines_str.splitlines()
-        while lines:
-            line = lines.pop(0)
-            if not line:
+        for commit in self.pygit2_repo.walk(
+            self.pygit2_repo.head.target, SortMode.TIME
+        ):
+            if self.until and commit.commit_time > self.until_timestamp:
                 continue
-            sha_long = line
-            sha_short = lines.pop(0)
+            if self.since and commit.commit_time < self.since_timestamp:
+                break
+
+            sha_long = str(commit.id)
+            sha_short = commit.short_id
             if any(sha_long.startswith(rev) for rev in self.ex_revs):
                 ex_sha_shorts.add(sha_short)
                 continue
-            timestamp = int(lines.pop(0))
-            message = lines.pop(0)
+            timestamp = commit.commit_time
+            message = commit.message
             if any(fnmatch(message, pattern) for pattern in self.ex_messages):
                 ex_sha_shorts.add(sha_short)
                 continue
-            author = lines.pop(0)
-            email = lines.pop(0)
+            author = commit.author.name
+            email = commit.author.email
             self.persons_db.add_person(author, email)
-            commit = Commit(sha_short, timestamp)
-            commits.append(commit)
+            commit_obj = SHAShortDate(sha_short, timestamp)
+            commits.append(commit_obj)
 
         commits.sort(key=lambda x: x.date)
         self.commits = commits
         self.ex_sha_shorts = ex_sha_shorts
-
-    def _get_since_until_args(self) -> list[str]:
-        since = self.since
-        until = self.until
-        if since and until:
-            return [f"--since={since}", f"--until={until}"]
-        elif since:
-            return [f"--since={since}"]
-        elif until:
-            return [f"--until={until}"]
-        else:
-            return []
 
     def _set_fstr2commits(self, thread_executor: ThreadPoolExecutor):
         # When two lists of commits share the same commit at the end,
@@ -280,137 +304,165 @@ class RepoReader:
 
         if self.multi_thread:
             futures = [
-                thread_executor.submit(self._get_commit_lines_for, fstr)
+                thread_executor.submit(self._get_commit_data_for, fstr)
                 for fstr in self.fstrs
             ]
             for future in as_completed(futures):
-                lines_str, fstr = future.result()
-                self.fstr2commit_groups[fstr] = self._process_commit_lines_for(
-                    lines_str, fstr
+                commit_datas_list, fstr = future.result()
+                self.fstr2commit_groups[fstr] = self._process_commit_data_for(
+                    commit_datas_list, fstr
                 )
         else:  # single thread
             for fstr in self.fstrs:
-                lines_str, fstr = self._get_commit_lines_for(fstr)
-                self.fstr2commit_groups[fstr] = self._process_commit_lines_for(
-                    lines_str, fstr
+                commit_datas_list, fstr = self._get_commit_data_for(fstr)
+                self.fstr2commit_groups[fstr] = self._process_commit_data_for(
+                    commit_datas_list, fstr
                 )
         reduce_commits()
 
-    def _get_commit_lines_for(self, fstr: FileStr) -> tuple[str, FileStr]:
-        def git_log_args() -> list[str]:
-            args = self._get_since_until_args()
-            if not self.whitespace:
-                args.append("-w")
-            args += [
-                # %h: short commit hash
-                # %ct: committer date, UNIX timestamp
-                # %aN: author name, respecting .mailmap
-                # %n: newline
-                f"{self.head_commit.hexsha}",
-                "--follow",
-                "--numstat",
-                "--pretty=format:%n%h %ct%n%aN",
-                # Avoid confusion between revisions and files, after "--" git treats all
-                # arguments as files.
-                "--",
-                str(fstr),
-            ]
-            return args
+    def _get_commit_data_for(
+        self, fstr: FileStr
+    ) -> tuple[list[list[CommitData]], FileStr]:
 
-        lines_str: str = self.git.log(git_log_args())
-        return lines_str, fstr
+        root_fstr = fstr
+        fstr_parts = fstr.split("/")
+        commit_datas_list: list[list[CommitData]] = []
+        commit_datas: list[CommitData] = []
+        for commit in self.pygit2_repo.walk(
+            self.pygit2_repo.head.target, SortMode.TIME
+        ):
+            if self.file_in_tree(commit.tree, fstr_parts):
+                sha_short = commit.short_id
+                if sha_short in self.ex_sha_shorts:
+                    continue
+                timestamp = commit.commit_time
+                author = commit.author.name
+                person = self.get_person(author)
+                if person.filter_matched:
+                    continue
+                if not commit.parents:  # Initial commit
+                    blob = self.get_blob_from_tree(commit.tree, fstr_parts)
+                    if blob:
+                        insertions = len(blob.data.decode("utf-8").split("\n"))  # type: ignore
+                        commit_data = CommitData(
+                            fstr,
+                            author,
+                            insertions,
+                            0,
+                            timestamp,
+                            sha_short,
+                        )
+                        commit_datas.append(commit_data)
+                        commit_datas_list.append(commit_datas)
+                        commit_datas = []
+                else:
+                    # Ignore merge commits
+                    if len(commit.parents) > 1:
+                        continue
+                    parent = commit.parents[0]
+                    diff_option = (
+                        DiffOption.NORMAL
+                        if self.whitespace
+                        else DiffOption.IGNORE_WHITESPACE
+                    )
+                    diff_option |= DiffOption.IGNORE_FILEMODE
+                    diff = parent.tree.diff_to_tree(commit.tree, flags=diff_option)
+                    diff.find_similar()
+                    for patch in diff:
+                        old_fstr = patch.delta.old_file.path
+                        new_fstr = patch.delta.new_file.path
+                        if new_fstr == fstr:
+                            insertions = patch.line_stats[1]
+                            deletions = patch.line_stats[2]
+                            commit_data = CommitData(
+                                fstr,
+                                author,
+                                insertions,
+                                deletions,
+                                timestamp,
+                                sha_short,
+                            )
+                            commit_datas.append(commit_data)
+                            if patch.delta.status == DeltaStatus.RENAMED:
+                                fstr = old_fstr
+                                fstr_parts = fstr.split("/")
+                                if commit_datas:
+                                    commit_datas_list.append(commit_datas)
+                                    commit_datas = []
+        if commit_datas:
+            commit_datas_list.append(commit_datas)
+        return commit_datas_list, root_fstr
+
+    def file_in_tree(self, tree: Tree, fstr_parts: list[str]) -> bool:
+        if not fstr_parts:
+            return False
+        for entry in tree:
+            if entry.type_str == "tree" and len(fstr_parts) > 1:
+                if entry.name == fstr_parts[0]:
+                    return self.file_in_tree(entry, fstr_parts[1:])  # type: ignore
+            elif (
+                entry.type_str == "blob"
+                and len(fstr_parts) == 1
+                and entry.name == fstr_parts[0]
+            ):
+                return True
+        return False
+
+    def get_blob_from_tree(self, tree: Tree, fstr_parts: list[str]):
+        if not fstr_parts:
+            return None
+        for entry in tree:
+            if entry.type_str == "tree" and len(fstr_parts) > 1:
+                if entry.name == fstr_parts[0]:
+                    return self.get_blob_from_tree(entry, fstr_parts[1:])  # type: ignore
+            elif (
+                entry.type_str == "blob"
+                and len(fstr_parts) == 1
+                and entry.name == fstr_parts[0]
+            ):
+                return entry
+        return None
 
     # pylint: disable=too-many-locals
-    def _process_commit_lines_for(
-        self, lines_str: str, fstr_root: FileStr
+    def _process_commit_data_for(
+        self, commit_datas_list: list[list[CommitData]], fstr_root: FileStr
     ) -> list[CommitGroup]:
         commit_groups: list[CommitGroup] = []
-        lines = lines_str.splitlines()
-        while lines:
-            line = lines.pop(0)
-            if not line:
-                continue
-            sha_short, timestamp = line.split()
-            if sha_short in self.ex_sha_shorts:
-                continue
-            author = lines.pop(0)
-            person = self.get_person(author)
-            if not lines:
-                break
-            stat_line = lines.pop(0)
-            if person.filter_matched or not stat_line:
-                continue
-            stats = stat_line.split()
-            insertions = int(stats.pop(0))
-            deletions = int(stats.pop(0))
-            line = " ".join(stats)
+        for commit_datas in commit_datas_list:
+            for commit_data in commit_datas:
+                fstr = commit_data.fstr
+                author = commit_data.author
+                sha_short = commit_data.sha_short
+                timestamp = commit_data.timestamp
+                insertions = commit_data.insertions
+                deletions = commit_data.deletions
 
-            if "=>" not in line:
-                # if no renames or copies have been found, the line represents the file
-                # name fstr
-                fstr = line
-            elif "{" in line:
-                # If { is in the line, it is part of a {...} abbreviation in a rename or
-                # copy expression. This means that the file has been renamed or copied
-                # to a new name. Set fstr to this new name.
-                #
-                # To find the new name, the {...} abbreviation part of the line needs to
-                # be eliminated. Examples of such lines are:
-                #
-                # 1. gitinspector/{gitinspect_gui.py => gitinspector_gui.py}
-                # 2. src/gigui/{ => gi}/gitinspector.py
+                target = self.fr2f2a2sha_short_set
+                if fstr_root not in target:
+                    target[fstr_root] = {}
+                if fstr not in target[fstr_root]:
+                    target[fstr_root][fstr] = {}
+                if author not in target[fstr_root][fstr]:
+                    target[fstr_root][fstr][author] = set()
+                target[fstr_root][fstr][author].add(sha_short)
 
-                prefix, rest = line.split("{")
-
-                # _ is old_part
-                _, rest = rest.split(" => ")
-
-                new_part, suffix = rest.split("}")
-
-                # prev_name = f"{prefix}{old_part}{suffix}"
-                new_name = f"{prefix}{new_part}{suffix}"
-
-                # src/gigui/{ => gi}/gitinspector.py leads to:
-                # src/gigui//gitinspector.py => src/gigui/gi/gitinspector.py
-
-                # prev_name = prev_name.replace("//", "/")
-                # new_name = new_name.replace("//", "/")
-                fstr = new_name.replace("//", "/")
-            else:
-                # gitinspect_gui.py => gitinspector/gitinspect_gui.py
-
-                split = line.split(" => ")
-
-                # prev_name = split[0]
-                # new_name = split[1]
-                fstr = split[1]
-
-            target = self.fr2f2a2sha_short_set
-            if fstr_root not in target:
-                target[fstr_root] = {}
-            if fstr not in target[fstr_root]:
-                target[fstr_root][fstr] = {}
-            if author not in target[fstr_root][fstr]:
-                target[fstr_root][fstr][author] = set()
-            target[fstr_root][fstr][author].add(sha_short)
-
-            if (
-                len(commit_groups) > 1
-                and fstr == commit_groups[-1].fstr
-                and author == commit_groups[-1].author
-            ):
-                commit_groups[-1].date_sum += int(timestamp) * insertions
-                commit_groups[-1].sha_shorts |= {sha_short}
-                commit_groups[-1].insertions += insertions
-                commit_groups[-1].deletions += deletions
-            else:
-                commit_group = CommitGroup(
-                    date_sum=int(timestamp) * insertions,
-                    author=author,
-                    fstr=fstr,
-                    insertions=insertions,
-                    deletions=deletions,
-                    sha_shorts={sha_short},
-                )
-                commit_groups.append(commit_group)
+                if (
+                    commit_groups
+                    and fstr == commit_groups[-1].fstr
+                    and author == commit_groups[-1].author
+                ):
+                    commit_groups[-1].date_sum += int(timestamp) * insertions
+                    commit_groups[-1].sha_shorts |= {sha_short}
+                    commit_groups[-1].insertions += insertions
+                    commit_groups[-1].deletions += deletions
+                else:
+                    commit_group = CommitGroup(
+                        author=author,
+                        fstr=fstr,
+                        insertions=insertions,
+                        deletions=deletions,
+                        date_sum=int(timestamp) * insertions,
+                        sha_shorts={sha_short},
+                    )
+                    commit_groups.append(commit_group)
         return commit_groups

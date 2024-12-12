@@ -4,8 +4,8 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import TypeVar
 
-from git import Commit as GitCommit
 from git import InvalidGitRepositoryError, NoSuchPathError, PathLike, Repo
+from pygit2.enums import SortMode
 
 from gigui.blame_reader import BlameHistoryReader, BlameReader
 from gigui.data import CommitGroup, FileStat, Person, PersonsDB, PersonStat
@@ -180,9 +180,10 @@ class GIRepo:
     def _set_final_data(self) -> None:
 
         # calculate self.sha_long2author
-        commits: list[GitCommit] = list(self.repo_reader.git_repo.iter_commits())
-        for commit in commits:
-            sha_long = commit.hexsha
+        for commit in self.repo_reader.pygit2_repo.walk(
+            self.repo_reader.pygit2_repo.head.target, SortMode.TIME
+        ):
+            sha_long = str(commit.id)
             sha_short = self.sha_long2sha_short[sha_long]
             author = self.get_person(commit.author.name).author
             self.sha_short2author[sha_short] = author
