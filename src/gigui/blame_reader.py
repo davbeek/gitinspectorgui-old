@@ -4,21 +4,18 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from git import Commit as GitCommit
-from git import GitCommandError, Repo
+from pygit2 import Oid  # pygit2 Object id is a binary representation of a long SHA
+from pygit2 import Commit
+from pygit2.blame import Blame as GitBlame
+from pygit2.enums import BlameFlag
+from pygit2.repository import Repository
 
 from gigui.comment import get_is_comment_lines
 from gigui.constants import STATIC
 from gigui.data import FileStat, PersonsDB
-from gigui.typedefs import (
-    Author,
-    BlameLines,
-    Email,
-    FileStr,
-    GitBlames,
-    SHALong,
-    SHAShort,
-)
+from gigui.repo import GIRepo
+from gigui.repo_reader import RepoReader
+from gigui.typedefs import Author, BlameLines, Email, FileStr, GitBlames, SHAShort
 
 logger = logging.getLogger(__name__)
 
@@ -50,31 +47,31 @@ class BlameBaseReader:
 
     def __init__(
         self,
-        git_repo: Repo,
-        ex_sha_shorts: set[SHAShort],
-        sha_long2sha_short: dict[SHALong, SHAShort],
-        sha_short2sha_long: dict[SHAShort, SHALong],
-        sha_short2nr: dict[SHAShort, int],
-        all_fstrs: list[FileStr],
-        fstrs: list[FileStr],
-        fstr2fstat: dict[FileStr, FileStat],
-        persons_db: PersonsDB,
+        repo_reader: RepoReader,
+        repo: GIRepo,
     ):
-        self.git_repo: Repo = git_repo
-        self.ex_sha_shorts: set[SHAShort] = ex_sha_shorts
-        self.sha_long2sha_short: dict[SHALong, SHAShort] = sha_long2sha_short
-        self.sha_short2sha_long: dict[SHAShort, SHALong] = sha_short2sha_long
-        self.sha_short2nr: dict[SHAShort, int] = sha_short2nr
+        self.repo_reader: RepoReader = repo_reader
+        self.repo: GIRepo = repo
+
+        self.git_repo: Repository = self.repo_reader.git_repo
+        self.ex_sha_shorts: set[SHAShort] = self.repo_reader.ex_sha_shorts
+
+        self.sha_short2id: dict[SHAShort, Oid] = self.repo_reader.sha_short2id
+        self.sha_short2nr: dict[SHAShort, int] = self.repo.sha_short2nr
+        self.head_commit: Commit = self.repo_reader.head_commit
+        self.initial_commit: Commit = self.repo_reader.initial_commit
+        self.oldest_id: Oid = self.repo_reader.oldest_id
+        self.newest_id: Oid = self.repo_reader.newest_id
 
         # Unfiltered list of files, may still include files that belong completely to an
         # excluded author.
-        self.all_fstrs = all_fstrs
+        self.all_fstrs = self.repo_reader.fstrs
 
         # List of files in repo module with complete filtering, so no files that belong
         # to excluded authors.
-        self.fstrs = fstrs
-        self.fstr2fstat: dict[FileStr, FileStat] = fstr2fstat
-        self.persons_db = persons_db
+        self.fstrs: list[FileStr] = self.repo.fstrs
+        self.fstr2fstat: dict[FileStr, FileStat] = self.repo.fstr2fstat
+        self.persons_db: PersonsDB = self.repo.persons_db
 
         # List of blame authors, so no filtering, ordered by highest blame line count.
         self.blame_authors: list[Author] = []
@@ -82,30 +79,31 @@ class BlameBaseReader:
         self.fstr2blames: dict[FileStr, list[Blame]] = {}
 
     def _get_git_blames_for(
-        self, fstr: FileStr, start_sha_short: SHAShort
-    ) -> tuple[GitBlames, FileStr]:
-        copy_move_int2opts: dict[int, list[str]] = {
-            0: [],
-            1: ["-M"],
-            2: ["-C"],
-            3: ["-C", "-C"],
-            4: ["-C", "-C", "-C"],
-        }
-        blame_opts: list[str] = copy_move_int2opts[self.copy_move]
-        if self.since:
-            blame_opts.append(f"--since={self.since}")
-        if not self.whitespace:
-            blame_opts.append("-w")
-        for rev in self.ex_sha_shorts:
-            blame_opts.append(f"--ignore-rev={rev}")
-        working_dir = self.git_repo.working_dir
-        ignore_revs_path = Path(working_dir) / "_git-blame-ignore-revs.txt"
-        if ignore_revs_path.exists():
-            blame_opts.append(f"--ignore-revs-file={str(ignore_revs_path)}")
-
-        # Run the git command to get the blames for the file.
-        git_blames: GitBlames = self._run_git_command(start_sha_short, fstr, blame_opts)
-        return git_blames, fstr
+        self, fstr: FileStr, start_sha_short: SHAShort = ""
+    ) -> tuple[GitBlame, FileStr]:
+        newest_id = (
+            self.sha_short2id[start_sha_short] if start_sha_short else self.newest_id
+        )
+        repo: Repository = self.git_repo
+        blame_flags: BlameFlag = (
+            BlameFlag.NORMAL if self.whitespace else BlameFlag.IGNORE_WHITESPACE
+        )
+        match self.copy_move:
+            case 1:
+                blame_flags |= BlameFlag.TRACK_COPIES_SAME_FILE
+            case 2:
+                blame_flags |= BlameFlag.TRACK_COPIES_SAME_COMMIT_MOVES
+            case 3:
+                blame_flags |= BlameFlag.TRACK_COPIES_SAME_COMMIT_COPIES
+            case 4:
+                blame_flags |= BlameFlag.TRACK_COPIES_ANY_COMMIT_COPIES
+        blame: GitBlame = repo.blame(
+            fstr,
+            flags=blame_flags,
+            newest_commit=newest_id,
+            oldest_commit=self.oldest_id,
+        )
+        return blame, fstr
 
     def _process_git_blames(self, fstr: FileStr, git_blames: GitBlames) -> list[Blame]:
         blames: list[Blame] = []
@@ -115,7 +113,7 @@ class BlameBaseReader:
         for b in git_blames:  # type: ignore
             if not b:
                 continue
-            c: GitCommit = b[0]  # type: ignore
+            c: Commit = b[0]  # type: ignore
 
             author = c.author.name  # type: ignore
             email = c.author.email  # type: ignore
@@ -126,7 +124,7 @@ class BlameBaseReader:
             is_comment_lines, _ = get_is_comment_lines(
                 extension, lines, in_multi_comment
             )
-            sha_short = self.sha_long2sha_short[c.hexsha]
+            sha_short = c.short_id
             nr = self.sha_short2nr[sha_short]
             blame: Blame = Blame(
                 author,  # type: ignore
@@ -140,22 +138,6 @@ class BlameBaseReader:
             )
             blames.append(blame)
         return blames
-
-    def _run_git_command(
-        self,
-        start_sha_short: SHAShort,
-        fstr: FileStr,
-        blame_opts: list[str],
-    ) -> GitBlames:
-        start_sha_long = self.sha_short2sha_long[start_sha_short]
-        try:
-            git_blames: GitBlames = self.git_repo.blame(
-                start_sha_long, fstr, rev_opts=blame_opts
-            )  # type: ignore
-            return git_blames
-        except GitCommandError as e:
-            logger.info(f"GitCommandError: {e}")
-            return []
 
 
 class BlameReader(BlameBaseReader):

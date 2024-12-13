@@ -4,13 +4,13 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import TypeVar
 
-from git import InvalidGitRepositoryError, NoSuchPathError, PathLike, Repo
 from pygit2.enums import SortMode
+from pygit2.repository import Repository
 
 from gigui.blame_reader import BlameHistoryReader, BlameReader
 from gigui.data import CommitGroup, FileStat, Person, PersonsDB, PersonStat
 from gigui.repo_reader import RepoReader
-from gigui.typedefs import Author, FileStr, SHALong, SHAShort
+from gigui.typedefs import Author, FileStr, SHAShort
 from gigui.utils import divide_to_percentage, log
 
 logger = logging.getLogger(__name__)
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class GIRepo:
     blame_history: str
 
-    def __init__(self, name: str, location: PathLike):
+    def __init__(self, name: str, location: Path):
         self.name = name
         self.location = str(location)
 
@@ -79,19 +79,12 @@ class GIRepo:
                 self.blame_history_reader = BlameHistoryReader(
                     self.blame_reader.fstr2blames,
                     self.fr2f2sha_shorts,
-                    self.repo_reader.git_repo,
-                    self.repo_reader.ex_sha_shorts,
-                    self.sha_long2sha_short,
-                    self.sha_short2sha_long,
-                    self.sha_short2nr,
-                    self.repo_reader.fstrs,
-                    self.fstrs,
-                    self.fstr2fstat,
-                    self.persons_db,
+                    self.repo_reader,
+                    self,
                 )
             return True
         finally:
-            self.repo_reader.git_repo.close()
+            self.repo_reader.git_repo.free()
 
     def _run_no_history(self, thread_executor: ThreadPoolExecutor) -> bool:
         self.repo_reader.run(thread_executor)
@@ -99,15 +92,8 @@ class GIRepo:
         # Use results from repo_reader to initialize the other classes.
         self.blame_reader = BlameReader(
             self.repo_reader.head_sha_short,
-            self.repo_reader.git_repo,
-            self.repo_reader.ex_sha_shorts,
-            self.sha_long2sha_short,
-            self.sha_short2sha_long,
-            self.sha_short2nr,
-            self.repo_reader.fstrs,  # unfiltered files
-            self.fstrs,  # filtered files, no files from excluded authors
-            self.fstr2fstat,
-            self.persons_db,
+            self.repo_reader,
+            self,
         )
 
         # This calculates all blames but also adds the author and email of
@@ -180,11 +166,10 @@ class GIRepo:
     def _set_final_data(self) -> None:
 
         # calculate self.sha_long2author
-        for commit in self.repo_reader.pygit2_repo.walk(
-            self.repo_reader.pygit2_repo.head.target, SortMode.TIME
+        for commit in self.repo_reader.git_repo.walk(
+            self.repo_reader.git_repo.head.target, SortMode.TIME
         ):
-            sha_long = str(commit.id)
-            sha_short = self.sha_long2sha_short[sha_long]
+            sha_short = str(commit.short_id)
             author = self.get_person(commit.author.name).author
             self.sha_short2author[sha_short] = author
 
@@ -266,16 +251,6 @@ class GIRepo:
                     sha_shorts, key=lambda x: self.sha_short2nr[x], reverse=True
                 )
         return target
-
-    # sha_short2sha_long and sha_long2sha_short should be defined and available as soon
-    # as possible, because they are used in many places.
-    @property
-    def sha_short2sha_long(self) -> dict[SHAShort, SHALong]:
-        return self.repo_reader.sha_short2sha_long
-
-    @property
-    def sha_long2sha_short(self) -> dict[SHALong, SHAShort]:
-        return self.repo_reader.sha_long2sha_short
 
     @property
     def sha_short2nr(self) -> dict[SHAShort, int]:
@@ -409,9 +384,6 @@ def get_repos(dir_path: Path, depth: int) -> list[list[GIRepo]]:
         list[list[GIRepo]]: A list of lists, where each inner list contains repositories
         found in the same directory.
 
-    Raises:
-        None
-
     Notes:
         - If the given path is not a directory, an empty list is returned.
         - If the given path is a Git repository, a list containing a single list with
@@ -445,16 +417,15 @@ def get_repos(dir_path: Path, depth: int) -> list[list[GIRepo]]:
         return []
 
 
-def is_dir_safe(pathlike: PathLike) -> bool:
+def is_dir_safe(path: Path) -> bool:
     try:
-        return os.path.isdir(pathlike)
+        return os.path.isdir(path)
     except PermissionError:
-        logger.warning(f"Permission denied for path {str(pathlike)}")
+        logger.warning(f"Permission denied for path {str(path)}")
         return False
 
 
-def is_git_repo(pathlike: PathLike) -> bool:
-    path = Path(pathlike)
+def is_git_repo(path: Path) -> bool:
     try:
         git_path = path / ".git"
         if git_path.is_symlink():
@@ -467,24 +438,22 @@ def is_git_repo(pathlike: PathLike) -> bool:
         return False
 
     try:
-        # The default True value of expand_vars leads to confusing warnings from
-        # GitPython for many paths from system folders.
-        repo = Repo(path, expand_vars=False)
-        return not repo.bare
-    except (InvalidGitRepositoryError, NoSuchPathError):
+        repo = Repository(str(path))
+        return not repo.is_bare
+    except (KeyError, ValueError, OSError):
         return False
 
 
-def subdirs_safe(pathlike: PathLike) -> list[Path]:
+def subdirs_safe(path: Path) -> list[Path]:
     try:
-        if not is_dir_safe(pathlike):
+        if not is_dir_safe(path):
             return []
-        subs = os.listdir(pathlike)
-        sub_paths = [Path(pathlike) / sub for sub in subs]
+        subs: list[FileStr] = os.listdir(path)
+        sub_paths = [path / sub for sub in subs]
         return [path for path in sub_paths if is_dir_safe(path)]
     # Exception when the os does not allow to list the contents of the path dir:
     except PermissionError:
-        logger.warning(f"Permission denied for path {str(pathlike)}")
+        logger.warning(f"Permission denied for path {str(path)}")
         return []
 
 

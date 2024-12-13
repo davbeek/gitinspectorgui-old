@@ -5,8 +5,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from fnmatch import fnmatch
 
-from git import Repo as GitRepo
-from pygit2 import Blob, Commit, Tree
+from pygit2 import Oid  # pygit2 Object id is a binary representation of a long SHA
+from pygit2 import Blob, Commit, Tree, Walker
 from pygit2.enums import DeltaStatus, DiffOption, SortMode
 from pygit2.repository import Repository
 
@@ -51,11 +51,7 @@ class RepoReader:
         self.name: str = name
         self.persons_db: PersonsDB = persons_db
 
-        # The default True value of expand_vars can lead to confusing warnings from
-        # GitPython:
-        self.git_repo: GitRepo = GitRepo(location, expand_vars=False)
-
-        self.pygit2_repo = Repository(location)
+        self.git_repo: Repository = Repository(location)
 
         # List of all commits in the repo starting at the until date parameter (if set),
         # or else at the first commit of the repo. The list includes merge commits and
@@ -88,22 +84,35 @@ class RepoReader:
         self.thread_executor: ThreadPoolExecutor
         self.blame_reader: BlameReader
 
-        self.sha_short2sha_long: dict[SHAShort, SHALong] = {}
-        self.sha_long2sha_short: dict[SHALong, SHAShort] = {}
+        self.sha_short2id: dict[SHAShort, Oid] = {}
+        self.id2sha_short: dict[Oid, SHAShort] = {}
         self.sha_short2nr: dict[SHAShort, int] = {}
         self.nr2sha_short: dict[int, SHAShort] = {}
+        self.nr2id: dict[int, Oid] = {}
+        self.id2nr: dict[Oid, int] = {}
+        self.nr2commit: dict[int, Commit] = {}
 
-        commits = self.pygit2_repo.walk(self.pygit2_repo.head.target, SortMode.REVERSE)
-        commit_nr = 1
+        commits: Walker = self.git_repo.walk(
+            self.git_repo.head.target, SortMode.REVERSE
+        )
+        nr = 1
         for commit in commits:
-            sha_long = str(commit.id)
+            id = commit.id
             sha_short = commit.short_id
-            self.sha_short2sha_long[sha_short] = sha_long
-            self.sha_long2sha_short[sha_long] = sha_short
-            self.sha_short2nr[sha_short] = commit_nr
-            self.nr2sha_short[commit_nr] = sha_short
-            commit_nr += 1
+            self.sha_short2id[sha_short] = id
+            self.id2sha_short[id] = sha_short
+            self.sha_short2nr[sha_short] = nr
+            self.nr2sha_short[nr] = sha_short
+            self.id2nr[id] = nr
+            self.nr2id[nr] = id
+            self.nr2commit[nr] = commit
+            nr += 1
 
+        self.head_commit = self.nr2commit[len(self.nr2commit)]
+        self.initial_commit = self.nr2commit[1]
+
+        self.newest_id: Oid  # pygit2 Object id is a binary representation of a long SHA
+        self.oldest_id: Oid
         self.since_timestamp: int
         self.until_timestamp: int
         if self.since:
@@ -111,12 +120,8 @@ class RepoReader:
         if self.until:
             self.until_timestamp = self._convert_to_timestamp(self.until)
 
-    @property
-    def git(self):
-        return self.git_repo.git
-
     def run(self, thread_executor: ThreadPoolExecutor) -> None:
-        self._set_head_attrs()
+        self._set_newest_oldest()
 
         # Set list top level fstrs (based on until par and allowed file extensions)
         self.fstrs = self._get_worktree_files()
@@ -133,16 +138,25 @@ class RepoReader:
         dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
         return int(dt.timestamp())
 
-    def _set_head_attrs(self) -> None:
-        for commit in self.pygit2_repo.walk(
-            self.pygit2_repo.head.target, SortMode.TIME
-        ):
-            if self.until and commit.commit_time > self.until_timestamp:  # type: ignore
-                continue
-            self.head_commit = commit
-            break
+    def _set_newest_oldest(self) -> None:
+        previous_commit: Commit | None = None
+        newest_commit: Commit | None = None
+        oldest_commit: Commit | None = None
 
-        self.head_sha_short = self.sha_long2sha_short[str(self.head_commit.id)]
+        for commit in self.git_repo.walk(self.git_repo.head.target, SortMode.TIME):
+            if self.until and commit.commit_time > self.until_timestamp:  # type: ignore
+                previous_commit = commit
+                continue
+
+            if newest_commit is None:
+                newest_commit = commit
+
+            if self.since and commit.commit_time < self.since_timestamp:
+                oldest_commit = previous_commit
+                break
+
+        self.newest_id = newest_commit.id if newest_commit else self.head_commit.id
+        self.oldest_id = oldest_commit.id if oldest_commit else self.initial_commit.id
 
     # Get list of top level files (based on the until parameter) that satisfy the
     # required extensions and do not match the exclude file patterns.
@@ -254,9 +268,7 @@ class RepoReader:
         sha_short: SHAShort
         sha_long: SHALong
 
-        for commit in self.pygit2_repo.walk(
-            self.pygit2_repo.head.target, SortMode.TIME
-        ):
+        for commit in self.git_repo.walk(self.git_repo.head.target, SortMode.TIME):
             if self.until and commit.commit_time > self.until_timestamp:
                 continue
             if self.since and commit.commit_time < self.since_timestamp:
@@ -328,9 +340,7 @@ class RepoReader:
         fstr_parts = fstr.split("/")
         commit_datas_list: list[list[CommitData]] = []
         commit_datas: list[CommitData] = []
-        for commit in self.pygit2_repo.walk(
-            self.pygit2_repo.head.target, SortMode.TIME
-        ):
+        for commit in self.git_repo.walk(self.git_repo.head.target, SortMode.TIME):
             if self.file_in_tree(commit.tree, fstr_parts):
                 sha_short = commit.short_id
                 if sha_short in self.ex_sha_shorts:
