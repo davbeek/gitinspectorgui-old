@@ -8,7 +8,6 @@ from pathlib import Path
 import PySimpleGUI as sg  # type: ignore
 
 from gigui.args_settings import Args
-from gigui.blame_reader import BlameBaseReader, BlameHistoryReader, BlameReader
 from gigui.constants import DEFAULT_FILE_BASE, DYNAMIC, HIDE, STATIC
 from gigui.data import FileStat, Person
 from gigui.keys import Keys
@@ -23,8 +22,9 @@ from gigui.output.html import (
 )
 from gigui.output.server_main import start_werkzeug_server_in_process_with_html
 from gigui.output.stat_rows import TableRows
-from gigui.repo import GIRepo, get_repos, total_len
-from gigui.repo_reader import RepoReader
+from gigui.repo import RepoGI, get_repos, total_len
+from gigui.repo_base import RepoBase
+from gigui.repo_blame import RepoBlame, RepoBlameBase, RepoBlameHistory
 from gigui.typedefs import FileStr
 from gigui.utils import (
     get_outfile_name,
@@ -48,7 +48,7 @@ def main(args: Args, start_time: float, gui_window: sg.Window | None = None) -> 
 
     logger.info(f"{args = }")
     init_classes(args)
-    repo_lists: list[list[GIRepo]] = []
+    repo_lists: list[list[RepoGI]] = []
 
     dir_strs = get_dir_matches(args.input_fstrs)
     dirs_sorted = sorted(dir_strs)
@@ -123,25 +123,25 @@ def main(args: Args, start_time: float, gui_window: sg.Window | None = None) -> 
 
 
 def init_classes(args: Args):
-    GIRepo.blame_history = args.blame_history
-    RepoReader.include_files = args.include_files
-    RepoReader.n_files = args.n_files
-    RepoReader.subfolder = args.subfolder
-    RepoReader.extensions = args.extensions
-    RepoReader.whitespace = args.whitespace
-    RepoReader.multi_thread = args.multi_thread
-    RepoReader.since = args.since
-    RepoReader.until = args.until
-    RepoReader.ex_files = args.ex_files
-    RepoReader.ex_revs = set(args.ex_revisions)
-    RepoReader.ex_messages = args.ex_messages
-    BlameBaseReader.copy_move = args.copy_move
-    BlameBaseReader.since = args.since
-    BlameBaseReader.whitespace = args.whitespace
-    BlameReader.multi_thread = args.multi_thread
-    BlameReader.comments = args.comments
-    BlameReader.empty_lines = args.comments
-    BlameHistoryReader.blame_history = args.blame_history
+    RepoGI.blame_history = args.blame_history
+    RepoBase.include_files = args.include_files
+    RepoBase.n_files = args.n_files
+    RepoBase.subfolder = args.subfolder
+    RepoBase.extensions = args.extensions
+    RepoBase.whitespace = args.whitespace
+    RepoBase.multi_thread = args.multi_thread
+    RepoBase.since = args.since
+    RepoBase.until = args.until
+    RepoBase.ex_files = args.ex_files
+    RepoBase.ex_revs = set(args.ex_revisions)
+    RepoBase.ex_messages = args.ex_messages
+    RepoBlameBase.copy_move = args.copy_move
+    RepoBlameBase.since = args.since
+    RepoBlameBase.whitespace = args.whitespace
+    RepoBlame.multi_thread = args.multi_thread
+    RepoBlame.comments = args.comments
+    RepoBlame.empty_lines = args.comments
+    RepoBlameHistory.blame_history = args.blame_history
     FileStat.show_renames = args.show_renames
     BlameBaseRows.args = args
     TableRows.deletions = args.deletions
@@ -182,7 +182,7 @@ def get_dir_matches(input_fstrs: list[FileStr]) -> list[FileStr]:
 
 def process_unicore_repo(
     args: Args,
-    repo: GIRepo,
+    repo: RepoGI,
     outfile_base: str,
     gui_window: sg.Window | None,
     start_time: float,
@@ -210,7 +210,7 @@ def process_unicore_repo(
 
 def process_repo_output(  # pylint: disable=too-many-locals
     args: Args,
-    repo: GIRepo,
+    repo: RepoGI,
     len_repos: int,  # Total number of repositories being analyzed
     outfile_base: str,
     gui_window: sg.Window | None = None,
@@ -291,7 +291,7 @@ def process_repo_output(  # pylint: disable=too-many-locals
 
 def process_unicore_repos(
     args: Args,
-    repo_lists: list[list[GIRepo]],
+    repo_lists: list[list[RepoGI]],
     len_repos: int,
     outfile_base: FileStr,
     start_time: float,
@@ -330,7 +330,7 @@ def process_unicore_repos(
 # Process multiple repos on a single core.
 def process_unicore_repo_batch(
     args: Args,
-    repos: list[GIRepo],
+    repos: list[RepoGI],
     len_repos: int,
     outfile_base: str,
     count: int,
@@ -365,7 +365,7 @@ def process_unicore_repo_batch(
 # Process multiple repositories in case len(repos) > 1 on multiple cores.
 def process_multicore_repos(
     args: Args,
-    repo_lists: list[list[GIRepo]],
+    repo_lists: list[list[RepoGI]],
     len_repos: int,
     outfile_base: FileStr,
     start_time: float,
@@ -406,7 +406,7 @@ def process_multicore_repos(
 
 def process_multicore_repo(
     args: Args,
-    repo: GIRepo,
+    repo: RepoGI,
     len_repos: int,
     outfile_base: str,
 ) -> tuple[bool, list[FileStr]]:

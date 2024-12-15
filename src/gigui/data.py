@@ -410,7 +410,7 @@ class PersonsDB:
         else:
             return person.author
 
-    # The final value of get_author is correct only after BlameReader.run() has been
+    # The final value of get_author is correct only after RepoBlame.run() has been
     # called.
     def get_author(self, author: Author | None) -> Author:
         """

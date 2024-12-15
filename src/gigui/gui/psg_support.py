@@ -218,7 +218,7 @@ def log(*args: str, color=None) -> None:
 
 
 def use_single_repo(input_paths: list[Path]) -> bool:
-    return len(input_paths) == 1 and is_git_repo(str(input_paths[0]))
+    return len(input_paths) == 1 and is_git_repo(input_paths[0])
 
 
 def update_outfile_str(
@@ -278,10 +278,10 @@ def process_input_patterns(
         update_outfile_str(state, window)
         return state
 
-    matches = get_dir_matches(state.input_patterns, sg_input)  # type: ignore
+    matches: list[FileStr] = get_dir_matches(state.input_patterns, sg_input)  # type: ignore
     state.input_fstrs = matches
 
-    if len(matches) == 1 and is_git_repo(matches[0]):
+    if len(matches) == 1 and is_git_repo(Path(matches[0])):
         state.input_repo_path = Path(matches[0])
         enable_element(window[keys.prefix])  # type: ignore
         enable_element(window[keys.postfix])  # type: ignore

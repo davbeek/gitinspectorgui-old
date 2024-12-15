@@ -18,7 +18,7 @@ from gigui.output.stat_rows import (
     header_files,
     header_files_authors,
 )
-from gigui.repo import GIRepo
+from gigui.repo import RepoGI
 from gigui.typedefs import FileStr, Row
 from gigui.utils import get_relative_fstr
 
@@ -367,9 +367,9 @@ class Book:
     blame_history: str
     subfolder: str
 
-    def __init__(self, name: str, repo: GIRepo):
+    def __init__(self, name: str, repo: RepoGI):
         self.name: str = name
-        self.repo: GIRepo = repo
+        self.repo: RepoGI = repo
 
         self.outfile: str = self.name + ".xlsx"
         self.workbook = Workbook(self.name + ".xlsx")

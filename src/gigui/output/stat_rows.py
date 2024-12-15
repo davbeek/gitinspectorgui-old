@@ -2,7 +2,7 @@ from math import isnan
 from typing import Any
 
 from gigui.data import FileStat, PersonStat, Stat
-from gigui.repo import GIRepo
+from gigui.repo import RepoGI
 from gigui.typedefs import Author, FileStr, Row
 
 # Global variables to store the value of CLI or GUI options
@@ -71,7 +71,7 @@ class TableRows:
     subfolder: str = ""
     deletions: bool = False
 
-    def __init__(self, repo: GIRepo):
+    def __init__(self, repo: RepoGI):
         self.repo = repo
         self.rows: list[Row] = []
 

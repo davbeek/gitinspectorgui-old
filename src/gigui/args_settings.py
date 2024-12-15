@@ -9,7 +9,7 @@ import jsonschema
 import platformdirs
 from git import PathLike
 
-from gigui import shared_data
+from gigui import shared
 from gigui._logging import set_logging_level_from_verbosity
 from gigui.constants import (
     AVAILABLE_FORMATS,
@@ -315,7 +315,7 @@ class SettingsFile:
         path = cls.get_location()
         log(f"{path}:")
         settings, _ = cls.load()
-        if not shared_data.gui:
+        if not shared.gui:
             settings.log()
 
     @classmethod

@@ -4,17 +4,30 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime
 from fnmatch import fnmatch
+from pathlib import Path
 
-from pygit2 import Oid  # pygit2 Object id is a binary representation of a long SHA
-from pygit2 import Blob, Commit, Tree, Walker
+from pygit2 import (  # pylint: disable=E0611:no-name-in-module
+    Blob,
+    Commit,
+    Oid,
+    Tree,
+    Walker,
+)
 from pygit2.enums import DeltaStatus, DiffOption, SortMode
 from pygit2.repository import Repository
 
-from gigui.blame_reader import BlameReader, SHAShortDate
 from gigui.data import CommitGroup, Person, PersonsDB, RepoStats
 from gigui.typedefs import Author, FileStr, Rev, SHALong, SHAShort
 
 logger = logging.getLogger(__name__)
+
+
+# SHAShortDate object is used to order and number commits by date, starting at 1 for the
+# initial commit.
+@dataclass
+class SHAShortDate:
+    sha_short: SHAShort
+    date: int
 
 
 @dataclass
@@ -27,7 +40,7 @@ class CommitData:
     sha_short: SHAShort
 
 
-class RepoReader:
+class RepoBase:
     since: str
     until: str
     include_files: list[FileStr]
@@ -42,16 +55,25 @@ class RepoReader:
     # Here the values of the --ex-revision parameter are stored as a set.
     ex_revs: set[Rev] = set()
 
-    def __init__(
-        self,
-        name: str,
-        location: str,
-        persons_db: PersonsDB,
-    ):
+    def __init__(self, name: str, location: Path):
         self.name: str = name
-        self.persons_db: PersonsDB = persons_db
+        self.location: Path = location
+        self.persons_db: PersonsDB = PersonsDB()
+        self.git_repo: Repository = Repository(str(location))
 
-        self.git_repo: Repository = Repository(location)
+        # self.fstrs is a list of files from the top commit of the repo.
+
+        # Initially, the list is unfiltered and may still include files from authors
+        # that are excluded later, because the blame run may find new authors that match
+        # an excluded author and thus must be excluded later.
+
+        # In self.run_gi_no_history from GIRepo, self.fstrs is sorted and all excluded
+        # files are removed.
+        self.fstrs: list[FileStr] = []
+
+        # self.all_fstrs is the unfiltered list of files, may still include files that
+        # belong completely to an excluded author.
+        self.all_fstrs: list[FileStr]
 
         # List of all commits in the repo starting at the until date parameter (if set),
         # or else at the first commit of the repo. The list includes merge commits and
@@ -69,12 +91,6 @@ class RepoReader:
         # --ex-revision parameter together with the --ex-message parameter.
         self.ex_sha_shorts: set[SHAShort] = set()
 
-        # List of files from the top commit of the repo.
-        # Unfiltered files, which may still include files from authors that are excluded
-        # later, because the blame run may find new authors that match an excluded
-        # author and thus must be excluded later.
-        self.fstrs: list[FileStr] = []
-
         # Dict of file names to their sizes:
         self.fstr2line_count: dict[FileStr, int] = {}
 
@@ -82,7 +98,6 @@ class RepoReader:
         self.stats = RepoStats()
 
         self.thread_executor: ThreadPoolExecutor
-        self.blame_reader: BlameReader
 
         self.sha_short2id: dict[SHAShort, Oid] = {}
         self.id2sha_short: dict[Oid, SHAShort] = {}
@@ -97,18 +112,20 @@ class RepoReader:
         )
         nr = 1
         for commit in commits:
-            id = commit.id
+            oid = commit.id
             sha_short = commit.short_id
-            self.sha_short2id[sha_short] = id
-            self.id2sha_short[id] = sha_short
+            self.sha_short2id[sha_short] = oid
+            self.id2sha_short[oid] = sha_short
             self.sha_short2nr[sha_short] = nr
             self.nr2sha_short[nr] = sha_short
-            self.id2nr[id] = nr
-            self.nr2id[nr] = id
+            self.id2nr[oid] = nr
+            self.nr2id[nr] = oid
             self.nr2commit[nr] = commit
             nr += 1
 
         self.head_commit = self.nr2commit[len(self.nr2commit)]
+        self.head_sha_short = self.head_commit.short_id
+
         self.initial_commit = self.nr2commit[1]
 
         self.newest_id: Oid  # pygit2 Object id is a binary representation of a long SHA
@@ -120,7 +137,7 @@ class RepoReader:
         if self.until:
             self.until_timestamp = self._convert_to_timestamp(self.until)
 
-    def run(self, thread_executor: ThreadPoolExecutor) -> None:
+    def run_base(self, thread_executor: ThreadPoolExecutor) -> None:
         self._set_newest_oldest()
 
         # Set list top level fstrs (based on until par and allowed file extensions)
@@ -130,6 +147,7 @@ class RepoReader:
         self._get_commits_first_pass()
 
         self._set_fstr2commits(thread_executor)
+        self.all_fstrs = copy.deepcopy(self.fstrs)
 
     def get_person(self, author: Author | None) -> Person:
         return self.persons_db.get_person(author)
@@ -180,6 +198,7 @@ class RepoReader:
             ]
         return matches
 
+    # return list of tuples with blob and path
     def _traverse_tree(self, tree: Tree, base_path: str = "") -> list[tuple[Blob, str]]:
         entries: list[tuple[Blob, str]] = []
         for entry in tree:
@@ -353,7 +372,10 @@ class RepoReader:
                 if not commit.parents:  # Initial commit
                     blob = self.get_blob_from_tree(commit.tree, fstr_parts)
                     if blob:
+                        line_str = blob.data.decode("utf-8")  # type: ignore
                         insertions = len(blob.data.decode("utf-8").split("\n"))  # type: ignore
+                        if line_str and line_str[-1] == "\n":
+                            insertions -= 1
                         commit_data = CommitData(
                             fstr,
                             author,

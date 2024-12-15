@@ -3,7 +3,7 @@ import logging
 import colorlog
 import PySimpleGUI as sg  # type: ignore
 
-from gigui import shared_data
+from gigui import shared
 
 FORMAT = "%(name)s %(funcName)s %(lineno)s\n%(message)s\n"
 DEBUG = "debug"
@@ -23,13 +23,13 @@ class GUIOutputHandler(logging.Handler):
         log_entry = "\n" + log_entry
         match record.levelno:
             case logging.ERROR:
-                shared_data.gui_window.write_event_value(DEBUG, (log_entry, "red"))  # type: ignore
+                shared.gui_window.write_event_value(DEBUG, (log_entry, "red"))  # type: ignore
             case logging.WARNING:
-                shared_data.gui_window.write_event_value(DEBUG, (log_entry, "orange"))  # type: ignore
+                shared.gui_window.write_event_value(DEBUG, (log_entry, "orange"))  # type: ignore
             case logging.INFO:
-                shared_data.gui_window.write_event_value(DEBUG, (log_entry, "green"))  # type: ignore
+                shared.gui_window.write_event_value(DEBUG, (log_entry, "green"))  # type: ignore
             case logging.DEBUG:
-                shared_data.gui_window.write_event_value(DEBUG, (log_entry, "blue"))  # type: ignore
+                shared.gui_window.write_event_value(DEBUG, (log_entry, "blue"))  # type: ignore
             case _:
                 sg.cprint(log_entry)
 

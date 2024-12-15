@@ -10,7 +10,7 @@ from pstats import Stats
 
 import webview
 
-from gigui import shared_data
+from gigui import shared
 from gigui.constants import WEBVIEW_HEIGHT, WEBVIEW_WIDTH
 from gigui.keys import Keys
 from gigui.typedefs import FileStr
@@ -22,8 +22,8 @@ logger = logging.getLogger(__name__)
 
 
 def log(arg, text_color=None, end="\n"):
-    if shared_data.gui:
-        shared_data.gui_window.write_event_value("log", (arg, end, text_color))  # type: ignore
+    if shared.gui:
+        shared.gui_window.write_event_value("log", (arg, end, text_color))  # type: ignore
     else:
         print(arg, end=end)
 

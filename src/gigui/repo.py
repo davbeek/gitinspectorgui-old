@@ -7,29 +7,23 @@ from typing import TypeVar
 from pygit2.enums import SortMode
 from pygit2.repository import Repository
 
-from gigui.blame_reader import BlameHistoryReader, BlameReader
 from gigui.data import CommitGroup, FileStat, Person, PersonsDB, PersonStat
-from gigui.repo_reader import RepoReader
+from gigui.repo_blame import RepoBlameHistory
 from gigui.typedefs import Author, FileStr, SHAShort
 from gigui.utils import divide_to_percentage, log
 
 logger = logging.getLogger(__name__)
 
 
-class GIRepo:
+# RepoGI = Repo GitInspector
+class RepoGI(RepoBlameHistory):
     blame_history: str
 
     def __init__(self, name: str, location: Path):
-        self.name = name
-        self.location = str(location)
+        super().__init__(name, location)
 
         self.path = Path(location).resolve()
         self.pathstr = str(self.path)
-        self.persons_db: PersonsDB = PersonsDB()
-
-        self.repo_reader = RepoReader(self.name, self.location, self.persons_db)
-        self.blame_reader: BlameReader
-        self.blame_history_reader: BlameHistoryReader
 
         self.stat_tables = StatTables()
 
@@ -38,9 +32,8 @@ class GIRepo:
         self.fstr2author2fstat: dict[str, dict[str, FileStat]] = {}
         self.author2pstat: dict[str, PersonStat] = {}
 
-        # Valid only after self.run has been called. This call calculates the sorted
-        # versions of self.fstrs and self.star_fstrs.
-        self.fstrs: list[str] = []
+        # Valid only after self.run_no_history has been called, which calculates the
+        # sorted versions of self.fstrs and self.star_fstrs.
         self.star_fstrs: list[str] = []
 
         # Sorted list of non-excluded authors, valid only after self.run has been called.
@@ -49,7 +42,6 @@ class GIRepo:
         self.fr2f2a2sha_shorts: dict[
             FileStr, dict[FileStr, dict[Author, list[SHAShort]]]
         ] = {}
-        self.fr2f2sha_shorts: dict[FileStr, dict[FileStr, list[SHAShort]]] = {}
 
         # Valid only after self.run has been called with option --blame-history.
         self.fstr2sha_shorts: dict[FileStr, list[SHAShort]] = {}
@@ -68,56 +60,34 @@ class GIRepo:
             bool: True after successful execution, False if no stats have been found.
         """
 
-        success: bool
         try:
+            super().run_base(thread_executor)
+            super().run_blame(thread_executor)
             success = self._run_no_history(thread_executor)
             if not success:
                 return False
 
             self._set_final_data()
-            if self.blame_history != "none":
-                self.blame_history_reader = BlameHistoryReader(
-                    self.blame_reader.fstr2blames,
-                    self.fr2f2sha_shorts,
-                    self.repo_reader,
-                    self,
-                )
             return True
         finally:
-            self.repo_reader.git_repo.free()
+            self.git_repo.free()
 
     def _run_no_history(self, thread_executor: ThreadPoolExecutor) -> bool:
-        self.repo_reader.run(thread_executor)
-
-        # Use results from repo_reader to initialize the other classes.
-        self.blame_reader = BlameReader(
-            self.repo_reader.head_sha_short,
-            self.repo_reader,
-            self,
-        )
-
-        # This calculates all blames but also adds the author and email of
-        # each blame to the persons list. This is necessary, because the blame
-        # functionality can have another way to set/get the author and email of a
-        # commit.
-        self.blame_reader.run(thread_executor)
 
         # Set stats.author2fstr2fstat, the basis of all other stat tables
         self.author2fstr2fstat = self.stat_tables.get_author2fstr2fstat(
-            self.repo_reader.fstrs,
-            self.repo_reader.fstr2commit_groups,
-            self.repo_reader.persons_db,
+            self.fstrs,
+            self.fstr2commit_groups,
+            self.persons_db,
         )
         if list(self.author2fstr2fstat.keys()) == ["*"]:
             return False
 
         # Update author2fstr2fstat with line counts for each author.
-        self.author2fstr2fstat = self.blame_reader.update_author2fstr2fstat(
-            self.author2fstr2fstat
-        )
+        self.author2fstr2fstat = self.update_author2fstr2fstat(self.author2fstr2fstat)
 
         self.fstr2fstat = self.stat_tables.get_fstr2fstat(
-            self.author2fstr2fstat, self.repo_reader.fstr2commit_groups
+            self.author2fstr2fstat, self.fstr2commit_groups
         )
 
         # Set self.fstrs and self.star_fstrs and sort by line count
@@ -138,7 +108,7 @@ class GIRepo:
         )
 
         self.author2pstat = self.stat_tables.get_author2pstat(
-            self.author2fstr2fstat, self.repo_reader.persons_db
+            self.author2fstr2fstat, self.persons_db
         )
 
         total_insertions = self.author2pstat["*"].stat.insertions
@@ -160,25 +130,18 @@ class GIRepo:
             )
         return True
 
-    def get_person(self, author: Author | None) -> Person:
-        return self.repo_reader.get_person(author)
-
     def _set_final_data(self) -> None:
 
         # calculate self.sha_long2author
-        for commit in self.repo_reader.git_repo.walk(
-            self.repo_reader.git_repo.head.target, SortMode.TIME
-        ):
+        for commit in self.git_repo.walk(self.git_repo.head.target, SortMode.TIME):
             sha_short = str(commit.short_id)
             author = self.get_person(commit.author.name).author
             self.sha_short2author[sha_short] = author
 
-        self.fr2f2a2sha_shorts = self.fr2f2a2sha_set_to_list(
-            self.repo_reader.fr2f2a2sha_short_set
-        )
+        self.fr2f2a2sha_shorts = self.fr2f2a2sha_set_to_list(self.fr2f2a2sha_short_set)
 
         self.fr2f2sha_shorts = self.fr2f2sha_set_to_list(
-            self.get_fr2f2sha_set(self.repo_reader.fr2f2a2sha_short_set)
+            self.get_fr2f2sha_set(self.fr2f2a2sha_short_set)
         )
 
         for fstr in self.fstrs:
@@ -190,7 +153,8 @@ class GIRepo:
             )
             self.fstr2sha_shorts[fstr] = sha_shorts_fr_sorted
 
-        authors_included: list[Author] = self.repo_reader.persons_db.authors_included
+        # calculate sorted version of self.authors_included
+        authors_included: list[Author] = self.persons_db.authors_included
         self.authors_included = sorted(
             authors_included,
             key=lambda x: self.author2pstat[x].stat.line_count,
@@ -251,14 +215,6 @@ class GIRepo:
                     sha_shorts, key=lambda x: self.sha_short2nr[x], reverse=True
                 )
         return target
-
-    @property
-    def sha_short2nr(self) -> dict[SHAShort, int]:
-        return self.repo_reader.sha_short2nr
-
-    @property
-    def nr2sha_short(self) -> dict[int, SHAShort]:
-        return self.repo_reader.nr2sha_short
 
 
 class StatTables:
@@ -370,7 +326,7 @@ class StatTables:
             )
 
 
-def get_repos(dir_path: Path, depth: int) -> list[list[GIRepo]]:
+def get_repos(dir_path: Path, depth: int) -> list[list[RepoGI]]:
     """
     Recursively retrieves a list of repositories from a given directory path up to a
     specified depth.
@@ -381,27 +337,27 @@ def get_repos(dir_path: Path, depth: int) -> list[list[GIRepo]]:
           means only the given directory is checked.
 
     Returns:
-        list[list[GIRepo]]: A list of lists, where each inner list contains repositories
+        list[list[RepoGI]]: A list of lists, where each inner list contains repositories
         found in the same directory.
 
     Notes:
         - If the given path is not a directory, an empty list is returned.
         - If the given path is a Git repository, a list containing a single list with
-          one GIRepo object is returned.
+          one RepoGI object is returned.
         - If the depth is greater than 0, the function will recursively search
           subdirectories for Git repositories.
     """
-    repo_lists: list[list[GIRepo]]
+    repo_lists: list[list[RepoGI]]
     if is_dir_safe(dir_path):
         if is_git_repo(dir_path):
-            return [[GIRepo(dir_path.name, dir_path)]]  # independent of depth
+            return [[RepoGI(dir_path.name, dir_path)]]  # independent of depth
         elif depth == 0:
             # For depth == 0, the input itself must be a repo, which is not the case.
             return []
         else:  # depth >= 1:
             subdirs: list[Path] = subdirs_safe(dir_path)
-            repos: list[GIRepo] = [
-                GIRepo(subdir.name, subdir) for subdir in subdirs if is_git_repo(subdir)
+            repos: list[RepoGI] = [
+                RepoGI(subdir.name, subdir) for subdir in subdirs if is_git_repo(subdir)
             ]
             repos = sorted(repos, key=lambda x: x.name)
             other_dirs: list[Path] = [
@@ -457,5 +413,5 @@ def subdirs_safe(path: Path) -> list[Path]:
         return []
 
 
-def total_len(repo_lists: list[list[GIRepo]]) -> int:
+def total_len(repo_lists: list[list[RepoGI]]) -> int:
     return sum(len(repo_list) for repo_list in repo_lists)

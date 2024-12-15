@@ -22,7 +22,7 @@ from gigui.output.stat_rows import (
     header_files,
     header_files_authors,
 )
-from gigui.repo import GIRepo
+from gigui.repo import RepoGI
 from gigui.typedefs import Author, FileStr, Html, Row, SHAShort
 from gigui.utils import get_relative_fstr, log
 
@@ -79,12 +79,12 @@ logger = logging.getLogger(__name__)
 
 # Global definition of the current repository. Defined in this module instead of in
 # shared_data to prevent circular imports.
-current_repo: GIRepo
+current_repo: RepoGI
 
 
 class TableRootSoup:
-    def __init__(self, repo: GIRepo) -> None:
-        self.repo: GIRepo = repo
+    def __init__(self, repo: RepoGI) -> None:
+        self.repo: RepoGI = repo
 
     def _get_color_for_author(self, author: Author) -> str:
         author_nr = self.repo.author_star2nr[author]
@@ -103,7 +103,7 @@ class TableSoup(TableRootSoup):
     empty_lines: bool
     subfolder: FileStr
 
-    def __init__(self, repo: GIRepo) -> None:
+    def __init__(self, repo: RepoGI) -> None:
         super().__init__(repo)
 
         self.soup = BeautifulSoup("<div></div>", "html.parser")
@@ -142,7 +142,7 @@ class TableSoup(TableRootSoup):
 
 
 class StatTableSoup(TableSoup):
-    def __init__(self, repo: GIRepo) -> None:
+    def __init__(self, repo: RepoGI) -> None:
         super().__init__(repo)
 
         self.table: Tag = self.soup.new_tag("table")
@@ -320,7 +320,7 @@ class BlameTableSoup(BlameBaseTableSoup):
 
 
 class BlameHistoryStaticTableSoup(BlameBaseTableSoup):
-    def __init__(self, repo: GIRepo) -> None:
+    def __init__(self, repo: RepoGI) -> None:
         super().__init__(repo)
         self.fstr2sha_shorts: dict[FileStr, list[SHAShort]] = self.repo.fstr2sha_shorts
 
@@ -350,7 +350,7 @@ class BlameTablesSoup(TableRootSoup):
     subfolder: FileStr
     blame_history: str
 
-    def __init__(self, repo: GIRepo, global_soup: BeautifulSoup) -> None:
+    def __init__(self, repo: RepoGI, global_soup: BeautifulSoup) -> None:
         super().__init__(repo)
         self.global_soup = global_soup
 
@@ -360,7 +360,7 @@ class BlameTablesSoup(TableRootSoup):
         fstr2table: dict[FileStr, Tag] = {}
         fstr2tables: dict[FileStr, list[Tag]] = {}
         fstrs: list[FileStr] = []
-        sha_short2nr: dict[SHAShort, int] = self.repo.blame_reader.sha_short2nr
+        sha_short2nr: dict[SHAShort, int] = self.repo.sha_short2nr
         nav_ul: Tag = self.global_soup.find(id="tab-buttons")  # type: ignore
         tab_div: Tag = self.global_soup.find(id="tab-contents")  # type: ignore
 
@@ -492,7 +492,7 @@ class BlameTablesSoup(TableRootSoup):
 
 # pylint: disable=too-many-locals
 def get_repo_html(
-    repo: GIRepo,
+    repo: RepoGI,
     blame_skip: bool,
 ) -> Html:
     """
