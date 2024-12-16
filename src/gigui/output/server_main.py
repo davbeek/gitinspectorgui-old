@@ -10,7 +10,7 @@ from gigui.output import html  # to use the shared global variable current_repo
 from gigui.output.blame_rows import BlameHistoryRows
 from gigui.output.html import BlameTableSoup, create_html_document, load_css, logger
 from gigui.output.server import PORT, run_server
-from gigui.typedefs import FileStr, Html, SHAShort
+from gigui.typedefs import SHA, FileStr, Html
 
 
 # This the main function that is called from the main process to start the server.
@@ -95,9 +95,9 @@ def handle_load_table(table_id: str, blame_history: str) -> Html:
 # For DYNAMIC blame history
 def generate_fstr_commit_table(file_nr: int, commit_nr: int) -> Html:
     root_fstr: FileStr = html.current_repo.fstrs[file_nr]
-    sha_short: SHAShort = html.current_repo.nr2sha_short[commit_nr]
+    sha: SHA = html.current_repo.nr2sha[commit_nr]
     rows, iscomments = BlameHistoryRows(html.current_repo).generate_fr_sha_blame_rows(
-        root_fstr, sha_short
+        root_fstr, sha
     )
     table = BlameTableSoup(html.current_repo).get_table(
         rows, iscomments, file_nr, commit_nr

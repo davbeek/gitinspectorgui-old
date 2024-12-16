@@ -5,7 +5,7 @@ from gigui.constants import REMOVE
 from gigui.data import PersonsDB
 from gigui.repo import RepoGI
 from gigui.repo_blame import Blame
-from gigui.typedefs import FileStr, Row, SHAShort
+from gigui.typedefs import SHA, FileStr, Row
 
 
 def header_blames() -> list[str]:
@@ -51,7 +51,7 @@ class BlameBaseRows:
                         author,
                         b.date.strftime("%Y-%m-%d"),
                         b.message,
-                        b.sha_short[:7],
+                        b.sha[:7],
                         b.commit_nr,
                         line_nr,
                         line,
@@ -76,28 +76,26 @@ class BlameHistoryRows(BlameBaseRows):
     def __init__(self, repo: RepoGI):
         super().__init__(repo)
 
-        self.fstr2sha2blames: dict[FileStr, dict[SHAShort, list[Blame]]] = (
+        self.fstr2sha2blames: dict[FileStr, dict[SHA, list[Blame]]] = (
             repo.fstr2sha2blames
         )
 
     # Only called for STATIC blame history, where the blame rows should already be
     # available.
     def get_fr_sha_blame_rows(
-        self, fstr_root: FileStr, sha_short: SHAShort
+        self, fstr_root: FileStr, sha: SHA
     ) -> tuple[list[Row], list[bool]]:
-        blames: list[Blame] = self.fstr2sha2blames[fstr_root][sha_short]
+        blames: list[Blame] = self.fstr2sha2blames[fstr_root][sha]
         return self.get_blame_rows(blames)
 
     # For DYNAMIC blame history
-    def generate_fr_sha_blame_rows(self, fstr_root: FileStr, sha_short: SHAShort):
-        blames: list[Blame] = self.repo.generate_fr_blame_history(fstr_root, sha_short)
+    def generate_fr_sha_blame_rows(self, fstr_root: FileStr, sha: SHA):
+        blames: list[Blame] = self.repo.generate_fr_blame_history(fstr_root, sha)
         return self.get_blame_rows(blames)
 
-    def generate_fr_f_sha_blame_rows(
-        self, fstr_root: FileStr, fstr: FileStr, sha_short: SHAShort
-    ):
+    def generate_fr_f_sha_blame_rows(self, fstr_root: FileStr, fstr: FileStr, sha: SHA):
         blames: list[Blame] = self.repo.generate_fr_f_blame_history(
-            fstr_root, fstr, sha_short
+            fstr_root, fstr, sha
         )
         return self.get_blame_rows(blames)
 

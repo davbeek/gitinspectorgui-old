@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from fnmatch import fnmatch
 from math import floor
 
-from gigui.typedefs import Author, Email, FileStr, Row, SHAShort
+from gigui.typedefs import SHA, Author, Email, FileStr, Row
 from gigui.utils import get_relative_fstr
 
 SECONDS_IN_DAY = 60 * 60 * 24
@@ -25,12 +25,12 @@ class CommitGroup:
     insertions: int
     deletions: int
     date_sum: int
-    sha_shorts: set[SHAShort]
+    shas: set[SHA]
 
 
 class Stat:
     def __init__(self) -> None:
-        self.sha_shorts: set[SHAShort] = set()
+        self.shas: set[SHA] = set()
         self.insertions: int = 0
         self.deletions: int = 0
         self.date_sum: int = 0  # Sum of Unix timestamps in seconds
@@ -65,14 +65,14 @@ class Stat:
         return self.__repr__()
 
     def add(self, other: "Stat"):
-        self.sha_shorts = self.sha_shorts | other.sha_shorts
+        self.shas = self.shas | other.shas
         self.insertions = self.insertions + other.insertions
         self.deletions = self.deletions + other.deletions
         self.date_sum = self.date_sum + other.date_sum
         self.line_count = self.line_count + other.line_count
 
     def add_commit_group(self, commit_group: CommitGroup):
-        self.sha_shorts |= commit_group.sha_shorts
+        self.shas |= commit_group.shas
         self.insertions += commit_group.insertions
         self.deletions += commit_group.deletions
         self.date_sum += commit_group.date_sum

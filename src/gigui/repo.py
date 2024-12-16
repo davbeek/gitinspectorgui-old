@@ -4,12 +4,11 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import TypeVar
 
-from pygit2.enums import SortMode
-from pygit2.repository import Repository
+from git import InvalidGitRepositoryError, NoSuchPathError, Repo
 
 from gigui.data import CommitGroup, FileStat, Person, PersonsDB, PersonStat
 from gigui.repo_blame import RepoBlameHistory
-from gigui.typedefs import Author, FileStr, SHAShort
+from gigui.typedefs import SHA, Author, FileStr
 from gigui.utils import divide_to_percentage, log
 
 logger = logging.getLogger(__name__)
@@ -39,18 +38,15 @@ class RepoGI(RepoBlameHistory):
         # Sorted list of non-excluded authors, valid only after self.run has been called.
         self.authors_included: list[Author] = []
 
-        self.fr2f2a2sha_shorts: dict[
-            FileStr, dict[FileStr, dict[Author, list[SHAShort]]]
-        ] = {}
+        self.fr2f2a2shas: dict[FileStr, dict[FileStr, dict[Author, list[SHA]]]] = {}
 
         # Valid only after self.run has been called with option --blame-history.
-        self.fstr2sha_shorts: dict[FileStr, list[SHAShort]] = {}
+        self.fstr2shas: dict[FileStr, list[SHA]] = {}
 
         self.author2nr: dict[Author, int] = {}  # does not include "*" as author
         self.author_star2nr: dict[Author, int] = {}  # includes "*" as author
 
-        self.sha_short2author: dict[SHAShort, Author] = {}
-        self.sha_short2author_nr: dict[SHAShort, int] = {}
+        self.sha2author_nr: dict[SHA, int] = {}
 
     def run(self, thread_executor: ThreadPoolExecutor) -> bool:
         """
@@ -70,7 +66,7 @@ class RepoGI(RepoBlameHistory):
             self._set_final_data()
             return True
         finally:
-            self.git_repo.free()
+            self.git_repo.close()
 
     def _run_no_history(self, thread_executor: ThreadPoolExecutor) -> bool:
 
@@ -132,26 +128,25 @@ class RepoGI(RepoBlameHistory):
 
     def _set_final_data(self) -> None:
 
-        # calculate self.sha_long2author
-        for commit in self.git_repo.walk(self.git_repo.head.target, SortMode.TIME):
-            sha_short = str(commit.short_id)
-            author = self.get_person(commit.author.name).author
-            self.sha_short2author[sha_short] = author
+        # update self.sha2author with new author definitions in person database
+        sha2author: dict[SHA, Author] = {}
+        for sha, author in self.sha2author.items():
+            new_author = self.get_person(author).author
+            sha2author[sha] = new_author
+        self.sha2author = sha2author
 
-        self.fr2f2a2sha_shorts = self.fr2f2a2sha_set_to_list(self.fr2f2a2sha_short_set)
+        self.fr2f2a2shas = self.fr2f2a2sha_set_to_list(self.fr2f2a2sha_set)
 
-        self.fr2f2sha_shorts = self.fr2f2sha_set_to_list(
-            self.get_fr2f2sha_set(self.fr2f2a2sha_short_set)
+        self.fr2f2shas = self.fr2f2sha_set_to_list(
+            self.get_fr2f2sha_set(self.fr2f2a2sha_set)
         )
 
         for fstr in self.fstrs:
-            sha_shorts_fr = set()
-            for sha_shorts in self.fr2f2sha_shorts[fstr].values():
-                sha_shorts_fr.update(sha_shorts)
-            sha_shorts_fr_sorted = sorted(
-                sha_shorts_fr, key=lambda x: self.sha_short2nr[x], reverse=True
-            )
-            self.fstr2sha_shorts[fstr] = sha_shorts_fr_sorted
+            shas_fr = set()
+            for shas in self.fr2f2shas[fstr].values():
+                shas_fr.update(shas)
+            shas_fr_sorted = sorted(shas_fr, key=lambda x: self.sha2nr[x], reverse=True)
+            self.fstr2shas[fstr] = shas_fr_sorted
 
         # calculate sorted version of self.authors_included
         authors_included: list[Author] = self.persons_db.authors_included
@@ -168,8 +163,8 @@ class RepoGI(RepoBlameHistory):
 
         self.author2nr = {k: v for k, v in self.author_star2nr.items() if k != "*"}
 
-        for sha_short, author in self.sha_short2author.items():
-            self.sha_short2author_nr[sha_short] = self.author2nr[author]
+        for sha, author in self.sha2author.items():
+            self.sha2author_nr[sha] = self.author2nr[author]
 
     @property
     def real_authors_included(self) -> list[Author]:
@@ -177,42 +172,42 @@ class RepoGI(RepoBlameHistory):
 
     # from set to list
     def fr2f2a2sha_set_to_list(
-        self, source: dict[FileStr, dict[FileStr, dict[Author, set[SHAShort]]]]
-    ) -> dict[FileStr, dict[FileStr, dict[Author, list[SHAShort]]]]:
-        target: dict[FileStr, dict[FileStr, dict[Author, list[SHAShort]]]] = {}
+        self, source: dict[FileStr, dict[FileStr, dict[Author, set[SHA]]]]
+    ) -> dict[FileStr, dict[FileStr, dict[Author, list[SHA]]]]:
+        target: dict[FileStr, dict[FileStr, dict[Author, list[SHA]]]] = {}
         for fstr_root, fstr_root_dict in source.items():
             target[fstr_root] = {}
             for fstr, fstr_dict in fstr_root_dict.items():
                 target[fstr_root][fstr] = {}
-                for author, sha_shorts in fstr_dict.items():
+                for author, shas in fstr_dict.items():
                     person_author = self.get_person(author).author
-                    sha_shorts_sorted = sorted(
-                        sha_shorts, key=lambda x: self.sha_short2nr[x], reverse=True
+                    shas_sorted = sorted(
+                        shas, key=lambda x: self.sha2nr[x], reverse=True
                     )
-                    target[fstr_root][fstr][person_author] = sha_shorts_sorted
+                    target[fstr_root][fstr][person_author] = shas_sorted
         return target
 
     def get_fr2f2sha_set(
-        self, source: dict[FileStr, dict[FileStr, dict[Author, set[SHAShort]]]]
-    ) -> dict[FileStr, dict[FileStr, set[SHAShort]]]:
-        target: dict[FileStr, dict[FileStr, set[SHAShort]]] = {}
+        self, source: dict[FileStr, dict[FileStr, dict[Author, set[SHA]]]]
+    ) -> dict[FileStr, dict[FileStr, set[SHA]]]:
+        target: dict[FileStr, dict[FileStr, set[SHA]]] = {}
         for fstr_root, fstr_root_dict in source.items():
             target[fstr_root] = {}
             for fstr, fstr_dict in fstr_root_dict.items():
                 target[fstr_root][fstr] = set()
-                for sha_shorts in fstr_dict.values():
-                    target[fstr_root][fstr].update(sha_shorts)
+                for shas in fstr_dict.values():
+                    target[fstr_root][fstr].update(shas)
         return target
 
     def fr2f2sha_set_to_list(
-        self, source: dict[FileStr, dict[FileStr, set[SHAShort]]]
-    ) -> dict[FileStr, dict[FileStr, list[SHAShort]]]:
-        target: dict[FileStr, dict[FileStr, list[SHAShort]]] = {}
+        self, source: dict[FileStr, dict[FileStr, set[SHA]]]
+    ) -> dict[FileStr, dict[FileStr, list[SHA]]]:
+        target: dict[FileStr, dict[FileStr, list[SHA]]] = {}
         for fstr_root, fstr_root_dict in source.items():
             target[fstr_root] = {}
-            for fstr, sha_shorts in fstr_root_dict.items():
+            for fstr, shas in fstr_root_dict.items():
                 target[fstr_root][fstr] = sorted(
-                    sha_shorts, key=lambda x: self.sha_short2nr[x], reverse=True
+                    shas, key=lambda x: self.sha2nr[x], reverse=True
                 )
         return target
 
@@ -394,9 +389,11 @@ def is_git_repo(path: Path) -> bool:
         return False
 
     try:
-        repo = Repository(str(path))
-        return not repo.is_bare
-    except (KeyError, ValueError, OSError):
+        # The default True value of expand_vars leads to confusing warnings from
+        # GitPython for many paths from system folders.
+        repo = Repo(path, expand_vars=False)
+        return not repo.bare
+    except (InvalidGitRepositoryError, NoSuchPathError):
         return False
 
 

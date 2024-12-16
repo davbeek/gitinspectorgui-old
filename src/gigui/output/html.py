@@ -23,7 +23,7 @@ from gigui.output.stat_rows import (
     header_files_authors,
 )
 from gigui.repo import RepoGI
-from gigui.typedefs import Author, FileStr, Html, Row, SHAShort
+from gigui.typedefs import SHA, Author, FileStr, Html, Row
 from gigui.utils import get_relative_fstr, log
 
 MAX_LENGTH_TAB_NAME = 160
@@ -92,8 +92,8 @@ class TableRootSoup:
 
     def _get_color_for_sha_nr(self, sha_nr: int) -> str:
 
-        sha = self.repo.nr2sha_short[sha_nr]
-        author = self.repo.sha_short2author[sha]
+        sha = self.repo.nr2sha[sha_nr]
+        author = self.repo.sha2author[sha]
         color_class = self._get_color_for_author(author)
         return color_class
 
@@ -322,24 +322,24 @@ class BlameTableSoup(BlameBaseTableSoup):
 class BlameHistoryStaticTableSoup(BlameBaseTableSoup):
     def __init__(self, repo: RepoGI) -> None:
         super().__init__(repo)
-        self.fstr2sha_shorts: dict[FileStr, list[SHAShort]] = self.repo.fstr2sha_shorts
+        self.fstr2shas: dict[FileStr, list[SHA]] = self.repo.fstr2shas
 
     def get_fstr_tables(
         self,
         fstr_root: FileStr,
-        sha_short2nr: dict[SHAShort, int],
+        sha2nr: dict[SHA, int],
         blame_tab_index: int,
     ) -> list[Tag]:
         tables: list[Tag] = []
-        if fstr_root not in self.fstr2sha_shorts:
+        if fstr_root not in self.fstr2shas:
             return []
-        for sha_short in self.fstr2sha_shorts[fstr_root]:
+        for sha in self.fstr2shas[fstr_root]:
             rows, iscomments = BlameHistoryRows(self.repo).get_fr_sha_blame_rows(
-                fstr_root, sha_short
+                fstr_root, sha
             )
             if not rows:
                 continue
-            nr = sha_short2nr[sha_short]
+            nr = sha2nr[sha]
             table = self.get_table(rows, iscomments)
             table["id"] = f"file-{blame_tab_index}-sha-{nr}"
             tables.append(table)
@@ -360,7 +360,7 @@ class BlameTablesSoup(TableRootSoup):
         fstr2table: dict[FileStr, Tag] = {}
         fstr2tables: dict[FileStr, list[Tag]] = {}
         fstrs: list[FileStr] = []
-        sha_short2nr: dict[SHAShort, int] = self.repo.sha_short2nr
+        sha2nr: dict[SHA, int] = self.repo.sha2nr
         nav_ul: Tag = self.global_soup.find(id="tab-buttons")  # type: ignore
         tab_div: Tag = self.global_soup.find(id="tab-contents")  # type: ignore
 
@@ -368,7 +368,7 @@ class BlameTablesSoup(TableRootSoup):
         for fstr in self.repo.fstrs:
             if self.blame_history == STATIC:
                 tables = BlameHistoryStaticTableSoup(self.repo).get_fstr_tables(
-                    fstr, sha_short2nr, blame_tab_index
+                    fstr, sha2nr, blame_tab_index
                 )
                 if tables:
                     fstr2tables[fstr] = tables
@@ -407,8 +407,8 @@ class BlameTablesSoup(TableRootSoup):
 
             if self.blame_history in {STATIC, DYNAMIC}:
                 self._add_radio_buttons(
-                    self.repo.fstr2sha_shorts[fstr],
-                    sha_short2nr,
+                    self.repo.fstr2shas[fstr],
+                    sha2nr,
                     blame_container,
                     blame_tab_index,
                 )
@@ -450,8 +450,8 @@ class BlameTablesSoup(TableRootSoup):
 
     def _add_radio_buttons(
         self,
-        sha_shorts: list[SHAShort],
-        sha2nr: dict[SHAShort, int],
+        shas: list[SHA],
+        sha2nr: dict[SHA, int],
         parent: Tag,
         blame_tab_index: int,
     ) -> None:
@@ -460,8 +460,8 @@ class BlameTablesSoup(TableRootSoup):
             "div", attrs={"class": "radio-container sticky"}
         )
 
-        for sha_short in sha_shorts:
-            sha_nr = sha2nr[sha_short]
+        for sha in shas:
+            sha_nr = sha2nr[sha]
             button_id = f"button-file-{blame_tab_index}-sha-{sha_nr}"
             color_class = self._get_color_for_sha_nr(sha_nr)
             radio_button = self.global_soup.new_tag(
