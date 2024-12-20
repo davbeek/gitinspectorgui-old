@@ -336,6 +336,12 @@ class RepoBase:
 
         lines: list[str] = lines_str.strip().splitlines()
         rename_pattern = re.compile(r"^(.*)\{(.*) => (.*)\}(.*)$")
+        simple_rename_pattern = re.compile(r"^(.*) => (.*)$")
+
+        # Possible rename of copy patterns are:
+        # 1. gitinspector/{gitinspect_gui.py => gitinspector_gui.py}
+        # 2. src/gigui/{ => gi}/gitinspector.py
+        # 3. gitinspect_gui.py => gitinspector/gitinspect_gui.py
 
         while lines:
             line = lines.pop(0)
@@ -363,11 +369,14 @@ class RepoBase:
                 # old_part = match.group(2)
                 new_part = match.group(3)
                 suffix = match.group(4)
-                # old_name = f"{prefix}{old_part}{suffix}".replace("//", "/")
                 new_name = f"{prefix}{new_part}{suffix}".replace("//", "/")
                 fstr = new_name
             else:
-                fstr = file_name
+                match = simple_rename_pattern.match(file_name)
+                if match:
+                    fstr = match.group(2)
+                else:
+                    fstr = file_name
 
             target = self.fr2f2a2sha_set
             if fstr_root not in target:
