@@ -6,6 +6,7 @@ from typing import TypeVar
 
 from git import InvalidGitRepositoryError, NoSuchPathError, Repo
 
+from gigui.constants import STATIC
 from gigui.data import CommitGroup, FileStat, Person, PersonsDB, PersonStat
 from gigui.repo_blame import RepoBlameHistory
 from gigui.typedefs import SHA, Author, FileStr
@@ -64,6 +65,8 @@ class RepoGI(RepoBlameHistory):
                 return False
 
             self._set_final_data()
+            if self.blame_history == STATIC:
+                super().run_blame_history_static()
             return True
         finally:
             self.git_repo.close()

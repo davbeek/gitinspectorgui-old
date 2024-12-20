@@ -8,7 +8,6 @@ from git import Commit as GitCommit
 from git import GitCommandError
 
 from gigui.comment import get_is_comment_lines
-from gigui.constants import STATIC
 from gigui.data import FileStat
 from gigui.repo_base import RepoBase
 from gigui.typedefs import SHA, Author, BlameLines, Email, FileStr, GitBlames
@@ -203,24 +202,23 @@ class RepoBlameHistory(RepoBlame):
         self.fr2f2shas: dict[FileStr, dict[FileStr, list[SHA]]] = {}
         self.fstr2sha2blames: dict[FileStr, dict[SHA, list[Blame]]] = {}
 
-    def run_blame_history(self) -> None:
+    def run_blame_history_static(self) -> None:
         git_blames: GitBlames
         blames: list[Blame]
 
-        if self.blame_history == STATIC:
-            for root_fstr in self.fstrs:
-                head_sha = self.fr2f2shas[root_fstr][root_fstr][0]
-                self.fstr2sha2blames[root_fstr] = {}
-                self.fstr2sha2blames[root_fstr][head_sha] = self.fstr2blames[root_fstr]
-                for fstr, shas in self.fr2f2shas[root_fstr].items():
-                    for sha in shas:
-                        if fstr == root_fstr and sha == head_sha:
-                            continue
-                        git_blames, _ = self._get_git_blames_for(fstr, sha)
-                        # root_str needed only for file extension to determine
-                        # comment lines
-                        blames = self._process_git_blames(root_fstr, git_blames)
-                        self.fstr2sha2blames[root_fstr][sha] = blames
+        for root_fstr in self.fstrs:
+            head_sha = self.fr2f2shas[root_fstr][root_fstr][0]
+            self.fstr2sha2blames[root_fstr] = {}
+            self.fstr2sha2blames[root_fstr][head_sha] = self.fstr2blames[root_fstr]
+            for fstr, shas in self.fr2f2shas[root_fstr].items():
+                for sha in shas:
+                    if fstr == root_fstr and sha == head_sha:
+                        continue
+                    git_blames, _ = self._get_git_blames_for(fstr, sha)
+                    # root_str needed only for file extension to determine
+                    # comment lines
+                    blames = self._process_git_blames(root_fstr, git_blames)
+                    self.fstr2sha2blames[root_fstr][sha] = blames
 
         # Assume that no new authors are found when using earlier root commit_shas, so
         # do not update authors of the blames with the possibly newly found persons as
