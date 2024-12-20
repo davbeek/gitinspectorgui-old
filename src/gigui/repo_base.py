@@ -1,5 +1,6 @@
 import copy
 import logging
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime
@@ -214,7 +215,7 @@ class RepoBase:
         sha: SHA
         oid: OID
 
-        # %h: commit hash long (SHAshort)
+        # %h: commit hash (short)
         # %ct: committer date, UNIX timestamp
         # %s: commit message
         # %aN: author name, respecting .mailmap
@@ -332,7 +333,10 @@ class RepoBase:
         self, lines_str: str, fstr_root: FileStr
     ) -> list[CommitGroup]:
         commit_groups: list[CommitGroup] = []
-        lines = lines_str.splitlines()
+
+        lines: list[str] = lines_str.strip().splitlines()
+        rename_pattern = re.compile(r"^(.*)\{(.*) => (.*)\}(.*)$")
+
         while lines:
             line = lines.pop(0)
             if not line:
@@ -347,50 +351,23 @@ class RepoBase:
             stat_line = lines.pop(0)
             if person.filter_matched or not stat_line:
                 continue
-            stats = stat_line.split()
-            insertions = int(stats.pop(0))
-            deletions = int(stats.pop(0))
-            line = " ".join(stats)
-
-            if "=>" not in line:
-                # if no renames or copies have been found, the line represents the file
-                # name fstr
-                fstr = line
-            elif "{" in line:
-                # If { is in the line, it is part of a {...} abbreviation in a rename or
-                # copy expression. This means that the file has been renamed or copied
-                # to a new name. Set fstr to this new name.
-                #
-                # To find the new name, the {...} abbreviation part of the line needs to
-                # be eliminated. Examples of such lines are:
-                #
-                # 1. gitinspector/{gitinspect_gui.py => gitinspector_gui.py}
-                # 2. src/gigui/{ => gi}/gitinspector.py
-
-                prefix, rest = line.split("{")
-
-                # _ is old_part
-                _, rest = rest.split(" => ")
-
-                new_part, suffix = rest.split("}")
-
-                # prev_name = f"{prefix}{old_part}{suffix}"
-                new_name = f"{prefix}{new_part}{suffix}"
-
-                # src/gigui/{ => gi}/gitinspector.py leads to:
-                # src/gigui//gitinspector.py => src/gigui/gi/gitinspector.py
-
-                # prev_name = prev_name.replace("//", "/")
-                # new_name = new_name.replace("//", "/")
-                fstr = new_name.replace("//", "/")
+            parts = stat_line.split("\t")
+            if not len(parts) == 3:
+                continue
+            insertions = int(parts[0])
+            deletions = int(parts[1])
+            file_name = parts[2]
+            match = rename_pattern.match(file_name)
+            if match:
+                prefix = match.group(1)
+                # old_part = match.group(2)
+                new_part = match.group(3)
+                suffix = match.group(4)
+                # old_name = f"{prefix}{old_part}{suffix}".replace("//", "/")
+                new_name = f"{prefix}{new_part}{suffix}".replace("//", "/")
+                fstr = new_name
             else:
-                # gitinspect_gui.py => gitinspector/gitinspect_gui.py
-
-                split = line.split(" => ")
-
-                # prev_name = split[0]
-                # new_name = split[1]
-                fstr = split[1]
+                fstr = file_name
 
             target = self.fr2f2a2sha_set
             if fstr_root not in target:
