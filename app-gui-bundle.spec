@@ -9,7 +9,7 @@ a = Analysis(
     datas=
     [
         ('src/gigui/gui/images', 'images'),
-        ('src/gigui/output/files', 'gigui/output/files'),
+        ('src/gigui/output/static', 'gigui/output/static'),
         ('src/gigui/version.txt', 'gigui')
     ],
     hiddenimports=[],
