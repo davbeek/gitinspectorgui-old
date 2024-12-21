@@ -5,6 +5,7 @@ import subprocess
 import time
 from cProfile import Profile
 from io import StringIO
+from multiprocessing import Process
 from pathlib import Path
 from pstats import Stats
 
@@ -55,7 +56,16 @@ def open_file(fstr: FileStr):
                 raise RuntimeError(f"Unknown platform {platform.system()}")
 
 
-def open_webview(html_code: str, repo_name: str):
+def open_webview(html_code: str, repo_name: str, gui: bool = False):
+    if gui:
+        webview_process = Process(target=_open_webview, args=(html_code, repo_name))
+        webview_process.daemon = True
+        webview_process.start()
+    else:
+        _open_webview(html_code, repo_name)
+
+
+def _open_webview(html_code: str, repo_name: str):
     webview.create_window(
         f"{repo_name} viewer",
         html=html_code,

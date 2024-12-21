@@ -204,7 +204,7 @@ def run_inner(settings: Settings) -> bool:
 
             case keys.open_webview:
                 html_code, repo_name = values[event]
-                open_webview(html_code, repo_name)
+                open_webview(html_code, repo_name, gui=True)
 
     return recreate_window
 
