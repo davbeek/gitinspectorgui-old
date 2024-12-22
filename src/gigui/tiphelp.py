@@ -32,14 +32,28 @@ class Tip:
         "searched for repositories"
     )
 
-    # Output formats excel
-    format_excel: str = "Select output formats to be generated"
+    # Output generation and formatting
+    outputs: str = "Select output viewing and output formats to be generated"
     view: str = "View the generated output"
     html: str = "Generate html output"
     excel: str = "Generate excel output"
+
+    # Statistics subgroup
+    deletions: str = "Include deletions in addition to lines and insertions output"
+    show_renames: str = (
+        "Show previous file names and alternative author names and emails"
+    )
     scaled_percentages: str = (
         "Show percentages that are scaled (multiplied) by the number of authors in "
         "the repository"
+    )
+
+    # Blame subgroup
+    blame_history: str = (
+        "Generate blame tables, "
+        "static: all tables in html, "
+        "dynamic: generate on demand, "
+        "none: single table per file (default)"
     )
     blame_exclusions: str = (
         "Deal with: comments, empty and author lines that are excluded in html output, "
@@ -47,15 +61,33 @@ class Tip:
         "hide: add and start by hiding, "
         "remove: do not add"
     )
-    blame_skip: str = "Do not generate blame worksheets or blame tabs"
-    blame_history: str = (
-        "Generate blame tables, "
-        "static: all tables in html, "
-        "dynamic: generate on demand, "
-        "none: single table per file (default)"
+    copy_move: str = (
+        "0: Ignore copy and move of lines, "
+        "1: Detect copy move within file, "
+        "2: and across files in one commit (default), "
+        "3: and across two commits, "
+        "4: across all commits"
     )
+    blame_skip: str = "Do not generate blame worksheets or blame tabs"
+
+    # Subgroup blame inclusions
+    empty_lines: str = "Include empty lines in blame calculations"
+    comments: str = "Include comments in blame output"
+
+    # Analysis options
+    whitespace: str = "Include all whitespace in diffs and in copy move detection"
+    verbosity: str = (
+        "0: No debug output, "
+        "1: Occasional output messages, "
+        "2: Detailed debug output"
+    )
+    dry_run: str = (
+        "0: normal execution, 1: analysis without output files, 2: no analysis no output files"
+    )
+
+    # Inclusions and exclusions
+
     settings_file: str = "Settings file name or full path"
-    subfolder: str = "Restrict analysis to a subfolder of the repository"
     file_options: str = (
         'For file selection, the file pattern for "Show files" has priority '
         'over "Show N files"'
@@ -68,36 +100,7 @@ class Tip:
         "Generate output for all files matching any of the specified patterns (default "
         f"the {DEFAULT_N_FILES} biggest files)"
     )
-    show_renames: str = (
-        "Show previous file names and alternative author names and emails"
-    )
-
-    # General configuration
-    deletions: str = "Include deletions in diffs"
-    whitespace: str = "Include all whitespace in diffs and in copy move detection"
-    empty_lines: str = "Include empty lines in blame calculations"
-    comments: str = "Include comments in blame output"
-    copy_move: str = (
-        "0: Ignore copy and move of lines, "
-        "1: Detect copy move within file, "
-        "2: and across files in one commit (default), "
-        "3: and across two commits, "
-        "4: across all commits"
-    )
-    verbosity: str = (
-        "0: No debug output, "
-        "1: Occasional output messages, "
-        "2: Detailed debug output"
-    )
-    dry_run: str = (
-        "0: normal execution, 1: analysis without output files, 2: no analysis no output files"
-    )
-    multi_thread: str = (
-        "Analyse multiple files for changes and blames per repository using multiple threads"
-    )
-    multi_core: str = (
-        "Execute multiple repositories using multiple cores, disabled for GUI"
-    )
+    subfolder: str = "Restrict analysis to a subfolder of the repository"
     since: str = "Only show statistics for commits more recent than a specific date"
     since_box: str = "Enter a date of the form 2022-12-31 or press the dot button"
     until: str = "Only show statistics for commits older than a specific date"
@@ -107,7 +110,15 @@ class Tip:
         "statistics. Default extensions are: " + ", ".join(DEFAULT_EXTENSIONS) + "."
     )
 
-    # Exclusions
+    # Multi-threading and multi-core
+    multi_thread: str = (
+        "Analyse multiple files for changes and blames per repository using multiple threads"
+    )
+    multi_core: str = (
+        "Execute multiple repositories using multiple cores, disabled for GUI"
+    )
+
+    # Exclusion patterns
     ex_files: str = (
         "Filter out all files (or paths) containing any of the comma separated "
         "strings, e.g.: myfile, test"

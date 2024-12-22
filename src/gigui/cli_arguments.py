@@ -97,8 +97,9 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
         choices=FIX_TYPE,
         help=hlp.pre_postfix,
     )
+
     # Output generation and formatting
-    group_generation = parser.add_argument_group("Output generation and formatting")
+    group_generation = parser.add_argument_group("Output generation and viewing")
     group_generation.add_argument(
         "--view",
         action=BooleanOptionalAction,
@@ -113,38 +114,80 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
         choices=AVAILABLE_FORMATS,
         help=hlp.format,
     )
-    group_generation.add_argument(
+
+    # Below follow the subgroups from group "Output generation and formatting". The
+    # subgroups are added directly to the parser instead of to the "Output generation
+    # and formatting" group, because real subgroups are not shown in the help output.
+
+    # Statistics subgroup
+    subgroup_stats = parser.add_argument_group("Statistics output")
+    subgroup_stats.add_argument(
+        "--deletions",
+        action=BooleanOptionalAction,
+        help=hlp.deletions,
+    )
+    subgroup_stats.add_argument(
         "--show-renames",
         action=BooleanOptionalAction,
         help=hlp.show_renames,
     )
-    group_generation.add_argument(
+    subgroup_stats.add_argument(
         "--scaled-percentages",
         action=BooleanOptionalAction,
         help=hlp.scaled_percentages,
     )
-    group_generation.add_argument(
-        "--blame-exclusions",
-        choices=BLAME_EXCLUSION_CHOICES,
-        help=hlp.blame_exclusions,
-    )
-    group_generation.add_argument(
-        "--blame-skip",
-        action=BooleanOptionalAction,
-        help=hlp.blame_skip,
-    )
-    group_generation.add_argument(
+
+    # Blame subgroup
+    subgroup_blame = parser.add_argument_group("Blame")
+    subgroup_blame.add_argument(
         "--blame-history",
         choices=BLAME_HISTORY_CHOICES,
         help=hlp.blame_history,
     )
-    group_generation.add_argument(
+    subgroup_blame.add_argument(
+        "--blame-exclusions",
+        choices=BLAME_EXCLUSION_CHOICES,
+        help=hlp.blame_exclusions,
+    )
+    subgroup_blame.add_argument(
+        "--copy-move",
+        type=get_digit,
+        metavar="N",
+        help=hlp.copy_move,
+    )
+    subgroup_blame.add_argument(
+        "--blame-skip",
+        action=BooleanOptionalAction,
+        help=hlp.blame_skip,
+    )
+
+    # Subgroup blame inclusions
+    subgroup_blame_inclusions = parser.add_argument_group("Blame inclusions")
+    subgroup_blame_inclusions.add_argument(
+        "--empty-lines",
+        action=BooleanOptionalAction,
+        help=hlp.empty_lines,
+    )
+    subgroup_blame_inclusions.add_argument(
+        "--comments",
+        action=BooleanOptionalAction,
+        help=hlp.comments,
+    )
+
+    # Analysis options
+    subgroup_general_options = parser.add_argument_group("General options")
+    subgroup_general_options.add_argument(
+        "--whitespace",
+        action=BooleanOptionalAction,
+        help=hlp.whitespace,
+    )
+    subgroup_general_options.add_argument(
         "-v",
         "--verbosity",
         action="count",
         help=hlp.cli_verbosity,
     )
-    group_generation.add_argument(
+    subgroup_general_options.add_argument(
         "--dry-run",
         type=int,
         choices=[0, 1, 2],
@@ -186,38 +229,6 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
         help=hlp.extensions,
     )
 
-    # Analysis options
-    # Include differences due to
-    group_include_diffs = parser.add_argument_group(
-        "Analysis options, include differences due to"
-    )
-    group_include_diffs.add_argument(
-        "--deletions",
-        action=BooleanOptionalAction,
-        help=hlp.deletions,
-    )
-    group_include_diffs.add_argument(
-        "--whitespace",
-        action=BooleanOptionalAction,
-        help=hlp.whitespace,
-    )
-    group_include_diffs.add_argument(
-        "--empty-lines",
-        action=BooleanOptionalAction,
-        help=hlp.empty_lines,
-    )
-    group_include_diffs.add_argument(
-        "--comments",
-        action=BooleanOptionalAction,
-        help=hlp.comments,
-    )
-    group_include_diffs.add_argument(
-        "--copy-move",
-        type=get_digit,
-        metavar="N",
-        help=hlp.copy_move,
-    )
-
     # Multi-threading and multi-core
     group_general = parser.add_argument_group("Multi-threading and multi-core")
     group_general.add_argument(
@@ -231,8 +242,8 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
         help=hlp.multi_core,
     )
 
-    # Exclusion options
-    group_exclusions = parser.add_argument_group("Exclusion options", hlp.exclude)
+    # Exclusion patterns
+    group_exclusions = parser.add_argument_group("Exclusion patterns", hlp.exclude)
     group_exclusions.add_argument(
         "--ex-files",
         "--exclude-files",

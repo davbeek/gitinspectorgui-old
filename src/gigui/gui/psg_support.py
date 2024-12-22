@@ -106,6 +106,11 @@ def window_state_from_settings(window: sg.Window, settings: Settings) -> None:
     window.write_event_value(keys.outfile_base, settings.outfile_base)
     window.write_event_value(keys.include_files, ".".join(settings.include_files))
     window.write_event_value(keys.verbosity, settings.verbosity)
+
+    # First set column height too big, then set it to the correct value to ensure
+    # correct displaying of the column height
+    window.write_event_value(keys.col_percent, min(settings.col_percent + 5, 100))
+    window.write_event_value(keys.col_percent, settings.col_percent)
     if settings.gui_settings_full_path:
         settings_fstr = str(SettingsFile.get_location())
     else:

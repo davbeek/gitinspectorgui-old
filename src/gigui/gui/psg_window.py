@@ -107,7 +107,6 @@ def window_layout() -> list[list[sg.Element] | list[sg.Column] | list[sg.Multili
                     [output_formats_frame()],
                     [settings_frame()],
                     [general_config_frame()],
-                    [analysis_options_frame()],
                     [exclusion_patterns_frame()],
                 ],
                 COL_HEIGHT,
@@ -258,7 +257,7 @@ def output_formats_frame() -> sg.Frame:
                     "",
                     layout=[
                         [
-                            name_header("Output formats", tooltip=tip.format_excel),
+                            name_header("Output formats", tooltip=tip.outputs),
                             checkbox(
                                 keys.view,
                                 keys.view,
@@ -274,9 +273,24 @@ def output_formats_frame() -> sg.Frame:
                             sg.Text("", expand_x=True, background_color="white"),
                         ],
                         [
+                            name_header("Statistics output", ""),
+                            checkbox(
+                                "Deletions",
+                                keys.deletions,
+                            ),
+                            checkbox(
+                                "Show renames",
+                                key=keys.show_renames,
+                            ),
+                            checkbox(
+                                "Scaled %",
+                                key=keys.scaled_percentages,
+                            ),
+                        ],
+                        [
                             name_header("Blame options", ""),
                             name_choice(
-                                "Blame history",
+                                "History",
                                 tooltip=tip.blame_history,
                             ),
                             sg.Combo(
@@ -291,7 +305,7 @@ def output_formats_frame() -> sg.Frame:
                                 background_color="white",
                             ),
                             name_choice(
-                                "Blame exclusions",
+                                "Exclusions",
                                 tooltip=tip.blame_exclusions,
                             ),
                             sg.Combo(
@@ -305,20 +319,35 @@ def output_formats_frame() -> sg.Frame:
                                 text_color="black",
                                 background_color="white",
                             ),
+                            name_choice(
+                                "Copy move",
+                                tooltip=tip.copy_move,
+                            ),
+                            spinbox(
+                                keys.copy_move,
+                                list(range(5)),
+                            ),
                             checkbox(
                                 "Blame skip",
                                 key=keys.blame_skip,
                             ),
                         ],
                         [
-                            name_header("Options", ""),
+                            name_header("Blame inclusions", ""),
                             checkbox(
-                                "Show renames",
-                                key=keys.show_renames,
+                                "Empty lines",
+                                keys.empty_lines,
                             ),
                             checkbox(
-                                "Scaled %",
-                                key=keys.scaled_percentages,
+                                "Comments",
+                                keys.comments,
+                            ),
+                        ],
+                        [
+                            name_header("General options", ""),
+                            checkbox(
+                                "Whitespace",
+                                keys.whitespace,
                             ),
                             name_choice(
                                 "Debug",
@@ -463,41 +492,6 @@ def general_config_frame() -> sg.Frame:
                 ),
                 input_box(
                     keys.extensions,
-                ),
-            ],
-        ],
-    )
-
-
-def analysis_options_frame() -> sg.Frame:
-    return frame(
-        "Analysis options",
-        layout=[
-            [
-                name_header("Include", ""),
-                checkbox(
-                    "Deletions",
-                    keys.deletions,
-                ),
-                checkbox(
-                    "Whitespace",
-                    keys.whitespace,
-                ),
-                checkbox(
-                    "Empty lines",
-                    keys.empty_lines,
-                ),
-                checkbox(
-                    "Comments",
-                    keys.comments,
-                ),
-                name_choice(
-                    "Copy move",
-                    tooltip=tip.copy_move,
-                ),
-                spinbox(
-                    keys.copy_move,
-                    list(range(5)),
                 ),
             ],
         ],
