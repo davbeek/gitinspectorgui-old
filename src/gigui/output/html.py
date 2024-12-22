@@ -589,8 +589,8 @@ def create_html_document(
             case "globals.js":
                 # Insert the value of --blame-exclusions=hide in the js code
                 js_code = js_code.replace(
-                    "<%= blame_exclusions_hide %>",
-                    str(blame_exclusions_hide),  # noqa: F821
+                    '"<%= blame_exclusions_hide %>"',
+                    "true" if blame_exclusions_hide else "false",  # noqa: F821
                 )
             case "browser-id.js":
                 # Insert the browser ID option in the js code
