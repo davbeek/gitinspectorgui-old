@@ -13,16 +13,22 @@ scaled_percentages: bool
 
 
 def header_stat() -> list[str]:
-    return [
-        "% Lines",
-        "% Insertions",
-        "Lines",
-        "Insertions",
-        "Stability",
-        "Commits",
-    ] + (
-        ["Deletions", "Age Y:M:D"] if deletions else ["Age Y:M:D"]  # noqa: F821
-    )
+    return (
+        [
+            "Lines",
+            "Insertions",
+        ]
+        + (["Deletions"] if deletions else [])  # noqa: F821
+        + [
+            "% Lines",
+            "% Insertions",
+        ]
+        + [
+            "Stability",
+            "Commits",
+            "Age Y:M:D",
+        ]
+    )  # noqa: F821
 
 
 def header_authors(html: bool = True) -> list[str]:
@@ -31,16 +37,21 @@ def header_authors(html: bool = True) -> list[str]:
         return (
             header_prefix
             + [
+                "Lines",
+                "Insertions",
+            ]
+            + (["Deletions"] if deletions else [])  # noqa: F821
+            + [
                 "% Lines",
                 "% Insertions",
                 "% Scaled Lines",
                 "% Scaled Insertions",
-                "Lines",
-                "Insertions",
+            ]
+            + [
                 "Stability",
                 "Commits",
-            ]
-            + (["Deletions", "Age Y:M:D"] if deletions else ["Age Y:M:D"])  # noqa: F821
+                "Age Y:M:D",
+            ]  # noqa: F821
         )
     else:
         return header_prefix + header_stat()
@@ -77,10 +88,11 @@ class TableRows:
 
     def _get_stat_values(self, stat: Stat, nr_authors: int = -1) -> list[Any]:
         return (
-            [
-                percentage_to_out(stat.percent_lines),
-                percentage_to_out(stat.percent_insertions),
-            ]
+            [stat.line_count]
+            + [stat.insertions]
+            + ([stat.deletions] if self.deletions else [])  # noqa: F821
+            + [percentage_to_out(stat.percent_lines)]
+            + [percentage_to_out(stat.percent_insertions)]
             + (
                 [
                     percentage_to_out(stat.percent_lines * nr_authors),
@@ -90,14 +102,10 @@ class TableRows:
                 else []
             )
             + [
-                stat.line_count,
-                stat.insertions,
                 stat.stability,
                 len(stat.shas),
+                stat.age,
             ]
-            + (
-                [stat.deletions, stat.age] if self.deletions else [stat.age]
-            )  # noqa: F821
         )
 
 
