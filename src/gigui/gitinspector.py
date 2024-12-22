@@ -140,12 +140,15 @@ def init_classes(args: Args):
     RepoBlameBase.whitespace = args.whitespace
     RepoBlame.multi_thread = args.multi_thread
     RepoBlame.comments = args.comments
-    RepoBlame.empty_lines = args.comments
+    RepoBlame.empty_lines = args.empty_lines
     RepoBlameHistory.blame_history = args.blame_history
     FileStat.show_renames = args.show_renames
-    BlameBaseRows.args = args
     TableRows.deletions = args.deletions
     TableRows.subfolder = args.subfolder
+    BlameBaseRows.comments = args.comments
+    BlameBaseRows.empty_lines = args.empty_lines
+    BlameBaseRows.ex_authors = args.ex_authors
+    BlameBaseRows.blame_exclusions = args.blame_exclusions
     BlameBaseTableSoup.blame_history = args.blame_history
     TableSoup.blame_exclusions = args.blame_exclusions
     TableSoup.empty_lines = args.empty_lines

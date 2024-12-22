@@ -1,11 +1,10 @@
 from typing import Counter
 
-from gigui.args_settings import Args
 from gigui.constants import REMOVE
 from gigui.data import PersonsDB
 from gigui.repo import RepoGI
 from gigui.repo_blame import Blame
-from gigui.typedefs import SHA, FileStr, Row
+from gigui.typedefs import SHA, Author, FileStr, Row
 
 
 def header_blames() -> list[str]:
@@ -22,7 +21,10 @@ def header_blames() -> list[str]:
 
 
 class BlameBaseRows:
-    args: Args
+    comments: bool
+    empty_lines: bool
+    ex_authors: list[Author]
+    blame_exclusions: str
 
     def __init__(self, repo: RepoGI):
         self.repo: RepoGI = repo
@@ -38,16 +40,20 @@ class BlameBaseRows:
         for b in blames:
             author = self.persons_db.get_author(b.author)
             for line, is_comment in zip(b.lines, b.is_comment_lines):
-                exclude_comment = is_comment and not self.args.comments
-                exclude_empty = line.strip() == "" and not self.args.empty_lines
-                exclude_author = author in self.args.ex_authors
-                if self.args.blame_exclusions == REMOVE and (
+                exclude_comment = is_comment and not self.comments
+                exclude_empty = line.strip() == "" and not self.empty_lines
+                exclude_author = author in self.ex_authors
+                if self.blame_exclusions == REMOVE and (
                     exclude_comment or exclude_empty or exclude_author
                 ):
                     line_nr += 1
                 else:
                     row: Row = [
-                        (0 if exclude_comment else self.repo.author2nr[author]),
+                        (
+                            0
+                            if exclude_comment or exclude_empty
+                            else self.repo.author2nr[author]
+                        ),
                         author,
                         b.date.strftime("%Y-%m-%d"),
                         b.message,
