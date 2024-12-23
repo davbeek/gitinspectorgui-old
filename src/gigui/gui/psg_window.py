@@ -424,7 +424,7 @@ def general_config_frame() -> sg.Frame:
                 ),
                 spinbox(
                     keys.n_files,
-                    list(range(100)),
+                    list(range(1, 100)),
                 ),
                 name_input(
                     "File pattern",
