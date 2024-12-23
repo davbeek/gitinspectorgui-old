@@ -12,9 +12,11 @@ from gigui.constants import (
     DEFAULT_FILE_BASE,
     DISABLED_COLOR,
     ENABLED_COLOR,
+    INVALID_INPUT_COLOR,
     MAX_COL_HEIGHT,
     PARENT_HINT,
     REPO_HINT,
+    VALID_INPUT_COLOR,
     WINDOW_HEIGHT_CORR,
 )
 from gigui.keys import Keys
@@ -33,9 +35,11 @@ class GUIState:
     gui_settings_full_path: bool
     input_patterns: list[FilePattern] = field(default_factory=list)
     input_fstrs: list[FileStr] = field(default_factory=list)
-    input_repo_path: None | Path = None
+    input_repo_path: Path | None = None
     fix: str = keys.prefix
     outfile_base: str = DEFAULT_FILE_BASE
+    subfolder_path: Path = Path()
+    n_files: int = 0
 
 
 class WindowButtons:
@@ -102,9 +106,9 @@ def window_state_from_settings(window: sg.Window, settings: Settings) -> None:
                 value=key in settings.format
             )
 
-    window.write_event_value(keys.input_fstrs, ".".join(settings.input_fstrs))
+    window.write_event_value(keys.input_fstrs, ",".join(settings.input_fstrs))
     window.write_event_value(keys.outfile_base, settings.outfile_base)
-    window.write_event_value(keys.include_files, ".".join(settings.include_files))
+    window.write_event_value(keys.include_files, ",".join(settings.include_files))
     window.write_event_value(keys.verbosity, settings.verbosity)
 
     # First set column height too big, then set it to the correct value to ensure
@@ -304,13 +308,20 @@ def process_input_patterns(
         return state
 
 
+def process_subfolder(
+    subfolder: FileStr,
+    sg_input: sg.Input,
+) -> Path | None:
+    if not subfolder:
+        return None
+
+    path = set_dir_path(subfolder, sg_input)  # type: ignore
+    return path
+
+
 def get_dir_matches(
     patterns: list[FilePattern], sg_input: sg.Input, colored: bool = True
 ) -> list[FileStr]:
-
-    def _invalid_input(element: sg.Element) -> None:
-        element.update(background_color="#FD9292")
-
     all_matches: list[FileStr] = []
     for pattern in patterns:
         matches: list[FileStr] = [
@@ -318,13 +329,43 @@ def get_dir_matches(
         ]
         if not matches:
             if colored:
-                _invalid_input(sg_input)
+                sg_input.update(background_color=INVALID_INPUT_COLOR)
             return []
         else:
             all_matches.extend(matches)
-    sg_input.update(background_color="#FFFFFF")
+    sg_input.update(background_color=VALID_INPUT_COLOR)
     unique_matches = []
     for match in all_matches:
         if match not in unique_matches:
             unique_matches.append(match)
     return unique_matches
+
+
+def set_dir_path(state: GUIState, subfolder: FileStr, sg_input: sg.Input) -> None:
+    this_dir_path = Path(__file__).resolve().parent
+    repo_path = this_dir_path.parent.parent.parent
+    subfolder_path = repo_path / Path(subfolder)
+    if subfolder_path.is_dir():
+        sg_input.update(background_color=VALID_INPUT_COLOR)
+        state.subfolder_path = subfolder_path
+    else:
+        sg_input.update(background_color=INVALID_INPUT_COLOR)
+        state.subfolder_path = repo_path
+
+
+def process_include_files(patterns: str, input_field: sg.Input) -> None:
+    # Filter out all non-alpha-numerical characters except allowed special characters.
+    # Commas are allowed to separate patterns and asterisks are allowed as wildcards.
+    allowed_chars = set(" .,-_*")
+    filtered_patterns = "".join(
+        c for c in patterns if c.isalnum() or c in allowed_chars
+    )
+    input_field.update(filtered_patterns)
+
+
+def process_n_files(state: GUIState, n_files_str: str, input_field: sg.Input) -> None:
+    # Filter out any initial zero and all non-digit characters
+    filtered_str = "".join(filter(str.isdigit, n_files_str)).lstrip("0")
+    n_files: int = int(filtered_str) if filtered_str else 0
+    input_field.update(filtered_str)
+    state.n_files = n_files

@@ -132,45 +132,60 @@ class RepoBase:
 
     # Get list of top level files (based on the until parameter) that satisfy the
     # required extensions and do not match the exclude file patterns.
-    # To get all files use --include-file="*" as pattern
+    # To get all files use --include-files="*" as pattern
     # include_files takes priority over n_files
     def _get_worktree_files(self) -> list[FileStr]:
+        sorted_files: list[FileStr] = self._get_sorted_worktree_files()
+        files_set: set[FileStr] = set(sorted_files)
+
+        # dict from file to sort number
+        file2nr: dict[FileStr, int] = {}
+        for nr, file in enumerate(sorted_files):
+            file2nr[file] = nr
+
         matches: list[FileStr]
-        if not self.include_files:
-            matches = self._get_biggest_worktree_files(self.n_files)
-        else:  # Get files matching file pattern
+        files: list[FileStr]
+        if not self.include_files and not self.n_files == 0:
+            return sorted_files[0 : self.n_files]
+        else:
+            # Return the n_files filtered files matching file pattern, sorted on file
+            # size
             matches = [
                 blob.path  # type: ignore
                 for blob in self.head_commit.tree.traverse()
                 if (
                     blob.type == "blob"  # type: ignore
-                    and blob.path.split(".")[-1] in self.extensions  # type: ignore
-                    and not self._matches_ex_file(blob.path)  # type: ignore
                     and any(
                         fnmatch(blob.path, pattern)  # type: ignore
                         for pattern in self.include_files
                     )
-                    and fnmatch(blob.path, f"{self.subfolder}*")  # type: ignore
+                    and blob.path in files_set  # type: ignore
                 )
             ]
-        return matches
+            files = sorted(matches, key=lambda match: file2nr[match])
+            return files[0 : self.n_files]
 
-    # Get the n biggest files in the worktree that:
+    # Get the files in the worktree, reverse sorted on file size that:
     # - match the required file extensions
-    def _get_biggest_worktree_files(self, n: int) -> list[FileStr]:
-        # Get the files with their file sizes that match the required extensions
-        def get_subfolder_blobs() -> list:
-            return [
-                blob
-                for blob in self.head_commit.tree.traverse()
-                if (
-                    (blob.type == "blob")  # type: ignore
-                    and fnmatch(blob.path, f"{self.subfolder}*")  # type: ignore
-                )
-            ]
+    # - are not excluded
+    # - are in args.subfolder
+    def _get_sorted_worktree_files(self) -> list[FileStr]:
 
-        def get_worktree_files_sizes() -> list[tuple[FileStr, int]]:
-            blobs: list = get_subfolder_blobs()
+        # Get the files with their file sizes
+        def _get_worktree_files_sizes() -> list[tuple[FileStr, int]]:
+
+            # Get the blobs that are in subfolder
+            def _get_subfolder_blobs() -> list:
+                return [
+                    blob
+                    for blob in self.head_commit.tree.traverse()
+                    if (
+                        (blob.type == "blob")  # type: ignore
+                        and fnmatch(blob.path, f"{self.subfolder}*")  # type: ignore
+                    )
+                ]
+
+            blobs: list = _get_subfolder_blobs()
             if not blobs:
                 logging.warning(f"No files found in subfolder {self.subfolder}")
                 return []
@@ -178,21 +193,24 @@ class RepoBase:
                 (blob.path, blob.size)  # type: ignore
                 for blob in blobs
                 if (
+                    # exclude files with incorrect extensions and those in ex_file
                     ((blob.path.split(".")[-1] in self.extensions))  # type: ignore
                     and not self._matches_ex_file(blob.path)  # type: ignore
                 )
             ]
 
-        assert n > 0
         sorted_files_sizes = sorted(
-            get_worktree_files_sizes(), key=lambda x: x[1], reverse=True
+            _get_worktree_files_sizes(), key=lambda x: x[1], reverse=True
         )
         sorted_files = [file_size[0] for file_size in sorted_files_sizes]
-        return sorted_files[0:n]
+        return sorted_files
 
     # Returns True if file should be excluded
     def _matches_ex_file(self, fstr: FileStr) -> bool:
         return any(fnmatch(fstr, pattern) for pattern in self.ex_files)
+
+    def _get_biggest_files_from(self, matches: list[FileStr]) -> list[FileStr]:
+        return matches
 
     def _set_fstr2line_count(self) -> None:
         self.fstr2line_count["*"] = 0

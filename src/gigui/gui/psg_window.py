@@ -258,13 +258,15 @@ def io_config_frame() -> sg.Frame:
                     tooltip=tip.n_files,
                     pad=((6, 0), 0),
                 ),
-                spinbox(
+                input_box(
                     keys.n_files,
-                    list(range(1, 100)),
+                    size=3,
+                    expand_x=False,
                 ),
                 name_input(
                     "File patterns",
                     tooltip=tip.include_files,
+                    pad=((6, 0), 0),
                 ),
                 input_box(
                     keys.include_files,

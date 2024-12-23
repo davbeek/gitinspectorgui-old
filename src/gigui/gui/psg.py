@@ -22,13 +22,14 @@ from gigui.gitinspector import main as gitinspector_main
 from gigui.gui.psg_support import (
     GUIState,
     WindowButtons,
-    disable_element,
-    enable_element,
     help_window,
     log,
     popup,
     popup_custom,
+    process_include_files,
     process_input_patterns,
+    process_n_files,
+    set_dir_path,
     update_col_percent,
     update_column_height,
     update_outfile_str,
@@ -57,6 +58,9 @@ def run(settings: Settings) -> None:
 # pylint: disable=too-many-locals disable=too-many-branches disable=too-many-statements
 def run_inner(settings: Settings) -> bool:
     logger.info(f"{settings = }")
+
+    # Create variable state, which is properly initialized via a call of
+    # window_state_from_settings(...)
     state: GUIState = GUIState(settings.col_percent, settings.gui_settings_full_path)
     shared.gui = True
 
@@ -193,11 +197,14 @@ def run_inner(settings: Settings) -> bool:
                 state.fix = event
                 update_outfile_str(state, window)
 
+            case keys.subfolder:
+                set_dir_path(state, values[keys.subfolder], window[event])  # type: ignore
+
+            case keys.n_files:
+                process_n_files(state, values[keys.n_files], window[event])  # type: ignore
+
             case keys.include_files:
-                if values[keys.include_files]:
-                    disable_element(window[keys.n_files])  # type: ignore
-                else:
-                    enable_element(window[keys.n_files])  # type: ignore
+                process_include_files(values[keys.include_files], window[event])  # type: ignore
 
             case keys.verbosity:
                 set_logging_level_from_verbosity(values[event])
@@ -221,7 +228,7 @@ def execute(  # pylint: disable=too-many-branches
     buttons = WindowButtons(window)
 
     if state.input_patterns and not state.input_fstrs:
-        popup("Error", "Input folder path not valid")
+        popup("Error", "Input folder path invalid")
         return
 
     if not state.input_patterns:
@@ -231,6 +238,15 @@ def execute(  # pylint: disable=too-many-branches
     if not state.outfile_base:
         popup("Error", "Output file base empty")
         return
+
+    if state.subfolder_path is None:
+        popup(
+            "Error",
+            "Subfolder invalid: should be empty or an existing folder in the Input folder path",
+        )
+
+    if state.n_files is None:
+        popup("Error", "N files value invalid: should be empty or a positive integer")
 
     if values[keys.blame_history] == DYNAMIC:
         popup("Error", "Dynamic blame history not supported in GUI")

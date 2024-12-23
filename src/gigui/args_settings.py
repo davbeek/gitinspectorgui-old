@@ -83,6 +83,13 @@ class Settings(Args):
 
     gui_settings_full_path: bool = False
 
+    def __post_init__(self):
+        super().__post_init__()
+        if not self.n_files >= 0:
+            raise ValueError("n_files must be a non-negative integer")
+        if not self.depth >= 0:
+            raise ValueError("depth must be a non-negative integer")
+
     @classmethod
     def from_args(cls, args: Args, gui_settings_full_path: bool) -> "Settings":
         # Create a Settings object using the instance variables from Args and the given

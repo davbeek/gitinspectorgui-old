@@ -52,11 +52,12 @@ def input_box(
     key: str,
     disabled: bool = False,
     size=SIZE_NONE,
+    expand_x: bool = True,
 ) -> sg.Input:
     return sg.Input(
         k=key,
         pad=((3, 2), 2),
-        expand_x=True,
+        expand_x=expand_x,
         enable_events=True,
         disabled=disabled,
         tooltip=getattr(tip, key),

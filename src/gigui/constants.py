@@ -15,6 +15,8 @@ WINDOW_HEIGHT_CORR = 45  # height correction: height of command buttons + title 
 INIT_COL_PERCENT = 75  # ratio of other layout vs multiline, default 4 : 1
 ENABLED_COLOR = ("white", "#082567")
 DISABLED_COLOR = ("grey", "#082567")
+INVALID_INPUT_COLOR = "#FD9292"
+VALID_INPUT_COLOR = "#FFFFFF"
 OPTION_TITLE_WIDTH = 13  # width of the column of text items before the option lines
 
 # GUI option settings
