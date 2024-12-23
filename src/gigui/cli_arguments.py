@@ -82,6 +82,26 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
         type=get_digit,
         help=hlp.depth,
     )
+    group_input.add_argument(
+        "--subfolder", type=ensure_trailing_slash, help=hlp.subfolder
+    )
+    files_group = group_input.add_mutually_exclusive_group()
+    files_group.add_argument(
+        "-n",
+        "--n-files",
+        "--include-n-files",
+        type=get_pos_number,
+        metavar="N",
+        help=hlp.n_files,
+    )
+    files_group.add_argument(
+        "-f",
+        "--include-files",
+        action=SplitAppendArgs,
+        metavar="PATTERNS",
+        dest="include_files",
+        help=hlp.include_files,
+    )
 
     # Output
     group_output = parser.add_argument_group("Output")
@@ -122,14 +142,14 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
     # Statistics subgroup
     subgroup_stats = parser.add_argument_group("Statistics output")
     subgroup_stats.add_argument(
-        "--deletions",
-        action=BooleanOptionalAction,
-        help=hlp.deletions,
-    )
-    subgroup_stats.add_argument(
         "--show-renames",
         action=BooleanOptionalAction,
         help=hlp.show_renames,
+    )
+    subgroup_stats.add_argument(
+        "--deletions",
+        action=BooleanOptionalAction,
+        help=hlp.deletions,
     )
     subgroup_stats.add_argument(
         "--scaled-percentages",
@@ -182,6 +202,12 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
         help=hlp.whitespace,
     )
     subgroup_general_options.add_argument(
+        "--since", type=valid_datetime_type, help=hlp.since
+    )
+    subgroup_general_options.add_argument(
+        "--until", type=valid_datetime_type, help=hlp.until
+    )
+    subgroup_general_options.add_argument(
         "-v",
         "--verbosity",
         action="count",
@@ -193,36 +219,7 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
         choices=[0, 1, 2],
         help=hlp.dry_run,
     )
-
-    # Inclusions and exclusions
-    group_inc_exclusions = parser.add_argument_group("Inclusions and exclusions")
-    files_group = group_inc_exclusions.add_mutually_exclusive_group()
-    files_group.add_argument(
-        "-n",
-        "--n-files",
-        "--include-n-files",
-        type=get_pos_number,
-        metavar="N",
-        help=hlp.n_files,
-    )
-    files_group.add_argument(
-        "-f",
-        "--include-files",
-        action=SplitAppendArgs,
-        metavar="PATTERNS",
-        dest="include_files",
-        help=hlp.include_files,
-    )
-    group_inc_exclusions.add_argument(
-        "--subfolder", type=ensure_trailing_slash, help=hlp.subfolder
-    )
-    group_inc_exclusions.add_argument(
-        "--since", type=valid_datetime_type, help=hlp.since
-    )
-    group_inc_exclusions.add_argument(
-        "--until", type=valid_datetime_type, help=hlp.until
-    )
-    group_inc_exclusions.add_argument(
+    subgroup_general_options.add_argument(
         "-e",
         "--extensions",
         action=SplitAppendArgs,

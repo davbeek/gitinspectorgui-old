@@ -106,7 +106,6 @@ def window_layout() -> list[list[sg.Element] | list[sg.Column] | list[sg.Multili
                     [io_config_frame()],
                     [output_formats_frame()],
                     [settings_frame()],
-                    [general_config_frame()],
                     [exclusion_patterns_frame()],
                 ],
                 COL_HEIGHT,
@@ -244,6 +243,34 @@ def io_config_frame() -> sg.Frame:
                     keys.outfile_base,
                 ),
             ],
+            [
+                name_header("Include files", tooltip=tip.file_options),
+                name_input(
+                    "Subfolder",
+                    tooltip=tip.subfolder,
+                ),
+                input_box(
+                    keys.subfolder,
+                    size=4,
+                ),
+                name_choice(
+                    "N files",
+                    tooltip=tip.n_files,
+                    pad=((6, 0), 0),
+                ),
+                spinbox(
+                    keys.n_files,
+                    list(range(1, 100)),
+                ),
+                name_input(
+                    "File patterns",
+                    tooltip=tip.include_files,
+                ),
+                input_box(
+                    keys.include_files,
+                    size=12,
+                ),
+            ],
         ],
     )
 
@@ -253,199 +280,98 @@ def output_formats_frame() -> sg.Frame:
         "Output generation and formatting",
         layout=[
             [
-                frame(
-                    "",
-                    layout=[
-                        [
-                            name_header("Output formats", tooltip=tip.outputs),
-                            checkbox(
-                                keys.view,
-                                keys.view,
-                            ),
-                            checkbox(
-                                keys.html,
-                                keys.html,
-                            ),
-                            checkbox(
-                                keys.excel,
-                                keys.excel,
-                            ),
-                            sg.Text("", expand_x=True, background_color="white"),
-                        ],
-                        [
-                            name_header("Statistics output", ""),
-                            checkbox(
-                                "Deletions",
-                                keys.deletions,
-                            ),
-                            checkbox(
-                                "Show renames",
-                                key=keys.show_renames,
-                            ),
-                            checkbox(
-                                "Scaled %",
-                                key=keys.scaled_percentages,
-                            ),
-                        ],
-                        [
-                            name_header("Blame options", ""),
-                            name_choice(
-                                "History",
-                                tooltip=tip.blame_history,
-                            ),
-                            sg.Combo(
-                                BLAME_HISTORY_CHOICES,
-                                default_value=NONE,
-                                key=keys.blame_history,
-                                enable_events=True,
-                                size=6,
-                                pad=((3, 10), 2),
-                                readonly=True,
-                                text_color="black",
-                                background_color="white",
-                            ),
-                            name_choice(
-                                "Exclusions",
-                                tooltip=tip.blame_exclusions,
-                            ),
-                            sg.Combo(
-                                BLAME_EXCLUSION_CHOICES,
-                                default_value=SHOW,
-                                key=keys.blame_exclusions,
-                                enable_events=True,
-                                size=6,
-                                pad=((3, 10), 2),
-                                readonly=True,
-                                text_color="black",
-                                background_color="white",
-                            ),
-                            name_choice(
-                                "Copy move",
-                                tooltip=tip.copy_move,
-                            ),
-                            spinbox(
-                                keys.copy_move,
-                                list(range(5)),
-                            ),
-                            checkbox(
-                                "Blame skip",
-                                key=keys.blame_skip,
-                            ),
-                        ],
-                        [
-                            name_header("Blame inclusions", ""),
-                            checkbox(
-                                "Empty lines",
-                                keys.empty_lines,
-                            ),
-                            checkbox(
-                                "Comments",
-                                keys.comments,
-                            ),
-                        ],
-                        [
-                            name_header("General options", ""),
-                            checkbox(
-                                "Whitespace",
-                                keys.whitespace,
-                            ),
-                            name_choice(
-                                "Debug",
-                                tooltip=tip.verbosity,
-                            ),
-                            spinbox(
-                                keys.verbosity,
-                                list(range(3)),
-                            ),
-                            name_choice(
-                                "Dry run",
-                                tooltip=tip.dry_run,
-                            ),
-                            spinbox(
-                                keys.dry_run,
-                                list(range(3)),
-                                pad=((3, 13), 0),
-                            ),
-                        ],
-                    ],
+                name_header("Output formats", tooltip=tip.outputs),
+                checkbox(
+                    keys.view,
+                    keys.view,
+                ),
+                checkbox(
+                    keys.html,
+                    keys.html,
+                ),
+                checkbox(
+                    keys.excel,
+                    keys.excel,
+                ),
+                sg.Text("", expand_x=True, background_color="white"),
+            ],
+            [
+                name_header("Statistics output", ""),
+                checkbox(
+                    "Show renames",
+                    key=keys.show_renames,
+                ),
+                checkbox(
+                    "Deletions",
+                    keys.deletions,
+                ),
+                checkbox(
+                    "Scaled %",
+                    key=keys.scaled_percentages,
                 ),
             ],
-        ],
-    )
-
-
-def settings_frame() -> sg.Frame:
-    return frame(
-        "Settings",
-        layout=[
             [
-                name_header("Settings file", ""),
-                input_box(
-                    keys.settings_file,
-                    size=15,
-                    disabled=True,
-                ),
-                button("Save", keys.save, pad=((5, 3), 0)),
-                sg.FileSaveAs(
-                    "Save As",
-                    key=keys.save_as,
-                    target=keys.save_as,
-                    file_types=(("JSON", "*.json"),),
-                    default_extension=".json",
-                    enable_events=True,
-                    initial_folder=str(SettingsFile.get_location()),
-                    pad=BUTTON_PADDING,
-                ),
-                sg.FileBrowse(
-                    "Load",
-                    key=keys.load,
-                    target=keys.load,
-                    file_types=(("JSON", "*.json"),),
-                    enable_events=True,
-                    initial_folder=str(SettingsFile.get_location().parent),
-                    pad=BUTTON_PADDING,
-                ),
-                button("Reset", keys.reset),
-                button("Toggle", keys.toggle_settings_file),
-            ],
-        ],
-    )
-
-
-def general_config_frame() -> sg.Frame:
-    return frame(
-        "Inclusions and exclusions",
-        layout=[
-            [
-                name_header("Include files", tooltip=tip.file_options),
+                name_header("Blame options", ""),
                 name_choice(
-                    "N files",
-                    tooltip=tip.n_files,
+                    "History",
+                    tooltip=tip.blame_history,
+                ),
+                sg.Combo(
+                    BLAME_HISTORY_CHOICES,
+                    default_value=NONE,
+                    key=keys.blame_history,
+                    enable_events=True,
+                    size=6,
+                    pad=((3, 10), 2),
+                    readonly=True,
+                    text_color="black",
+                    background_color="white",
+                ),
+                name_choice(
+                    "Exclusions",
+                    tooltip=tip.blame_exclusions,
+                ),
+                sg.Combo(
+                    BLAME_EXCLUSION_CHOICES,
+                    default_value=SHOW,
+                    key=keys.blame_exclusions,
+                    enable_events=True,
+                    size=6,
+                    pad=((3, 10), 2),
+                    readonly=True,
+                    text_color="black",
+                    background_color="white",
+                ),
+                name_choice(
+                    "Copy move",
+                    tooltip=tip.copy_move,
                 ),
                 spinbox(
-                    keys.n_files,
-                    list(range(1, 100)),
+                    keys.copy_move,
+                    list(range(5)),
                 ),
-                name_input(
-                    "File pattern",
-                    tooltip=tip.include_files,
-                ),
-                input_box(
-                    keys.include_files,
-                    size=12,
-                ),
-                name_input(
-                    "Subfolder",
-                    tooltip=tip.subfolder,
-                    pad=((6, 0), 0),
-                ),
-                input_box(
-                    keys.subfolder,
-                    size=8,
+                checkbox(
+                    "Blame skip",
+                    key=keys.blame_skip,
                 ),
             ],
             [
-                name_header("Options", ""),
+                name_header("Blame inclusions", ""),
+                checkbox(
+                    "Empty lines",
+                    keys.empty_lines,
+                ),
+                checkbox(
+                    "Comments",
+                    keys.comments,
+                ),
+            ],
+            [
+                name_header("General options", ""),
+                checkbox(
+                    "Whitespace",
+                    keys.whitespace,
+                ),
                 name_input(
                     "Since",
                     tooltip=tip.since,
@@ -486,6 +412,26 @@ def general_config_frame() -> sg.Frame:
                     no_titlebar=False,
                     title="Choose Until Date",
                 ),
+            ],
+            [
+                name_header("General options", ""),
+                name_choice(
+                    "Debug",
+                    tooltip=tip.verbosity,
+                ),
+                spinbox(
+                    keys.verbosity,
+                    list(range(3)),
+                ),
+                name_choice(
+                    "Dry run",
+                    tooltip=tip.dry_run,
+                ),
+                spinbox(
+                    keys.dry_run,
+                    list(range(3)),
+                    pad=((3, 13), 0),
+                ),
                 name_input(
                     "Extensions",
                     tooltip=tip.extensions,
@@ -493,6 +439,44 @@ def general_config_frame() -> sg.Frame:
                 input_box(
                     keys.extensions,
                 ),
+            ],
+        ],
+    )
+
+
+def settings_frame() -> sg.Frame:
+    return frame(
+        "Settings",
+        layout=[
+            [
+                name_header("Settings file", ""),
+                input_box(
+                    keys.settings_file,
+                    size=15,
+                    disabled=True,
+                ),
+                button("Save", keys.save, pad=((5, 3), 0)),
+                sg.FileSaveAs(
+                    "Save As",
+                    key=keys.save_as,
+                    target=keys.save_as,
+                    file_types=(("JSON", "*.json"),),
+                    default_extension=".json",
+                    enable_events=True,
+                    initial_folder=str(SettingsFile.get_location()),
+                    pad=BUTTON_PADDING,
+                ),
+                sg.FileBrowse(
+                    "Load",
+                    key=keys.load,
+                    target=keys.load,
+                    file_types=(("JSON", "*.json"),),
+                    enable_events=True,
+                    initial_folder=str(SettingsFile.get_location().parent),
+                    pad=BUTTON_PADDING,
+                ),
+                button("Reset", keys.reset),
+                button("Toggle", keys.toggle_settings_file),
             ],
         ],
     )

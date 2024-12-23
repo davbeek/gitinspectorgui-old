@@ -40,8 +40,8 @@ def name_header(text: str, tooltip) -> sg.Text:
     )
 
 
-def name_choice(text: str, tooltip) -> sg.Text:
-    return name_basic(text, tooltip, pad=(0, 0))
+def name_choice(text: str, tooltip, pad=(0, 0)) -> sg.Text:
+    return name_basic(text, tooltip, pad=pad)
 
 
 def name_input(text: str, tooltip, pad=(0, 0)) -> sg.Text:
