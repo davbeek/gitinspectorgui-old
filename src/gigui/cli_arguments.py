@@ -13,7 +13,13 @@ from gigui.constants import (
     FIX_TYPE,
 )
 from gigui.tiphelp import Help
-from gigui.utils import get_digit, get_pos_number, get_version, str_split_comma
+from gigui.utils import (
+    get_digit,
+    get_pos_number,
+    get_pos_number_or_empty,
+    get_version,
+    str_split_comma,
+)
 
 hlp = Help()
 
@@ -90,7 +96,7 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
         "-n",
         "--n-files",
         "--include-n-files",
-        type=get_pos_number,
+        type=get_pos_number_or_empty,
         metavar="N",
         help=hlp.n_files,
     )

@@ -46,6 +46,8 @@ def main(args: Args, start_time: float, gui_window: sg.Window | None = None) -> 
         profiler = Profile()
         profiler.enable()
 
+    args.include_files = args.include_files if args.include_files else ["*"]
+
     logger.info(f"{args = }")
     init_classes(args)
     repo_lists: list[list[RepoGI]] = []

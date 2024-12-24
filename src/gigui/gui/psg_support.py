@@ -34,11 +34,16 @@ class GUIState:
     col_percent: int
     gui_settings_full_path: bool
     input_patterns: list[FilePattern] = field(default_factory=list)
-    input_fstrs: list[FileStr] = field(default_factory=list)
+    input_fstr_matches: list[FileStr] = field(default_factory=list)
     input_repo_path: Path | None = None
     fix: str = keys.prefix
-    outfile_base: str = DEFAULT_FILE_BASE
-    subfolder_path: Path = Path()
+    outfile_base: str = (
+        # Not strictly needed, included to avoid parameter passing of
+        # values[keys.outfile_base] in various functions.
+        DEFAULT_FILE_BASE
+    )
+    subfolder: FileStr = ""
+    subfolder_valid: bool = True
     n_files: int = 0
 
 
@@ -84,6 +89,7 @@ def window_state_from_settings(window: sg.Window, settings: Settings) -> None:
         not in {
             keys.fix,
             keys.format,
+            keys.n_files,
             keys.gui_settings_full_path,
             keys.profile,
             keys.multi_thread,
@@ -109,6 +115,7 @@ def window_state_from_settings(window: sg.Window, settings: Settings) -> None:
     window.write_event_value(keys.input_fstrs, ",".join(settings.input_fstrs))
     window.write_event_value(keys.outfile_base, settings.outfile_base)
     window.write_event_value(keys.include_files, ",".join(settings.include_files))
+    window.write_event_value(keys.subfolder, settings.subfolder)
     window.write_event_value(keys.verbosity, settings.verbosity)
 
     # First set column height too big, then set it to the correct value to ensure
@@ -249,7 +256,7 @@ def update_outfile_str(
             else:  # fix == keys.nofix
                 return state.outfile_base
 
-        if not state.input_patterns or not state.input_fstrs:
+        if not state.input_patterns or not state.input_fstr_matches:
             return ""
 
         out_name = get_rename_file()
@@ -272,23 +279,19 @@ def update_settings_file_str(
     window[keys.settings_file].update(value=file_string)  # type: ignore
 
 
-def process_input_patterns(
-    state: GUIState,
-    sg_input: sg.Input,
-    window: sg.Window,
-) -> GUIState:
+def process_inputs(state: GUIState, window: sg.Window) -> None:
     if not state.input_patterns:
-        state.input_fstrs = []
+        state.input_fstr_matches = []
         state.input_repo_path = None
         enable_element(window[keys.prefix])  # type: ignore
         enable_element(window[keys.postfix])  # type: ignore
         enable_element(window[keys.nofix])  # type: ignore
         enable_element(window[keys.depth])  # type: ignore
         update_outfile_str(state, window)
-        return state
+        return
 
-    matches: list[FileStr] = get_dir_matches(state.input_patterns, sg_input)  # type: ignore
-    state.input_fstrs = matches
+    matches: list[FileStr] = get_dir_matches(state.input_patterns, window[keys.input_fstrs])  # type: ignore
+    state.input_fstr_matches = matches
 
     if len(matches) == 1 and is_git_repo(Path(matches[0])):
         state.input_repo_path = Path(matches[0])
@@ -297,7 +300,7 @@ def process_input_patterns(
         enable_element(window[keys.nofix])  # type: ignore
         disable_element(window[keys.depth])  # type: ignore
         update_outfile_str(state, window)
-        return state
+        check_subfolder(state, window)
     else:
         state.input_repo_path = None
         enable_element(window[keys.prefix])  # type: ignore
@@ -305,18 +308,6 @@ def process_input_patterns(
         disable_element(window[keys.nofix])  # type: ignore
         enable_element(window[keys.depth])  # type: ignore
         update_outfile_str(state, window)
-        return state
-
-
-def process_subfolder(
-    subfolder: FileStr,
-    sg_input: sg.Input,
-) -> Path | None:
-    if not subfolder:
-        return None
-
-    path = set_dir_path(subfolder, sg_input)  # type: ignore
-    return path
 
 
 def get_dir_matches(
@@ -341,16 +332,17 @@ def get_dir_matches(
     return unique_matches
 
 
-def set_dir_path(state: GUIState, subfolder: FileStr, sg_input: sg.Input) -> None:
-    this_dir_path = Path(__file__).resolve().parent
-    repo_path = this_dir_path.parent.parent.parent
-    subfolder_path = repo_path / Path(subfolder)
-    if subfolder_path.is_dir():
-        sg_input.update(background_color=VALID_INPUT_COLOR)
-        state.subfolder_path = subfolder_path
+def check_subfolder(state: GUIState, window: sg.Window) -> None:
+
+    # check_subfolder is called by process_inputs when state.input_repo_path is valid
+    repo_path: Path = state.input_repo_path  # type: ignore
+    sub_path: Path = repo_path / state.subfolder
+    if sub_path.exists():
+        state.subfolder_valid = True
+        window[keys.subfolder].update(background_color=VALID_INPUT_COLOR)  # type: ignore
     else:
-        sg_input.update(background_color=INVALID_INPUT_COLOR)
-        state.subfolder_path = repo_path
+        state.subfolder_valid = False
+        window[keys.subfolder].update(background_color=INVALID_INPUT_COLOR)  # type: ignore
 
 
 def process_include_files(patterns: str, input_field: sg.Input) -> None:

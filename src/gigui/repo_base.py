@@ -11,6 +11,7 @@ from git import Commit, Repo
 
 from gigui.data import CommitGroup, Person, PersonsDB, RepoStats
 from gigui.typedefs import OID, SHA, Author, FileStr, Rev
+from gigui.utils import log
 
 logger = logging.getLogger(__name__)
 
@@ -150,6 +151,10 @@ class RepoBase:
         else:
             # Return the n_files filtered files matching file pattern, sorted on file
             # size
+            include_file_paths: list[Path] = [
+                Path(self.subfolder) / fstr for fstr in self.include_files
+            ]
+            include_files: list[FileStr] = [str(path) for path in include_file_paths]
             matches = [
                 blob.path  # type: ignore
                 for blob in self.head_commit.tree.traverse()
@@ -157,13 +162,16 @@ class RepoBase:
                     blob.type == "blob"  # type: ignore
                     and any(
                         fnmatch(blob.path, pattern)  # type: ignore
-                        for pattern in self.include_files
+                        for pattern in include_files
                     )
                     and blob.path in files_set  # type: ignore
                 )
             ]
             files = sorted(matches, key=lambda match: file2nr[match])
-            return files[0 : self.n_files]
+            if self.n_files == 0:
+                return files
+            else:
+                return files[0 : self.n_files]
 
     # Get the files in the worktree, reverse sorted on file size that:
     # - match the required file extensions
@@ -187,7 +195,7 @@ class RepoBase:
 
             blobs: list = _get_subfolder_blobs()
             if not blobs:
-                logging.warning(f"No files found in subfolder {self.subfolder}")
+                log(f"        no files found in subfolder {self.subfolder}")
                 return []
             return [
                 (blob.path, blob.size)  # type: ignore
