@@ -89,7 +89,8 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
         help=hlp.depth,
     )
     group_input.add_argument(
-        "--subfolder", type=ensure_trailing_slash, help=hlp.subfolder
+        "--subfolder",
+        help=hlp.subfolder,
     )
     files_group = group_input.add_mutually_exclusive_group()
     files_group.add_argument(

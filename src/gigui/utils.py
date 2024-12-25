@@ -150,7 +150,11 @@ def str_split_comma(s: str) -> list[str]:
 def get_relative_fstr(fstr: str, subfolder: str):
     if len(subfolder):
         if fstr.startswith(subfolder):
-            return fstr[len(subfolder) :]
+            relative_fstr = fstr[len(subfolder) :]
+            if relative_fstr.startswith("/"):
+                return relative_fstr[1:]
+            else:
+                return relative_fstr
         else:
             return "/" + fstr
     else:
