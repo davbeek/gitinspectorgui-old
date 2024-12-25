@@ -7,7 +7,7 @@ from datetime import datetime
 from fnmatch import fnmatch
 from pathlib import Path
 
-from git import Commit, Repo
+from git import Commit, Git, Repo
 
 from gigui.data import CommitGroup, Person, PersonsDB, RepoStats
 from gigui.typedefs import OID, SHA, Author, FileStr, Rev
@@ -64,7 +64,6 @@ class RepoBase:
         # is sorted by commit date.
         self.shas_dated: list[SHADate]
 
-        self.head_commit: Commit
         self.head_sha: SHA
 
         self.fr2f2a2sha_set: dict[FileStr, dict[FileStr, dict[Author, set[SHA]]]] = {}
@@ -106,12 +105,15 @@ class RepoBase:
             self.nr2sha[nr] = sha
             nr -= 1
 
-        self.head_commit = next(self.git_repo.iter_commits())
         self.head_sha = self.oid2sha[self.head_commit.hexsha]
 
     @property
-    def git(self):
+    def git(self) -> Git:
         return self.git_repo.git
+
+    @property
+    def head_commit(self) -> Commit:
+        return self.git_repo.head.commit
 
     def run_base(self, thread_executor: ThreadPoolExecutor) -> None:
 
