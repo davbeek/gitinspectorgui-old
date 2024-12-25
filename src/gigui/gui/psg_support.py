@@ -4,6 +4,7 @@ import webbrowser
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+import git  # Add this import for gitpython
 import PySimpleGUI as sg  # type: ignore
 
 from gigui.args_settings import Settings, SettingsFile
@@ -333,11 +334,38 @@ def get_dir_matches(
 
 
 def check_subfolder(state: GUIState, window: sg.Window) -> None:
-
     # check_subfolder is called by process_inputs when state.input_repo_path is valid
-    repo_path: Path = state.input_repo_path  # type: ignore
-    sub_path: Path = repo_path / state.subfolder
-    if sub_path.exists():
+    if not state.subfolder:
+        state.subfolder_valid = True
+        window[keys.subfolder].update(background_color=VALID_INPUT_COLOR)  # type: ignore
+        return
+
+    subfolder_exists: bool
+    repo = git.Repo(state.input_repo_path)  # type: ignore
+    tree = repo.head.commit.tree
+
+    subfolder_path = state.subfolder.split("/")
+    if not subfolder_path[0]:
+        subfolder_path = subfolder_path[1:]
+    if not subfolder_path[-1]:
+        subfolder_path = subfolder_path[:-1]
+    subfolder_exists = True
+    for part in subfolder_path:
+        try:
+            # Note that "if part in tree" does not work properly:
+            # - It works for the first part, but not for the second part.
+            # - For the second part, it always returns False, even if the
+            #   part (subfolder) exists.
+            tree_or_blob = tree[part]  # type: ignore
+            if not tree_or_blob.type == "tree":  # Check if the part is a directory
+                subfolder_exists = False
+                break
+            tree = tree_or_blob
+        except KeyError:
+            subfolder_exists = False
+            break
+
+    if subfolder_exists:
         state.subfolder_valid = True
         window[keys.subfolder].update(background_color=VALID_INPUT_COLOR)  # type: ignore
     else:
