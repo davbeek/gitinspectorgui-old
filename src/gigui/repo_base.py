@@ -1,13 +1,14 @@
 import copy
 import logging
 import re
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime
 from fnmatch import fnmatch
 from pathlib import Path
 
-from git import Commit, Git, Repo
+from git import Commit, Git, Optional, Repo
 
 from gigui.data import CommitGroup, Person, PersonsDB, RepoStats
 from gigui.typedefs import OID, SHA, Author, FileStr, Rev
@@ -87,6 +88,10 @@ class RepoBase:
         self.nr2id: dict[int, OID] = {}
         self.id2nr: dict[OID, int] = {}
         self.sha2author: dict[SHA, Author] = {}
+
+        self.repo_lock: Optional[threading.Lock] = None
+        if self.multi_thread:
+            self.repo_lock = threading.Lock()
 
         # Use git log to get both long and short SHAs
         # First line represents the last commit
@@ -353,7 +358,12 @@ class RepoBase:
             ]
             return args
 
-        lines_str: str = self.git.log(git_log_args())
+        lines_str: str
+        if self.repo_lock:
+            with self.repo_lock:
+                lines_str = self.git.log(git_log_args())
+        else:
+            lines_str = self.git.log(git_log_args())
         return lines_str, fstr
 
     # pylint: disable=too-many-locals
