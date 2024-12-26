@@ -267,6 +267,9 @@ def process_repo_output(  # pylint: disable=too-many-locals
     if args.dry_run != 0:
         return files_to_log
 
+    if len_repos == 1:
+        log_end_time(start_time)  # type: ignore
+
     # If the result files should not be viewed, we're done.
     if not args.view:
         return files_to_log
@@ -284,7 +287,6 @@ def process_repo_output(  # pylint: disable=too-many-locals
         if gui_window:
             gui_window.write_event_value(Keys.open_webview, (html_code, repo.name))
         elif args.blame_history != DYNAMIC:  # CLI mode, dynamic or no blame history
-            log_end_time(start_time)  # type: ignore
             open_webview(html_code, repo.name)
         else:  # CLI mode, dynamic blame history
             try:
