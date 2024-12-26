@@ -236,7 +236,8 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
     # Multi-threading and multi-core
     group_general = parser.add_argument_group("Multi-threading and multi-core")
     group_general.add_argument(
-        "--multi-thread",
+        "--multi-threading",
+        dest="multi_thread",
         action=BooleanOptionalAction,
         help=hlp.multi_thread,
     )

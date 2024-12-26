@@ -374,6 +374,10 @@ def output_formats_frame() -> sg.Frame:
                     "Whitespace",
                     keys.whitespace,
                 ),
+                checkbox(
+                    "Multi-threading",
+                    keys.multi_thread,
+                ),
                 name_input(
                     "Since",
                     tooltip=tip.since,

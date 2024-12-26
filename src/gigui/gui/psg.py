@@ -263,7 +263,6 @@ def execute(  # pylint: disable=too-many-branches
             keys.extensions,
             keys.since,
             keys.until,
-            keys.multi_thread,
             keys.multi_core,
             keys.gui_settings_full_path,
         }:
