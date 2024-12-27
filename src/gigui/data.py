@@ -291,7 +291,7 @@ class Person:
                 return email_list[0]  # assume self.emails cannot be empty
 
 
-class PersonsDB:
+class PersonsDB(dict[Author | Email, Person]):
     """
     The database with known persons.
 
@@ -299,12 +299,11 @@ class PersonsDB:
     repositories and tries to merge the information if they seem to point
     to the same person. A person can have several usernames and/or several
     email addresses.
-
-    ae2person -- Dictionary of author names and email addresses to a Person.
     """
 
     def __init__(self) -> None:
-        self.ae2person: dict[Author | Email, Person] = {"*": Person("*", "*")}
+        super().__init__()
+        self["*"] = Person("*", "*")
         # There can only be one "Unknown" key. If the "Unknown" key is present, it
         # belongs to a person where both author and email are "Unknown"
 
@@ -319,19 +318,19 @@ class PersonsDB:
                     f"Author is 'Unknown' but email is not. Author: {author}, Email: {email}"
                     "Git should not allow this. Using 'Unknown' for both."
                 )
-            if "Unknown" in self.ae2person:
-                return self.ae2person["Unknown"]
+            if "Unknown" in self:
+                return self["Unknown"]
             else:
                 person = Person("Unknown", "Unknown")
-                self.ae2person["Unknown"] = person
+                self["Unknown"] = person
                 return person
         elif email == "Unknown":
             person = self.add_author_with_unknown_email(author)
             return person
         else:
             # Both author and email are known
-            p_author = self.ae2person.get(author)
-            p_email = self.ae2person.get(email)
+            p_author = self.get(author)
+            p_email = self.get(email)
 
             if p_author is not None:
                 if p_email is not None:
@@ -342,33 +341,28 @@ class PersonsDB:
                 else:
                     # author exists, email is new
                     p_author.merge(Person(author, email))
-                    self.ae2person[email] = p_author
+                    self[email] = p_author
                     return p_author
             else:
                 if p_email is not None:
                     p_email.merge(Person(author, email))
-                    self.ae2person[author] = p_email
+                    self[author] = p_email
                     return p_email
                 else:  # new person
                     person = Person(author, email)
-                    self.ae2person[author] = person
-                    self.ae2person[email] = person
+                    self[author] = person
+                    self[email] = person
                     return person
 
     def __repr__(self):
-        return "\n".join(
-            f"{key}:\n{repr(person)}" for key, person in self.ae2person.items()
-        )
+        return "\n".join(f"{key}:\n{repr(person)}" for key, person in self.items())
 
     def __str__(self):
         return "\n".join(str(person) for person in self.persons)
 
-    def __getitem__(self, key):
-        return self.ae2person[key]
-
     @property
     def persons(self) -> list["Person"]:
-        persons = self.ae2person.values()
+        persons = self.values()
         persons_set = set(persons)
         return sorted(persons_set, key=lambda x: x.author)
 
@@ -392,16 +386,16 @@ class PersonsDB:
         return [person.author for person in self.persons if person.filter_matched]
 
     def add_author_with_unknown_email(self, author: Author) -> "Person":
-        if author in self.ae2person:
-            return self.ae2person[author]
+        if author in self:
+            return self[author]
         else:
             person = Person(author, "Unknown")
-            self.ae2person[author] = person
+            self[author] = person
             return person
 
     def get_person(self, author: Author | None) -> "Person":
         defined_author: Author = "Unknown" if author is None else author
-        return self.ae2person[defined_author]
+        return self[defined_author]
 
     def get_filtered_author(self, author: Author | None) -> Author | None:
         person = self.get_person(author)
