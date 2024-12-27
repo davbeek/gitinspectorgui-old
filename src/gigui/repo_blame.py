@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 
 from git import Commit as GitCommit
-from git import GitCommandError
+from git import GitCommandError, Repo
 
 from gigui.comment import get_is_comment_lines
 from gigui.data import FileStat
@@ -74,12 +74,13 @@ class RepoBlameBase(RepoBase):
     ) -> GitBlames:
         start_oid = self.sha2oid[start_sha]
         try:
-            git_blames: GitBlames = self.git_repo.blame(
+            repo = Repo(self.location)
+            git_blames: GitBlames = repo.blame(
                 start_oid, fstr, rev_opts=blame_opts
             )  # type: ignore
             return git_blames
         except GitCommandError as e:
-            logger.info(f"GitCommandError: {e}")
+            logger.warning(f"GitCommandError: {e}")
             return []
 
     def _process_git_blames(self, fstr: FileStr, git_blames: GitBlames) -> list[Blame]:

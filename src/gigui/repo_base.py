@@ -8,7 +8,7 @@ from datetime import datetime
 from fnmatch import fnmatch
 from pathlib import Path
 
-from git import Commit, Git, Optional, Repo
+from git import Commit, Git, Repo
 
 from gigui.data import CommitGroup, Person, PersonsDB, RepoStats
 from gigui.typedefs import OID, SHA, Author, FileStr, Rev
@@ -89,7 +89,6 @@ class RepoBase:
         self.id2nr: dict[OID, int] = {}
         self.sha2author: dict[SHA, Author] = {}
 
-        self.repo_lock: Optional[threading.Lock] = None
         if self.multi_thread:
             self.repo_lock = threading.Lock()
 
@@ -359,9 +358,9 @@ class RepoBase:
             return args
 
         lines_str: str
-        if self.repo_lock:
-            with self.repo_lock:
-                lines_str = self.git.log(git_log_args())
+        if self.multi_thread:
+            repo = Repo(self.location)
+            lines_str = repo.git.log(git_log_args())
         else:
             lines_str = self.git.log(git_log_args())
         return lines_str, fstr
