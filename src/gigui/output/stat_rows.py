@@ -117,7 +117,7 @@ class AuthorsTableRows(TableRows):
         id_val: int = 0
         nr_authors = len(self.repo.real_authors_included)
         for author in self.repo.authors_included:
-            person = self.repo.get_person(author)
+            person = self.repo.persons_db[author]
             row = [id_val, person.authors_str] + (
                 ["", person.emails_str] if html else [person.emails_str]
             )  # type: ignore
@@ -134,7 +134,7 @@ class AuthorsFilesTableRows(TableRows):
         rows: list[Row] = []
         id_val: int = 0
         for author in self.repo.authors_included:
-            person = self.repo.get_person(author)
+            person = self.repo.persons_db[author]
             fstrs = list(a2f2f[author].keys())
             fstrs = sorted(
                 fstrs,

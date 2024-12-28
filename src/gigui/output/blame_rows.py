@@ -38,7 +38,7 @@ class BlameBaseRows:
 
         # Create row for each blame line.
         for b in blames:
-            author = self.persons_db.get_author(b.author)
+            author = self.persons_db[b.author].author
             for line, is_comment in zip(b.lines, b.is_comment_lines):
                 exclude_comment = is_comment and not self.comments
                 exclude_empty = line.strip() == "" and not self.empty_lines

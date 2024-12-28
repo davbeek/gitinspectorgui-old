@@ -134,7 +134,7 @@ class RepoGI(RepoBlameHistory):
         # update self.sha2author with new author definitions in person database
         sha2author: dict[SHA, Author] = {}
         for sha, author in self.sha2author.items():
-            new_author = self.get_person(author).author
+            new_author = self.persons_db[author].author
             sha2author[sha] = new_author
         self.sha2author = sha2author
 
@@ -183,7 +183,7 @@ class RepoGI(RepoBlameHistory):
             for fstr, fstr_dict in fstr_root_dict.items():
                 target[fstr_root][fstr] = {}
                 for author, shas in fstr_dict.items():
-                    person_author = self.get_person(author).author
+                    person_author = self.persons_db[author].author
                     shas_sorted = sorted(
                         shas, key=lambda x: self.sha2nr[x], reverse=True
                     )
@@ -231,7 +231,7 @@ class StatTables:
         for fstr in fstrs:
             for commit_group in fstr2commit_groups[fstr]:
                 target["*"]["*"].stat.add_commit_group(commit_group)
-                author = persons_db.get_author(commit_group.author)
+                author = persons_db[commit_group.author].author
                 target[author]["*"].stat.add_commit_group(commit_group)
                 if fstr not in target[author]:
                     target[author][fstr] = FileStat(fstr)
@@ -294,7 +294,7 @@ class StatTables:
                 target["*"] = PersonStat(Person("*", "*"))
                 target["*"].stat = source["*"]["*"].stat
                 continue
-            target[author] = PersonStat(persons_db.get_person(author))
+            target[author] = PersonStat(persons_db[author])
             for fstr, fstat in fstr2fstat.items():
                 if fstr == "*":
                     continue

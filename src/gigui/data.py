@@ -212,7 +212,7 @@ class Person:
     #  other is a person with a defined author and defined email
     def merge(self, other: "Person") -> "Person":
         self.authors |= other.authors
-        if self.emails == {"Unknown"}:
+        if self.emails == {""}:
             self.emails = other.emails
         else:
             self.emails |= other.emails
@@ -304,27 +304,34 @@ class PersonsDB(dict[Author | Email, Person]):
     def __init__(self) -> None:
         super().__init__()
         self["*"] = Person("*", "*")
-        # There can only be one "Unknown" key. If the "Unknown" key is present, it
-        # belongs to a person where both author and email are "Unknown"
+        # There can only be one empty "" key. If the "" key is present, it
+        # belongs to a person where both author and email are the empty string ""
+
+    def __getitem__(self, key: Author | Email | None) -> Person:
+        key = "" if key is None else key
+        return super().__getitem__(key)
+
+    def __setitem__(self, key: Author | Email | None, value: Person) -> None:
+        key = "" if key is None else key
+        super().__setitem__(key, value)
 
     # pylint: disable=too-many-branches disable=too-many-return-statements
     def add_person(self, author: Author | None, email: Email | None) -> "Person":
-        author = self.define(author)
-        email = self.define(email)
-
-        if author == "Unknown":
-            if email != "Unknown":
+        author = "" if author is None else author
+        email = "" if email is None else email
+        if author == "":
+            if email != "":
                 logger.warning(
-                    f"Author is 'Unknown' but email is not. Author: {author}, Email: {email}"
-                    "Git should not allow this. Using 'Unknown' for both."
+                    f"Author is empty but email is not. Author: {author}, Email: {email}"
+                    "Git should not allow this. Using empty for both."
                 )
-            if "Unknown" in self:
-                return self["Unknown"]
+            if "" in self:
+                return self[""]
             else:
-                person = Person("Unknown", "Unknown")
-                self["Unknown"] = person
+                person = Person("", "")
+                self[""] = person
                 return person
-        elif email == "Unknown":
+        elif email == "":
             person = self.add_author_with_unknown_email(author)
             return person
         else:
@@ -389,33 +396,16 @@ class PersonsDB(dict[Author | Email, Person]):
         if author in self:
             return self[author]
         else:
-            person = Person(author, "Unknown")
+            person = Person(author, "")
             self[author] = person
             return person
 
-    def get_person(self, author: Author | None) -> "Person":
-        defined_author: Author = "Unknown" if author is None else author
-        return self[defined_author]
-
     def get_filtered_author(self, author: Author | None) -> Author | None:
-        person = self.get_person(author)
+        person = self[author]
         if person.filter_matched:
             return None
         else:
             return person.author
-
-    # The final value of get_author is correct only after RepoBlame.run() has been
-    # called.
-    def get_author(self, author: Author | None) -> Author:
-        """
-        Return the main author name for the given author name, based on the person
-        associated with the given author.
-        """
-        return self.get_person(author).author
-
-    @staticmethod
-    def define(ae: Author | Email | None) -> Author | Email:
-        return "Unknown" if ae is None or ae == "" else ae
 
 
 @dataclass

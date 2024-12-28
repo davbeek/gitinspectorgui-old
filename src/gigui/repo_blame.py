@@ -153,7 +153,7 @@ class RepoBlame(RepoBlameBase):
             fstr2blames[fstr] = []
             for blame in self.fstr2blames[fstr]:
                 # update author
-                blame.author = self.persons_db.get_author(blame.author)
+                blame.author = self.persons_db[blame.author].author
                 fstr2blames[fstr].append(blame)
         self.fstr2blames = fstr2blames
 
@@ -169,7 +169,7 @@ class RepoBlame(RepoBlameBase):
         for fstr in self.all_fstrs:
             blames = self.fstr2blames[fstr]
             for b in blames:
-                person = self.persons_db.get_person(b.author)
+                person = self.persons_db[b.author]
                 author = person.author
                 if author not in author2line_count:
                     author2line_count[author] = 0

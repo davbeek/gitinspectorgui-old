@@ -10,7 +10,7 @@ from pathlib import Path
 
 from git import Commit, Git, Repo
 
-from gigui.data import CommitGroup, Person, PersonsDB, RepoStats
+from gigui.data import CommitGroup, PersonsDB, RepoStats
 from gigui.typedefs import OID, SHA, Author, FileStr, Rev
 from gigui.utils import log
 
@@ -129,9 +129,6 @@ class RepoBase:
 
         self._set_fstr2commits(thread_executor)
         self.all_fstrs = copy.deepcopy(self.fstrs)
-
-    def get_person(self, author: Author | None) -> Person:
-        return self.persons_db.get_person(author)
 
     def _convert_to_timestamp(self, date_str: str) -> int:
         dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
@@ -388,7 +385,7 @@ class RepoBase:
             if sha in self.ex_shas:
                 continue
             author = lines.pop(0)
-            person = self.get_person(author)
+            person = self.persons_db[author]
             if not lines:
                 break
             stat_line = lines.pop(0)
