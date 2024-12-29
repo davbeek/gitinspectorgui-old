@@ -277,7 +277,7 @@ class Person:
             return " | ".join(emails)
         else:
             email_list = list(self.emails)
-            name_parts = self.author.split(" ")
+            name_parts = self.author.split()
             name_parts = [part.lower() for part in name_parts if len(part) >= 3]
             # If any part with size >= 3 of author name is in the email, use that email
             nice_emails = [

@@ -9,7 +9,7 @@ from gigui import gitinspector
 from gigui._logging import add_cli_handler, set_logging_level_from_verbosity
 from gigui.args_settings import Args, CLIArgs, Settings, SettingsFile
 from gigui.cli_arguments import define_arguments
-from gigui.constants import DEFAULT_EXTENSIONS
+from gigui.constants import AVAILABLE_FORMATS, DEFAULT_EXTENSIONS
 from gigui.gui.psg import run as run_gui
 from gigui.tiphelp import Help
 from gigui.utils import log
@@ -52,6 +52,14 @@ def main() -> None:
 
     if len(cli_args.input_fstrs) == 0:
         cli_args.input_fstrs.append(os.getcwd())
+
+    # Validate formats
+    for fmt in cli_args.format:
+        if fmt not in AVAILABLE_FORMATS:
+            # Print error message and exit
+            parser.error(
+                f"Invalid format: {fmt}. Available formats: {', '.join(AVAILABLE_FORMATS)}"
+            )
 
     if (
         namespace.show

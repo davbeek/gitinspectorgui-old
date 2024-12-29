@@ -1,25 +1,13 @@
 import datetime
 from argparse import (  # type: ignore
-    Action,
     ArgumentParser,
     ArgumentTypeError,
     BooleanOptionalAction,
 )
 
-from gigui.constants import (
-    AVAILABLE_FORMATS,
-    BLAME_EXCLUSION_CHOICES,
-    BLAME_HISTORY_CHOICES,
-    FIX_TYPE,
-)
+from gigui.constants import BLAME_EXCLUSION_CHOICES, BLAME_HISTORY_CHOICES, FIX_TYPE
 from gigui.tiphelp import Help
-from gigui.utils import (
-    get_digit,
-    get_pos_number,
-    get_pos_number_or_empty,
-    get_version,
-    str_split_comma,
-)
+from gigui.utils import get_digit, get_pos_number, get_pos_number_or_empty, get_version
 
 hlp = Help()
 
@@ -104,7 +92,8 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
     files_group.add_argument(
         "-f",
         "--include-files",
-        action=SplitAppendArgs,
+        action="extend",
+        nargs="*",
         metavar="PATTERNS",
         dest="include_files",
         help=hlp.include_files,
@@ -135,10 +124,8 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
     group_generation.add_argument(
         "-F",
         "--format",
-        action="append",
-        # argparse adds each occurrence of the option to the list, therefore default is
-        # []
-        choices=AVAILABLE_FORMATS,
+        action="extend",
+        nargs="*",
         help=hlp.format,
     )
 
@@ -229,7 +216,8 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
     subgroup_general_options.add_argument(
         "-e",
         "--extensions",
-        action=SplitAppendArgs,
+        action="extend",
+        nargs="*",
         help=hlp.extensions,
     )
 
@@ -252,35 +240,40 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
     group_exclusions.add_argument(
         "--ex-files",
         "--exclude-files",
-        action=SplitAppendArgs,
+        action="extend",
+        nargs="*",
         metavar="PATTERNS",
         help=hlp.ex_files,
     )
     group_exclusions.add_argument(
         "--ex-authors",
         "--exclude-authors",
-        action=SplitAppendArgs,
+        action="extend",
+        nargs="*",
         metavar="PATTERNS",
         help=hlp.ex_authors,
     )
     group_exclusions.add_argument(
         "--ex-emails",
         "--exclude-emails",
-        action=SplitAppendArgs,
+        action="extend",
+        nargs="*",
         metavar="PATTERNS",
         help=hlp.ex_emails,
     )
     group_exclusions.add_argument(
         "--ex-revisions",
         "--exclude-revisions",
-        action=SplitAppendArgs,
+        action="extend",
+        nargs="*",
         metavar="PATTERNS",
         help=hlp.ex_revisions,
     )
     group_exclusions.add_argument(
         "--ex-messages",
         "--exclude-messages",
-        action=SplitAppendArgs,
+        action="extend",
+        nargs="*",
         metavar="PATTERNS",
         help=hlp.ex_messages,
     )
@@ -293,24 +286,6 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
         metavar="N",
         help=hlp.profile,
     )
-
-
-class SplitAppendArgs(Action):
-    def __call__(self, parser, namespace, arg_string, option_string=None):
-
-        # split arg_string over "," then remove spacing and remove empty strings
-        xs = str_split_comma(arg_string)
-
-        # When the option is not used at all, the option value is set to the default
-        # value of the option.
-
-        # if not from line below, allows for both "" and [] to be used as empty values
-        if not getattr(namespace, self.dest):
-            # first time the option is used, set the list
-            setattr(namespace, self.dest, xs)
-        else:
-            # next occurrence of option, list is already there, so append to list
-            getattr(namespace, self.dest).extend(xs)
 
 
 def valid_datetime_type(arg_datetime_str):

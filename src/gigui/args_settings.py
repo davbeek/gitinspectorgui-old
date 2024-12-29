@@ -1,5 +1,6 @@
 import json
 import logging
+import shlex
 from argparse import Namespace
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
@@ -25,7 +26,7 @@ from gigui.constants import (
     SUBDIR_NESTING_DEPTH,
 )
 from gigui.keys import Keys, KeysArgs
-from gigui.utils import log, str_split_comma
+from gigui.utils import log
 
 logger = logging.getLogger(__name__)
 
@@ -159,7 +160,8 @@ class Settings(Args):
         for key, value in settings_schema.items():
             if key in values:
                 if value["type"] == "array":
-                    setattr(settings, key, str_split_comma(values[key]))  # type: ignore
+
+                    setattr(settings, key, shlex.split(values[key]))  # type: ignore
                 else:
                     setattr(settings, key, values[key])
 

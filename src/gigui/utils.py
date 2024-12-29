@@ -142,11 +142,6 @@ def get_pos_number_or_empty(arg):
         ) from e
 
 
-def str_split_comma(s: str) -> list[str]:
-    xs = s.split(",")
-    return [s.strip() for s in xs if s.strip()]
-
-
 def get_relative_fstr(fstr: str, subfolder: str):
     if len(subfolder):
         if fstr.startswith(subfolder):

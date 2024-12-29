@@ -1,7 +1,7 @@
 import textwrap
 from dataclasses import dataclass, fields
 
-from gigui.constants import DEFAULT_EXTENSIONS, DEFAULT_N_FILES
+from gigui.constants import AVAILABLE_FORMATS, DEFAULT_EXTENSIONS, DEFAULT_N_FILES
 from gigui.utils import get_version
 
 
@@ -97,8 +97,8 @@ class Tip:
         f"{DEFAULT_N_FILES}) biggest files"
     )
     include_files: str = (
-        "Generate output for all files matching any of the specified patterns (default "
-        f"the {DEFAULT_N_FILES} biggest files)"
+        "Generate output for all files matching any of the space-separated list of "
+        f"specified patterns (default the {DEFAULT_N_FILES} biggest files)"
     )
     subfolder: str = "Restrict analysis to a subfolder of the repository"
     since: str = "Only show statistics for commits more recent than a specific date"
@@ -106,8 +106,8 @@ class Tip:
     until: str = "Only show statistics for commits older than a specific date"
     until_box: str = since_box
     extensions: str = (
-        "A comma separated list of file extensions to include when computing "
-        "statistics. Default extensions are: " + ", ".join(DEFAULT_EXTENSIONS) + "."
+        "Space-separated list of file extensions to include when computing "
+        "statistics. Default extensions: " + " ".join(DEFAULT_EXTENSIONS)
     )
 
     # Multi-threading and multi-core
@@ -120,23 +120,23 @@ class Tip:
 
     # Exclusion patterns
     ex_files: str = (
-        "Filter out all files (or paths) containing any of the comma separated "
-        "strings, e.g.: myfile, test"
+        "Filter out all files (or paths) containing any of the space-separated "
+        "strings, e.g.: myfile.py test"
     )
     ex_authors: str = (
-        "Filter out all authors containing any of the comma separated strings, "
-        "e.g.: John, Mary"
+        "Filter out all authors containing any of the space-separated strings, "
+        'e.g.: "John Smith" Mary*'
     )
     ex_emails: str = (
-        "Filter out all authors containing any of the comma separated strings, "
-        "e.g.: @gmail.com, john"
+        "Filter out all emails containing any of the space-separated strings, "
+        "e.g.: *@gmail.com john.smith@*"
     )
     ex_revisions: str = (
-        "Filter out all revisions containing any of the comma separated hash strings, "
-        "e.g.: 8755fb33,12345678"
+        "Filter out all revisions containing any of the space-separated hash strings, "
+        "e.g.: 8755fb33 12345678"
     )
     ex_messages: str = (
-        "Filter out all revisions containing any of the comma separated commit message "
+        "Filter out all revisions containing any of the space-separated commit message "
         "strings"
     )
 
@@ -172,7 +172,8 @@ class Help(Tip):
     )
     # Input
     input_fstrs: str = """
-         Relative or absolute PATH(s) to repository, folders or URLs to be analyzed."""
+         Space-separated list of relative or absolute PATH(s) to repository, folders
+         to be analyzed."""
     depth: str = """
         Number of levels of subfolders of the input folder PATH that is searched for
         repositories (default 5).
@@ -185,17 +186,19 @@ class Help(Tip):
         prefix or postfix to the output file name."""
 
     # IO arguments
-    format: str = """
-        Define in which format output should be generated (default html)."""
-
+    format: str = (
+        "Space-separated list of output formats. Select from "
+        f"{', '.join(AVAILABLE_FORMATS)} (default html)."
+    )
     # General configuration
     multi_core: str = "Execute multiple repositories using multiple cores."
 
     # Exclusions
-    exclude_string: str = """Exclusion patterns describing the file paths, revisions,
-revisions with certain commit messages, author names or author emails that should be
-excluded from the statistics. Can be specified multiple times separated by a comma and
-regular expressions may be used."""
+    exclude_string: str = """Space-separated list of exclusion patterns describing the
+file paths, revisions, revisions with certain commit messages, author names or author
+emails that should be excluded from the statistics. Can be specified multiple times
+separated by a space. Quotes may be used to keep spaces in names and * may be used to
+specify any string."""
 
     # Logging
     cli_verbosity: str = "More verbose output for each v, e.g. -vv."

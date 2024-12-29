@@ -1,6 +1,7 @@
 # noinspection PyPep8Naming
 import logging
 import multiprocessing
+import shlex  # Use shlex.split to handle quoted strings
 import sys
 import time
 from datetime import datetime
@@ -12,12 +13,7 @@ import PySimpleGUI as sg  # type: ignore[import-untyped]
 from gigui import shared
 from gigui._logging import set_logging_level_from_verbosity
 from gigui.args_settings import Args, Settings, SettingsFile
-from gigui.constants import (
-    AVAILABLE_FORMATS,
-    DEBUG_SHOW_MAIN_EVENT_LOOP,
-    DEFAULT_EXTENSIONS,
-    DYNAMIC,
-)
+from gigui.constants import AVAILABLE_FORMATS, DEBUG_SHOW_MAIN_EVENT_LOOP, DYNAMIC
 from gigui.gitinspector import main as gitinspector_main
 from gigui.gui.psg_support import (
     GUIState,
@@ -26,7 +22,7 @@ from gigui.gui.psg_support import (
     log,
     popup,
     popup_custom,
-    process_include_files,
+    process_input_fstrs,
     process_inputs,
     process_n_files,
     update_col_percent,
@@ -38,7 +34,7 @@ from gigui.gui.psg_support import (
 from gigui.gui.psg_window import make_window
 from gigui.keys import Keys
 from gigui.tiphelp import Help, Tip
-from gigui.utils import open_webview, str_split_comma
+from gigui.utils import open_webview
 
 logger = logging.getLogger(__name__)
 
@@ -185,8 +181,7 @@ def run_inner(settings: Settings) -> bool:
                 sg.cprint(message, text_color=color)
 
             case keys.input_fstrs:
-                state.input_patterns = str_split_comma(values[event])
-                process_inputs(state, window)  # type: ignore
+                process_input_fstrs(values[event], state, window)
 
             case keys.outfile_base:
                 update_outfile_str(state, window)
@@ -201,9 +196,6 @@ def run_inner(settings: Settings) -> bool:
 
             case keys.n_files:
                 process_n_files(state, values[keys.n_files], window[event])  # type: ignore
-
-            case keys.include_files:
-                process_include_files(values[keys.include_files], window[event])  # type: ignore
 
             case keys.verbosity:
                 set_logging_level_from_verbosity(values[event])
@@ -260,14 +252,13 @@ def execute(  # pylint: disable=too-many-branches
             keys.profile,
             keys.fix,
             keys.format,
-            keys.extensions,
             keys.since,
             keys.until,
             keys.multi_core,
             keys.gui_settings_full_path,
         }:
             if value["type"] == "array":
-                setattr(args, key, str_split_comma(values[key]))  # type: ignore
+                setattr(args, key, shlex.split(values[key]))  # type: ignore
             else:
                 setattr(args, key, values[key])
 
@@ -280,11 +271,11 @@ def execute(  # pylint: disable=too-many-branches
 
     args.n_files = state.n_files
 
-    out_format_selected = []
+    formats = []
     for key in AVAILABLE_FORMATS:
         if values[key]:
-            out_format_selected.append(key)
-    args.format = out_format_selected
+            formats.append(key)
+    args.format = formats
 
     for key in keys.since, keys.until:
         val = values[key]
@@ -299,12 +290,6 @@ def execute(  # pylint: disable=too-many-branches
             )
             return
         setattr(args, key, str(val))
-
-    args.extensions = (
-        str_split_comma(values[keys.extensions])
-        if values[keys.extensions]
-        else DEFAULT_EXTENSIONS
-    )
 
     logger.info(f"{args = }")
     buttons.disable_all()

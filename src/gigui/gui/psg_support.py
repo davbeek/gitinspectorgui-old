@@ -1,5 +1,6 @@
 import glob
 import os
+import shlex
 import webbrowser
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -98,7 +99,7 @@ def window_state_from_settings(window: sg.Window, settings: Settings) -> None:
     }
     for key, val in settings_min.items():
         if isinstance(val, list):
-            value_list = ", ".join(val)
+            value_list = " ".join(val)
             window.Element(key).Update(value=value_list)  # type: ignore
         else:
             window.Element(key).Update(value=val)  # type: ignore
@@ -112,9 +113,9 @@ def window_state_from_settings(window: sg.Window, settings: Settings) -> None:
                 value=key in settings.format
             )
 
-    window.write_event_value(keys.input_fstrs, ",".join(settings.input_fstrs))
+    window.write_event_value(keys.input_fstrs, " ".join(settings.input_fstrs))
     window.write_event_value(keys.outfile_base, settings.outfile_base)
-    window.write_event_value(keys.include_files, ",".join(settings.include_files))
+    window.write_event_value(keys.include_files, " ".join(settings.include_files))
     window.write_event_value(keys.subfolder, settings.subfolder)
     window.write_event_value(keys.verbosity, settings.verbosity)
 
@@ -198,7 +199,7 @@ def help_window() -> None:
         if event == sg.WINDOW_CLOSED or event == "OK_BUTTON":
             break
         if event.startswith("URL "):
-            url = event.split(" ")[1]
+            url = event.split()[1]
             webbrowser.open(url)
 
     window.close()
@@ -277,6 +278,16 @@ def update_settings_file_str(
     else:
         file_string = SettingsFile.get_location().stem
     window[keys.settings_file].update(value=file_string)  # type: ignore
+
+
+def process_input_fstrs(input_fstrs: str, state: GUIState, window: sg.Window) -> None:
+    try:
+        input_patterns = shlex.split(input_fstrs)
+    except ValueError:
+        window[keys.input_fstrs].update(background_color=INVALID_INPUT_COLOR)  # type: ignore
+        return
+    state.input_patterns = input_patterns
+    process_inputs(state, window)
 
 
 def process_inputs(state: GUIState, window: sg.Window) -> None:
@@ -370,16 +381,6 @@ def check_subfolder(state: GUIState, window: sg.Window) -> None:
     else:
         state.subfolder_valid = False
         window[keys.subfolder].update(background_color=INVALID_INPUT_COLOR)  # type: ignore
-
-
-def process_include_files(patterns: str, input_field: sg.Input) -> None:
-    # Filter out all non-alpha-numerical characters except allowed special characters.
-    # Commas are allowed to separate patterns and asterisks are allowed as wildcards.
-    allowed_chars = set(" .,-_*")
-    filtered_patterns = "".join(
-        c for c in patterns if c.isalnum() or c in allowed_chars
-    )
-    input_field.update(filtered_patterns)
 
 
 def process_n_files(state: GUIState, n_files_str: str, input_field: sg.Input) -> None:
