@@ -116,7 +116,6 @@ def run_inner(settings: Settings) -> bool:
             case keys.save:
                 new_settings = Settings.from_values_dict(values)
                 new_settings.gui_settings_full_path = state.gui_settings_full_path
-                new_settings.n_files = state.n_files
                 new_settings.save()
                 log("Settings saved to " + SettingsFile.get_settings_file())
 
@@ -195,7 +194,7 @@ def run_inner(settings: Settings) -> bool:
                 process_inputs(state, window)
 
             case keys.n_files:
-                process_n_files(state, values[keys.n_files], window[event])  # type: ignore
+                process_n_files(values[keys.n_files], window[event])  # type: ignore
 
             case keys.verbosity:
                 set_logging_level_from_verbosity(values[event])
@@ -238,9 +237,6 @@ def execute(  # pylint: disable=too-many-branches
         )
         return
 
-    if state.n_files is None:
-        popup("Error", "N files value invalid: should be empty or a positive integer")
-
     if values[keys.blame_history] == DYNAMIC:
         popup("Error", "Dynamic blame history not supported in GUI")
         return
@@ -251,6 +247,7 @@ def execute(  # pylint: disable=too-many-branches
         if key not in {
             keys.profile,
             keys.fix,
+            keys.n_files,
             keys.format,
             keys.since,
             keys.until,
@@ -269,7 +266,7 @@ def execute(  # pylint: disable=too-many-branches
     else:
         args.fix = keys.nofix
 
-    args.n_files = state.n_files
+    args.n_files = 0 if not values[keys.n_files] else int(values[keys.n_files])
 
     formats = []
     for key in AVAILABLE_FORMATS:

@@ -46,7 +46,6 @@ class GUIState:
     )
     subfolder: FileStr = ""
     subfolder_valid: bool = True
-    n_files: int = 0
 
 
 class WindowButtons:
@@ -91,7 +90,6 @@ def window_state_from_settings(window: sg.Window, settings: Settings) -> None:
         not in {
             keys.fix,
             keys.format,
-            keys.n_files,
             keys.gui_settings_full_path,
             keys.profile,
             keys.multi_core,
@@ -383,9 +381,7 @@ def check_subfolder(state: GUIState, window: sg.Window) -> None:
         window[keys.subfolder].update(background_color=INVALID_INPUT_COLOR)  # type: ignore
 
 
-def process_n_files(state: GUIState, n_files_str: str, input_field: sg.Input) -> None:
+def process_n_files(n_files_str: str, input_field: sg.Input) -> None:
     # Filter out any initial zero and all non-digit characters
     filtered_str = "".join(filter(str.isdigit, n_files_str)).lstrip("0")
-    n_files: int = int(filtered_str) if filtered_str else 0
     input_field.update(filtered_str)
-    state.n_files = n_files

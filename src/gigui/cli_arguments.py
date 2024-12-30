@@ -95,7 +95,6 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
         action="extend",
         nargs="*",
         metavar="PATTERNS",
-        dest="include_files",
         help=hlp.include_files,
     )
 

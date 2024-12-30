@@ -157,10 +157,12 @@ class Settings(Args):
         settings_schema: dict[str, Any] = SettingsFile.SETTINGS_SCHEMA["properties"]
         settings = cls()
 
+        values[Keys.n_files] = (
+            0 if not values[Keys.n_files] else int(values[Keys.n_files])
+        )
         for key, value in settings_schema.items():
             if key in values:
                 if value["type"] == "array":
-
                     setattr(settings, key, shlex.split(values[key]))  # type: ignore
                 else:
                     setattr(settings, key, values[key])
@@ -190,7 +192,6 @@ class CLIArgs(Args):
     load: str = ""
     reset: bool = False
 
-    # Overwrite all settings apart from col_percent, which keeps its value
     def create_settings(self) -> Settings:
         logger.info(f"CLI self = {self}")
 
