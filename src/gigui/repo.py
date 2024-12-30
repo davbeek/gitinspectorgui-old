@@ -6,7 +6,7 @@ from typing import TypeVar
 
 from git import InvalidGitRepositoryError, NoSuchPathError, Repo
 
-from gigui.constants import STATIC
+from gigui.constants import DEBUG_SHOW_FILES, STATIC
 from gigui.data import CommitGroup, FileStat, Person, PersonsDB, PersonStat
 from gigui.repo_blame import RepoBlameHistory
 from gigui.typedefs import SHA, Author, FileStr
@@ -58,20 +58,23 @@ class RepoGI(RepoBlameHistory):
         """
 
         try:
-            super().run_base(thread_executor)
-            super().run_blame(thread_executor)
-            success = self._run_no_history(thread_executor)
+            self.init_git_repo()
+            self.run_base(thread_executor)
+            self.run_blame(thread_executor)
+            success = self._run_no_history()
             if not success:
                 return False
 
             self._set_final_data()
-            if self.blame_history == STATIC:
+            if self.blame_history == STATIC and not self.blame_skip:
                 super().run_blame_history_static()
             return True
         finally:
+            if DEBUG_SHOW_FILES:
+                print(f"Close {self.name}")
             self.git_repo.close()
 
-    def _run_no_history(self, thread_executor: ThreadPoolExecutor) -> bool:
+    def _run_no_history(self) -> bool:
 
         # Set stats.author2fstr2fstat, the basis of all other stat tables
         self.author2fstr2fstat = self.stat_tables.get_author2fstr2fstat(

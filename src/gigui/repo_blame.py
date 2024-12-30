@@ -8,6 +8,7 @@ from git import Commit as GitCommit
 from git import GitCommandError, Repo
 
 from gigui.comment import get_is_comment_lines
+from gigui.constants import BLAME_CHUNK_SIZE, DEBUG_SHOW_FILES
 from gigui.data import FileStat
 from gigui.repo_base import RepoBase
 from gigui.typedefs import SHA, Author, BlameLines, Email, FileStr, GitBlames
@@ -28,6 +29,7 @@ class Blame:
 
 
 class RepoBlameBase(RepoBase):
+    blame_skip: bool
     copy_move: int
     since: str
     whitespace: bool
@@ -57,11 +59,10 @@ class RepoBlameBase(RepoBase):
             blame_opts.append("-w")
         for rev in self.ex_shas:
             blame_opts.append(f"--ignore-rev={rev}")
-        working_dir = self.git_repo.working_dir
+        working_dir = self.location
         ignore_revs_path = Path(working_dir) / "_git-blame-ignore-revs.txt"
         if ignore_revs_path.exists():
             blame_opts.append(f"--ignore-revs-file={str(ignore_revs_path)}")
-
         # Run the git command to get the blames for the file.
         git_blames: GitBlames = self._run_git_command(start_sha, fstr, blame_opts)
         return git_blames, fstr
@@ -73,11 +74,18 @@ class RepoBlameBase(RepoBase):
         blame_opts: list[str],
     ) -> GitBlames:
         start_oid = self.sha2oid[start_sha]
+        git_blames: GitBlames
         try:
-            repo = Repo(self.location)
-            git_blames: GitBlames = repo.blame(
-                start_oid, fstr, rev_opts=blame_opts
-            )  # type: ignore
+            if self.multi_thread:
+                repo = Repo(self.location)
+                git_blames = repo.blame(
+                    start_oid, fstr, rev_opts=blame_opts
+                )  # type: ignore
+                repo.close()
+            else:
+                git_blames = self.git_repo.blame(
+                    start_oid, fstr, rev_opts=blame_opts
+                )  # type: ignore
             return git_blames
         except GitCommandError as e:
             logger.warning(f"GitCommandError: {e}")
@@ -130,18 +138,34 @@ class RepoBlame(RepoBlameBase):
         git_blames: GitBlames
         blames: list[Blame]
 
+        i_max: int = len(self.all_fstrs)
+        i: int = 0
+        chunk_size: int = BLAME_CHUNK_SIZE
+        if DEBUG_SHOW_FILES:
+            print(f"Blame: processing {i_max} files")
         if self.multi_thread:
-            futures = [
-                thread_executor.submit(self._get_git_blames_for, fstr, self.head_sha)
-                for fstr in self.all_fstrs
-            ]
-            for future in as_completed(futures):
-                git_blames, fstr = future.result()
-                blames = self._process_git_blames(fstr, git_blames)
-                self.fstr2blames[fstr] = blames
+            for chunk_start in range(0, i_max, chunk_size):
+                chunk_end = min(chunk_start + chunk_size, i_max)
+                chunk_fstrs = self.all_fstrs[chunk_start:chunk_end]
+                futures = [
+                    thread_executor.submit(
+                        self._get_git_blames_for, fstr, self.head_sha
+                    )
+                    for fstr in chunk_fstrs
+                ]
+                for future in as_completed(futures):
+                    git_blames, fstr = future.result()
+                    i += 1
+                    if DEBUG_SHOW_FILES:
+                        print(f"{i} of {i_max}: {fstr}")
+                    blames = self._process_git_blames(fstr, git_blames)
+                    self.fstr2blames[fstr] = blames
         else:  # single thread
             for fstr in self.all_fstrs:
                 git_blames, fstr = self._get_git_blames_for(fstr, self.head_sha)
+                i += 1
+                if DEBUG_SHOW_FILES:
+                    print(f"{i} of {i_max}: {fstr}")
                 blames = self._process_git_blames(fstr, git_blames)
                 self.fstr2blames[fstr] = blames  # type: ignore
 

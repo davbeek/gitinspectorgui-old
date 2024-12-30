@@ -1,15 +1,15 @@
 import copy
 import logging
 import re
-import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime
 from fnmatch import fnmatch
 from pathlib import Path
 
-from git import Commit, Git, Repo
+from git import Commit, Repo
 
+from gigui.constants import DEBUG_SHOW_FILES, GIT_LOG_CHUNK_SIZE
 from gigui.data import CommitGroup, PersonsDB, RepoStats
 from gigui.typedefs import OID, SHA, Author, FileStr, Rev
 from gigui.utils import log
@@ -44,7 +44,7 @@ class RepoBase:
         self.name: str = name
         self.location: Path = location
         self.persons_db: PersonsDB = PersonsDB()
-        self.git_repo: Repo = Repo(location)
+        self.git_repo: Repo
 
         # self.fstrs is a list of files from the top commit of the repo.
 
@@ -65,8 +65,6 @@ class RepoBase:
         # is sorted by commit date.
         self.shas_dated: list[SHADate]
 
-        self.head_sha: SHA
-
         self.fr2f2a2sha_set: dict[FileStr, dict[FileStr, dict[Author, set[SHA]]]] = {}
 
         # Set of short SHAs of commits in the repo that are excluded by the
@@ -79,22 +77,34 @@ class RepoBase:
         self.fstr2commit_groups: dict[FileStr, list[CommitGroup]] = {}
         self.stats = RepoStats()
 
+        self.sha2author: dict[SHA, Author] = {}
+
+        ###################################################
+        # The following vars are to be set in init_git_repo
+        ###################################################
+
         self.thread_executor: ThreadPoolExecutor
 
         self.sha2oid: dict[SHA, OID] = {}
         self.oid2sha: dict[OID, SHA] = {}
         self.sha2nr: dict[SHA, int] = {}
         self.nr2sha: dict[int, SHA] = {}
-        self.nr2id: dict[int, OID] = {}
-        self.id2nr: dict[OID, int] = {}
-        self.sha2author: dict[SHA, Author] = {}
 
-        if self.multi_thread:
-            self.repo_lock = threading.Lock()
+        self.head_commit: Commit
+        self.head_oid: OID
+        self.head_sha: SHA
+
+    def init_git_repo(self) -> None:
+        # Init the git repo.
+        # This function is called when processing is started. The repo is closed when
+        # processing is finished to immediately when processing is finished to avoid
+        # having too many files open.
+
+        self.git_repo = Repo(self.location)
 
         # Use git log to get both long and short SHAs
         # First line represents the last commit
-        log_output = self.git.log("--pretty=format:%H %h")
+        log_output = self.git_repo.git.log("--pretty=format:%H %h")
 
         lines = log_output.splitlines()
 
@@ -109,15 +119,9 @@ class RepoBase:
             self.nr2sha[nr] = sha
             nr -= 1
 
-        self.head_sha = self.oid2sha[self.head_commit.hexsha]
-
-    @property
-    def git(self) -> Git:
-        return self.git_repo.git
-
-    @property
-    def head_commit(self) -> Commit:
-        return self.git_repo.head.commit
+        self.head_commit = self.git_repo.head.commit
+        self.head_oid = self.head_commit.hexsha
+        self.head_sha = self.oid2sha[self.head_oid]
 
     def run_base(self, thread_executor: ThreadPoolExecutor) -> None:
 
@@ -256,13 +260,14 @@ class RepoBase:
         # %n: newline
         args = self._get_since_until_args()
         args += [
-            f"{self.head_commit.hexsha}",
+            f"{self.head_oid}",
             "--pretty=format:%h%n%ct%n%s%n%aN%n%aE%n",
         ]
-        lines_str: str = self.git.log(*args)
+        lines_str: str = self.git_repo.git.log(*args)
+
         lines = lines_str.splitlines()
-        i = 0
-        while i < len(lines):
+        i: int = 0
+        while i < len(lines) - 4:
             line = lines[i]
             if not line:
                 i += 1
@@ -273,8 +278,7 @@ class RepoBase:
                 ex_shas.add(sha)
                 i += 5
                 continue
-            i += 1
-            timestamp = int(lines[i])
+            timestamp = int(lines[i := i + 1])
             message = lines[i := i + 1]
             if any(fnmatch(message, pattern) for pattern in self.ex_messages):
                 ex_shas.add(sha)
@@ -304,7 +308,7 @@ class RepoBase:
         else:
             return []
 
-    def _set_fstr2commits(self, thread_executor: ThreadPoolExecutor):
+    def _set_fstr2commits(self, thread_executor: ThreadPoolExecutor) -> None:
         # When two lists of commits share the same commit at the end,
         # the duplicate commit is removed from the longer list.
         def reduce_commits():
@@ -324,19 +328,33 @@ class RepoBase:
                         commit_groups2.pop()
                         i -= 1
 
+        i_max: int = len(self.fstrs)
+        i: int = 0
+        chunk_size: int = GIT_LOG_CHUNK_SIZE
+        if DEBUG_SHOW_FILES:
+            print(f"Git log: processing {i_max} files")
         if self.multi_thread:
-            futures = [
-                thread_executor.submit(self._get_commit_lines_for, fstr)
-                for fstr in self.fstrs
-            ]
-            for future in as_completed(futures):
-                lines_str, fstr = future.result()
-                self.fstr2commit_groups[fstr] = self._process_commit_lines_for(
-                    lines_str, fstr
-                )
+            for chunk_start in range(0, i_max, chunk_size):
+                chunk_end = min(chunk_start + chunk_size, i_max)
+                chunk_fstrs = self.fstrs[chunk_start:chunk_end]
+                futures = [
+                    thread_executor.submit(self._get_commit_lines_for, fstr)
+                    for fstr in chunk_fstrs
+                ]
+                for future in as_completed(futures):
+                    lines_str, fstr = future.result()
+                    i += 1
+                    if DEBUG_SHOW_FILES:
+                        print(f"{i} of {i_max}: {fstr}")
+                    self.fstr2commit_groups[fstr] = self._process_commit_lines_for(
+                        lines_str, fstr
+                    )
         else:  # single thread
             for fstr in self.fstrs:
                 lines_str, fstr = self._get_commit_lines_for(fstr)
+                i += 1
+                if DEBUG_SHOW_FILES:
+                    print(f"{i} of {i_max}: {fstr}")
                 self.fstr2commit_groups[fstr] = self._process_commit_lines_for(
                     lines_str, fstr
                 )
@@ -352,7 +370,7 @@ class RepoBase:
                 # %ct: committer date, UNIX timestamp
                 # %aN: author name, respecting .mailmap
                 # %n: newline
-                f"{self.head_commit.hexsha}",
+                f"{self.head_oid}",
                 "--follow",
                 "--numstat",
                 "--pretty=format:%n%h%n%ct%n%aN",
@@ -367,8 +385,9 @@ class RepoBase:
         if self.multi_thread:
             repo = Repo(self.location)
             lines_str = repo.git.log(git_log_args())
+            repo.close()
         else:
-            lines_str = self.git.log(git_log_args())
+            lines_str = self.git_repo.git.log(git_log_args())
         return lines_str, fstr
 
     # pylint: disable=too-many-locals
@@ -391,7 +410,7 @@ class RepoBase:
         author: Author
         stat_line: str
 
-        i = 0
+        i: int = 0
         while i < len(lines):
             line = lines[i]
             if not line:
@@ -399,13 +418,12 @@ class RepoBase:
                 continue
             sha = line
             if sha in self.ex_shas:
-                i += 4
+                i += 3
                 continue
-            i += 1
-            timestamp = int(lines[i])
+            timestamp = int(lines[i := i + 1])
             author = lines[i := i + 1]
             person = self.persons_db[author]
-            if i >= len(lines) - 1:
+            if not i < len(lines):
                 break
             stat_line = lines[i := i + 1]
             if person.filter_matched or not stat_line:

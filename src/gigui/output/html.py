@@ -508,7 +508,7 @@ def get_repo_html(
     with open(html_path, "r", encoding="utf-8") as f:
         html_template = f.read()
 
-    if not blame_history == DYNAMIC:
+    if repo.blame_history in {NONE, STATIC}:
         # If blame_history == DYNAMIC, create_html_document is called in server_main.py
         html_template = create_html_document(html_template, load_css())
 

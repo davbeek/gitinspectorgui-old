@@ -55,9 +55,6 @@ MAX_BROWSER_TABS = 10
 # Output settings Excel
 ABBREV_CNT = 30
 
-# Debugging
-DEBUG_SHOW_MAIN_EVENT_LOOP = False
-
 # Constants for CLI arguments, GUI options and settings
 PREFIX = "prefix"
 POSTFIX = "postfix"
@@ -75,3 +72,13 @@ HIDE = "hide"
 SHOW = "show"
 BLAME_EXCLUSION_CHOICES = [HIDE, SHOW, REMOVE]
 BLAME_EXCLUSIONS_DEFAULT = HIDE
+
+MAX_THREAD_WORKERS = 6
+GIT_LOG_CHUNK_SIZE = 100  # no errors for 400 for website/main repo (394 files)
+BLAME_CHUNK_SIZE = (
+    20  # 80 will lead to "too many open files" error for website/main repo
+)
+
+# Debugging
+DEBUG_SHOW_MAIN_EVENT_LOOP = False
+DEBUG_SHOW_FILES = False

@@ -84,8 +84,8 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
     files_group.add_argument(
         "-n",
         "--n-files",
-        "--include-n-files",
         type=get_pos_number_or_empty,
+        nargs="?",  # Accept zero or one argument
         metavar="N",
         help=hlp.n_files,
     )
