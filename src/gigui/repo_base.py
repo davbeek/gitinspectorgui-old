@@ -243,6 +243,10 @@ class RepoBase:
         ex_shas: set[SHA] = set()  # set of excluded shas
         sha: SHA
         oid: OID
+        timestamp: int
+        message: str
+        author: Author
+        email: str
 
         # %h: commit hash (short)
         # %ct: committer date, UNIX timestamp
@@ -256,28 +260,33 @@ class RepoBase:
             "--pretty=format:%h%n%ct%n%s%n%aN%n%aE%n",
         ]
         lines_str: str = self.git.log(*args)
-
         lines = lines_str.splitlines()
-        while lines:
-            line = lines.pop(0)
+        i = 0
+        while i < len(lines):
+            line = lines[i]
             if not line:
+                i += 1
                 continue
             sha = line
             oid = self.sha2oid[sha]
             if any(oid.startswith(rev) for rev in self.ex_revs):
                 ex_shas.add(sha)
+                i += 5
                 continue
-            timestamp = int(lines.pop(0))
-            message = lines.pop(0)
+            i += 1
+            timestamp = int(lines[i])
+            message = lines[i := i + 1]
             if any(fnmatch(message, pattern) for pattern in self.ex_messages):
                 ex_shas.add(sha)
+                i += 3
                 continue
-            author = lines.pop(0)
-            email = lines.pop(0)
+            author = lines[i := i + 1]
+            email = lines[i := i + 1]
             self.persons_db.add_person(author, email)
             self.sha2author[sha] = author
             sha_date = SHADate(sha, timestamp)
             shas_dated.append(sha_date)
+            i += 1
 
         shas_dated.sort(key=lambda x: x.date)
         self.shas_dated = shas_dated
@@ -346,7 +355,7 @@ class RepoBase:
                 f"{self.head_commit.hexsha}",
                 "--follow",
                 "--numstat",
-                "--pretty=format:%n%h %ct%n%aN",
+                "--pretty=format:%n%h%n%ct%n%aN",
                 # Avoid confusion between revisions and files, after "--" git treats all
                 # arguments as files.
                 "--",
@@ -377,18 +386,28 @@ class RepoBase:
         # 2. src/gigui/{ => gi}/gitinspector.py
         # 3. gitinspect_gui.py => gitinspector/gitinspect_gui.py
 
-        while lines:
-            line = lines.pop(0)
+        sha: SHA
+        timestamp: int
+        author: Author
+        stat_line: str
+
+        i = 0
+        while i < len(lines):
+            line = lines[i]
             if not line:
+                i += 1
                 continue
-            sha, timestamp = line.split()
+            sha = line
             if sha in self.ex_shas:
+                i += 4
                 continue
-            author = lines.pop(0)
+            i += 1
+            timestamp = int(lines[i])
+            author = lines[i := i + 1]
             person = self.persons_db[author]
-            if not lines:
+            if i >= len(lines) - 1:
                 break
-            stat_line = lines.pop(0)
+            stat_line = lines[i := i + 1]
             if person.filter_matched or not stat_line:
                 continue
             parts = stat_line.split("\t")
@@ -440,4 +459,5 @@ class RepoBase:
                     shas={sha},
                 )
                 commit_groups.append(commit_group)
+            i += 1
         return commit_groups
