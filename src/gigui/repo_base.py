@@ -9,7 +9,8 @@ from pathlib import Path
 
 from git import Commit, Repo
 
-from gigui.constants import DEBUG_SHOW_FILES, GIT_LOG_CHUNK_SIZE
+from gigui import shared
+from gigui.constants import GIT_LOG_CHUNK_SIZE
 from gigui.data import CommitGroup, PersonsDB, RepoStats
 from gigui.typedefs import OID, SHA, Author, FileStr, Rev
 from gigui.utils import log
@@ -331,7 +332,7 @@ class RepoBase:
         i_max: int = len(self.fstrs)
         i: int = 0
         chunk_size: int = GIT_LOG_CHUNK_SIZE
-        if DEBUG_SHOW_FILES:
+        if shared.DEBUG_SHOW_FILES:
             print(f"Git log: processing {i_max} files")
         if self.multi_thread:
             for chunk_start in range(0, i_max, chunk_size):
@@ -344,7 +345,7 @@ class RepoBase:
                 for future in as_completed(futures):
                     lines_str, fstr = future.result()
                     i += 1
-                    if DEBUG_SHOW_FILES:
+                    if shared.DEBUG_SHOW_FILES:
                         print(f"{i} of {i_max}: {fstr}")
                     self.fstr2commit_groups[fstr] = self._process_commit_lines_for(
                         lines_str, fstr
@@ -353,7 +354,7 @@ class RepoBase:
             for fstr in self.fstrs:
                 lines_str, fstr = self._get_commit_lines_for(fstr)
                 i += 1
-                if DEBUG_SHOW_FILES:
+                if shared.DEBUG_SHOW_FILES:
                     print(f"{i} of {i_max}: {fstr}")
                 self.fstr2commit_groups[fstr] = self._process_commit_lines_for(
                     lines_str, fstr

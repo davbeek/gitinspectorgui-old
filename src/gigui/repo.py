@@ -6,7 +6,8 @@ from typing import TypeVar
 
 from git import InvalidGitRepositoryError, NoSuchPathError, Repo
 
-from gigui.constants import DEBUG_SHOW_FILES, STATIC
+from gigui._logging import shared
+from gigui.constants import STATIC
 from gigui.data import CommitGroup, FileStat, Person, PersonsDB, PersonStat
 from gigui.repo_blame import RepoBlameHistory
 from gigui.typedefs import SHA, Author, FileStr
@@ -70,7 +71,7 @@ class RepoGI(RepoBlameHistory):
                 super().run_blame_history_static()
             return True
         finally:
-            if DEBUG_SHOW_FILES:
+            if shared.DEBUG_SHOW_FILES:
                 print(f"Close {self.name}")
             self.git_repo.close()
 

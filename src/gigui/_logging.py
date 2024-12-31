@@ -61,11 +61,17 @@ def add_gui_handler():
 def set_logging_level_from_verbosity(verbosity: int):
     match verbosity:
         case 0:
+            shared.DEBUG_SHOW_FILES = False
             root_logger.setLevel(logging.WARNING)  # verbosity == 0
         case 1:
-            root_logger.setLevel(logging.INFO)  # verbosity == 1
+            shared.DEBUG_SHOW_FILES = True
+            root_logger.setLevel(logging.WARNING)  # verbosity == 1
+        case 2:
+            shared.DEBUG_SHOW_FILES = True
+            root_logger.setLevel(logging.INFO)  # verbosity == 2
         case _:
-            root_logger.setLevel(logging.DEBUG)  # verbosity >= 2
+            shared.DEBUG_SHOW_FILES = True
+            root_logger.setLevel(logging.DEBUG)  # verbosity >= 3
 
 
 def get_logging_level_name() -> str:
