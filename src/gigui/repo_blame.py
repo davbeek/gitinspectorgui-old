@@ -142,7 +142,7 @@ class RepoBlame(RepoBlameBase):
         i_max: int = len(self.all_fstrs)
         i: int = 0
         chunk_size: int = BLAME_CHUNK_SIZE
-        logger.info(f"Blame: processing {i_max} files")
+        logger.info(f"Blame: {self.name}: {i_max} files")
         if self.multi_thread:
             for chunk_start in range(0, i_max, chunk_size):
                 chunk_end = min(chunk_start + chunk_size, i_max)
@@ -157,8 +157,8 @@ class RepoBlame(RepoBlameBase):
                     git_blames, fstr = future.result()
                     i += 1
                     logger.info(
-                        (f"{self.name}: " if self.multi_core else "")
-                        + f"{i} of {i_max}: {fstr}"
+                        f"blame {i} of {i_max}: "
+                        + (f"{self.name}: {fstr}" if self.multi_core else f"{fstr}")
                     )
                     blames = self._process_git_blames(fstr, git_blames)
                     self.fstr2blames[fstr] = blames

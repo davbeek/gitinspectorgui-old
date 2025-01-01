@@ -391,7 +391,8 @@ def process_multicore_repos(
     queue: multiprocessing.Queue = multiprocessing.Queue(-1)
     listener = start_logging_listener(queue)
     with ProcessPoolExecutor(
-        initializer=configure_logging_for_multiprocessing, initargs=(queue,)
+        initializer=configure_logging_for_multiprocessing,
+        initargs=(queue, args.verbosity),
     ) as process_executor:
         future_to_repo = {
             process_executor.submit(

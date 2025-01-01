@@ -334,7 +334,7 @@ class RepoBase:
         i: int = 0
         chunk_size: int = GIT_LOG_CHUNK_SIZE
         logger.info(
-            f"Git log: processing {i_max} files"
+            f"Git log: {self.name}: {i_max} files"
         )  # Log message sent to QueueHandler
         if self.multi_thread:
             for chunk_start in range(0, i_max, chunk_size):
@@ -348,8 +348,8 @@ class RepoBase:
                     lines_str, fstr = future.result()
                     i += 1
                     logger.info(
-                        (f"{self.name}: " if self.multi_core else "")
-                        + f"{i} of {i_max}: {fstr}"
+                        f"log {i} of {i_max}: "
+                        + (f"{self.name}: {fstr}" if self.multi_core else f"{fstr}")
                     )
                     self.fstr2commit_groups[fstr] = self._process_commit_lines_for(
                         lines_str, fstr

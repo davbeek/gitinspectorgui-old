@@ -89,7 +89,6 @@ def add_gui_handler():
     gui_handler = GUIOutputHandler()
     gui_handler.setFormatter(logging.Formatter(FORMAT))
     root_logger.addHandler(gui_handler)
-    print("GUI handler added")
 
 
 def set_logging_level_from_verbosity(verbosity: int):
@@ -112,11 +111,11 @@ def verbose(self, message, *args, **kwargs):
 setattr(logging.Logger, "verbose", verbose)
 
 
-def configure_logging_for_multiprocessing(queue: multiprocessing.Queue):
+def configure_logging_for_multiprocessing(queue: multiprocessing.Queue, verbosity):
     handler = QueueHandler(queue)
     root = logging.getLogger()
     root.addHandler(handler)
-    root.setLevel(logging.INFO)
+    set_logging_level_from_verbosity(verbosity)
 
 
 def start_logging_listener(queue: multiprocessing.Queue) -> QueueListener:
