@@ -6,7 +6,6 @@ from typing import TypeVar
 
 from git import InvalidGitRepositoryError, NoSuchPathError, Repo
 
-from gigui._logging import shared
 from gigui.constants import STATIC
 from gigui.data import CommitGroup, FileStat, Person, PersonsDB, PersonStat
 from gigui.repo_blame import RepoBlameHistory
@@ -58,6 +57,7 @@ class RepoGI(RepoBlameHistory):
             bool: True after successful execution, False if no stats have been found.
         """
 
+        logger = logging.getLogger(__name__)
         try:
             self.init_git_repo()
             self.run_base(thread_executor)
@@ -71,8 +71,7 @@ class RepoGI(RepoBlameHistory):
                 super().run_blame_history_static()
             return True
         finally:
-            if shared.DEBUG_SHOW_FILES:
-                print(f"Close {self.name}")
+            logger.info(f"Close {self.name}")
             self.git_repo.close()
 
     def _run_no_history(self) -> bool:

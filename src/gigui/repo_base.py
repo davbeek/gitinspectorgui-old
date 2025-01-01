@@ -9,7 +9,6 @@ from pathlib import Path
 
 from git import Commit, Repo
 
-from gigui import shared
 from gigui.constants import GIT_LOG_CHUNK_SIZE
 from gigui.data import CommitGroup, PersonsDB, RepoStats
 from gigui.typedefs import OID, SHA, Author, FileStr, Rev
@@ -35,6 +34,7 @@ class RepoBase:
     extensions: list[str]
     whitespace: bool
     multi_thread: bool
+    multi_core: bool
     ex_files: list[FileStr]
     ex_messages: list[str]
 
@@ -329,11 +329,13 @@ class RepoBase:
                         commit_groups2.pop()
                         i -= 1
 
+        logger = logging.getLogger(__name__)
         i_max: int = len(self.fstrs)
         i: int = 0
         chunk_size: int = GIT_LOG_CHUNK_SIZE
-        if shared.DEBUG_SHOW_FILES:
-            print(f"Git log: processing {i_max} files")
+        logger.info(
+            f"Git log: processing {i_max} files"
+        )  # Log message sent to QueueHandler
         if self.multi_thread:
             for chunk_start in range(0, i_max, chunk_size):
                 chunk_end = min(chunk_start + chunk_size, i_max)
@@ -345,8 +347,10 @@ class RepoBase:
                 for future in as_completed(futures):
                     lines_str, fstr = future.result()
                     i += 1
-                    if shared.DEBUG_SHOW_FILES:
-                        print(f"{i} of {i_max}: {fstr}")
+                    logger.info(
+                        (f"{self.name}: " if self.multi_core else "")
+                        + f"{i} of {i_max}: {fstr}"
+                    )
                     self.fstr2commit_groups[fstr] = self._process_commit_lines_for(
                         lines_str, fstr
                     )
@@ -354,8 +358,7 @@ class RepoBase:
             for fstr in self.fstrs:
                 lines_str, fstr = self._get_commit_lines_for(fstr)
                 i += 1
-                if shared.DEBUG_SHOW_FILES:
-                    print(f"{i} of {i_max}: {fstr}")
+                logger.info(f"{i} of {i_max}: {fstr}")
                 self.fstr2commit_groups[fstr] = self._process_commit_lines_for(
                     lines_str, fstr
                 )

@@ -1,4 +1,6 @@
 import logging
+import multiprocessing
+from logging.handlers import QueueHandler, QueueListener
 
 import colorlog
 import PySimpleGUI as sg  # type: ignore
@@ -6,7 +8,12 @@ import PySimpleGUI as sg  # type: ignore
 from gigui import shared
 
 FORMAT = "%(name)s %(funcName)s %(lineno)s\n%(message)s\n"
+FORMAT_INFO = "%(message)s"
+
 DEBUG = "debug"
+VERBOSE = 15
+
+logging.addLevelName(VERBOSE, "VERBOSE")
 
 # Root logger should not have a name, so that all loggers with names are automatically
 # children of the root logger.
@@ -27,52 +34,95 @@ class GUIOutputHandler(logging.Handler):
             case logging.WARNING:
                 shared.gui_window.write_event_value(DEBUG, (log_entry, "orange"))  # type: ignore
             case logging.INFO:
-                shared.gui_window.write_event_value(DEBUG, (log_entry, "green"))  # type: ignore
+                shared.gui_window.write_event_value(DEBUG, (log_entry, "black"))  # type: ignore
+            case 15:  # VERBOSE
+                shared.gui_window.write_event_value(DEBUG, (log_entry, "cyan"))  # type: ignore
             case logging.DEBUG:
                 shared.gui_window.write_event_value(DEBUG, (log_entry, "blue"))  # type: ignore
             case _:
                 sg.cprint(log_entry)
 
 
-def add_cli_handler():
-    cli_handler = logging.StreamHandler()
-    cli_formatter = colorlog.ColoredFormatter(
+class CustomColoredFormatter(colorlog.ColoredFormatter):
+    def __init__(self, fmt, info_fmt, *args, **kwargs):
+        super().__init__(fmt, *args, **kwargs)
+        self.default_fmt = fmt
+        self.info_fmt = info_fmt
+
+    def format(self, record):
+        if record.levelno == logging.INFO:
+            original_fmt = self._style._fmt
+            self._style._fmt = self.info_fmt
+            result = super().format(record)
+            self._style._fmt = original_fmt
+            return result
+        else:
+            return super().format(record)
+
+
+def get_custom_color_formatter() -> CustomColoredFormatter:
+    return CustomColoredFormatter(
         "%(log_color)s" + FORMAT,
+        info_fmt="%(log_color)s" + FORMAT_INFO,  # Different format for INFO level
         reset=True,
         log_colors={
             "DEBUG": "cyan",
-            "INFO": "green",
+            "VERBOSE": "green",
+            "INFO": "white",
             "WARNING": "yellow",
             "ERROR": "red",
             "CRITICAL": "red,bg_white",
         },
         style="%",
     )
+
+
+def add_cli_handler():
+    cli_handler = logging.StreamHandler()
+    cli_formatter = get_custom_color_formatter()
     cli_handler.setFormatter(cli_formatter)
     root_logger.addHandler(cli_handler)
+    print("CLI handler added")
 
 
 def add_gui_handler():
     gui_handler = GUIOutputHandler()
     gui_handler.setFormatter(logging.Formatter(FORMAT))
     root_logger.addHandler(gui_handler)
+    print("GUI handler added")
 
 
 def set_logging_level_from_verbosity(verbosity: int):
     match verbosity:
         case 0:
-            shared.DEBUG_SHOW_FILES = False
             root_logger.setLevel(logging.WARNING)  # verbosity == 0
         case 1:
-            shared.DEBUG_SHOW_FILES = True
-            root_logger.setLevel(logging.WARNING)  # verbosity == 1
+            root_logger.setLevel(logging.INFO)  # verbosity == 1
         case 2:
-            shared.DEBUG_SHOW_FILES = True
-            root_logger.setLevel(logging.INFO)  # verbosity == 2
+            root_logger.setLevel(VERBOSE)  # verbosity == 2
         case _:
-            shared.DEBUG_SHOW_FILES = True
             root_logger.setLevel(logging.DEBUG)  # verbosity >= 3
 
 
-def get_logging_level_name() -> str:
-    return logging.getLevelName(root_logger.level)
+def verbose(self, message, *args, **kwargs):
+    if self.isEnabledFor(VERBOSE):
+        self._log(VERBOSE, message, args, **kwargs, stacklevel=2)
+
+
+setattr(logging.Logger, "verbose", verbose)
+
+
+def configure_logging_for_multiprocessing(queue: multiprocessing.Queue):
+    handler = QueueHandler(queue)
+    root = logging.getLogger()
+    root.addHandler(handler)
+    root.setLevel(logging.INFO)
+
+
+def start_logging_listener(queue: multiprocessing.Queue) -> QueueListener:
+    cli_formatter = get_custom_color_formatter()
+    cli_handler = logging.StreamHandler()
+    cli_handler.setFormatter(cli_formatter)
+    queue_listener = QueueListener(queue, cli_handler)
+    queue_listener.start()
+    return queue_listener

@@ -193,7 +193,7 @@ class CLIArgs(Args):
     reset: bool = False
 
     def create_settings(self) -> Settings:
-        logger.info(f"CLI self = {self}")
+        logger.verbose(f"CLI self = {self}")  # type: ignore
 
         settings = Settings()
         sets_dict = asdict(settings)
@@ -201,7 +201,7 @@ class CLIArgs(Args):
         for fld in fields(Args):
             sets_dict[fld.name] = args_dict[fld.name]
         settings = Settings.create_from_settings_dict(sets_dict)
-        logger.info(f"GUISettings from CLIArgs: {settings}")
+        logger.verbose(f"GUISettings from CLIArgs: {settings}")  # type: ignore
         return settings
 
     def create_args(self) -> Args:
@@ -225,8 +225,8 @@ class CLIArgs(Args):
             if nmsp_dict[key] is not None:
                 setattr(self, key, nmsp_dict[key])
         set_logging_level_from_verbosity(self.verbosity)
-        logger.info(f"CLI args - Namespace: {args_vars - nmsp_vars}")
-        logger.info(f"Namespace - CLI args:  {nmsp_vars - args_vars}")
+        logger.verbose(f"CLI args - Namespace: {args_vars - nmsp_vars}")  # type: ignore
+        logger.verbose(f"Namespace - CLI args:  {nmsp_vars - args_vars}")  # type: ignore
 
 
 class SettingsFile:

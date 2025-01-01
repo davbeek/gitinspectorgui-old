@@ -30,7 +30,7 @@ url_map = Map(
 def run_server(q: Queue, html_code: Html, browser_id: str, port: int) -> None:
     @Request.application
     def app(request: Request) -> Response:
-        logger.info(f"From browser = {request.path} {request.args.get('id')}")
+        logger.verbose(f"From browser = {request.path} {request.args.get('id')}")  # type: ignore
 
         if request.path == "/":
             return Response(html_code, content_type="text/html; charset=utf-8")

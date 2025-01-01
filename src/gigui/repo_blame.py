@@ -7,7 +7,6 @@ from pathlib import Path
 from git import Commit as GitCommit
 from git import GitCommandError, Repo
 
-from gigui._logging import shared
 from gigui.comment import get_is_comment_lines
 from gigui.constants import BLAME_CHUNK_SIZE
 from gigui.data import FileStat
@@ -139,11 +138,11 @@ class RepoBlame(RepoBlameBase):
         git_blames: GitBlames
         blames: list[Blame]
 
+        logger = logging.getLogger(__name__)
         i_max: int = len(self.all_fstrs)
         i: int = 0
         chunk_size: int = BLAME_CHUNK_SIZE
-        if shared.DEBUG_SHOW_FILES:
-            print(f"Blame: processing {i_max} files")
+        logger.info(f"Blame: processing {i_max} files")
         if self.multi_thread:
             for chunk_start in range(0, i_max, chunk_size):
                 chunk_end = min(chunk_start + chunk_size, i_max)
@@ -157,16 +156,17 @@ class RepoBlame(RepoBlameBase):
                 for future in as_completed(futures):
                     git_blames, fstr = future.result()
                     i += 1
-                    if shared.DEBUG_SHOW_FILES:
-                        print(f"{i} of {i_max}: {fstr}")
+                    logger.info(
+                        (f"{self.name}: " if self.multi_core else "")
+                        + f"{i} of {i_max}: {fstr}"
+                    )
                     blames = self._process_git_blames(fstr, git_blames)
                     self.fstr2blames[fstr] = blames
         else:  # single thread
             for fstr in self.all_fstrs:
                 git_blames, fstr = self._get_git_blames_for(fstr, self.head_sha)
                 i += 1
-                if shared.DEBUG_SHOW_FILES:
-                    print(f"{i} of {i_max}: {fstr}")
+                logger.info(f"{i} of {i_max}: {fstr}")
                 blames = self._process_git_blames(fstr, git_blames)
                 self.fstr2blames[fstr] = blames  # type: ignore
 

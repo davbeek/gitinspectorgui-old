@@ -1,5 +1,6 @@
 import glob
 import logging
+import multiprocessing
 import os
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from cProfile import Profile
@@ -7,6 +8,11 @@ from pathlib import Path
 
 import PySimpleGUI as sg  # type: ignore
 
+from gigui._logging import (
+    configure_logging_for_multiprocessing,
+    set_logging_level_from_verbosity,
+    start_logging_listener,
+)
 from gigui.args_settings import Args
 from gigui.constants import DEFAULT_FILE_BASE, DYNAMIC, HIDE, MAX_THREAD_WORKERS, STATIC
 from gigui.data import FileStat, Person
@@ -38,6 +44,7 @@ from gigui.utils import (
 # pylint: disable=too-many-arguments disable=too-many-positional-arguments
 
 logger = logging.getLogger(__name__)
+# logger = multiprocessing.get_logger()
 
 
 def main(args: Args, start_time: float, gui_window: sg.Window | None = None) -> None:
@@ -48,7 +55,8 @@ def main(args: Args, start_time: float, gui_window: sg.Window | None = None) -> 
 
     args.include_files = args.include_files if args.include_files else ["*"]
 
-    logger.info(f"{args = }")
+    set_logging_level_from_verbosity(args.verbosity)
+    logger.verbose(f"{args = }")  # type: ignore
     init_classes(args)
     repo_lists: list[list[RepoGI]] = []
 
@@ -60,18 +68,18 @@ def main(args: Args, start_time: float, gui_window: sg.Window | None = None) -> 
     len_repos = total_len(repo_lists)
 
     if args.blame_history == STATIC and args.format and args.format != ["html"]:
-        logging.warning(
+        logger.warning(
             "Static blame history is supported only for html or no output format.\n"
         )
         return
     if args.blame_history == DYNAMIC and len_repos > 1:
-        logging.warning(
+        logger.warning(
             "Dynamic blame history is not supported for multiple repositories.\n"
             "Please select static blame history or a single repository."
         )
         return
     if args.blame_history == DYNAMIC and args.format != []:
-        logging.warning(
+        logger.warning(
             "Dynamic blame history is available only when no output formats are selected."
         )
         return
@@ -132,6 +140,7 @@ def init_classes(args: Args):
     RepoBase.extensions = args.extensions
     RepoBase.whitespace = args.whitespace
     RepoBase.multi_thread = args.multi_thread
+    RepoBase.multi_core = args.multi_core
     RepoBase.since = args.since
     RepoBase.until = args.until
     RepoBase.ex_files = args.ex_files
@@ -379,7 +388,11 @@ def process_multicore_repos(
     outfile_base: FileStr,
     start_time: float,
 ) -> None:
-    with ProcessPoolExecutor() as process_executor:
+    queue: multiprocessing.Queue = multiprocessing.Queue(-1)
+    listener = start_logging_listener(queue)
+    with ProcessPoolExecutor(
+        initializer=configure_logging_for_multiprocessing, initargs=(queue,)
+    ) as process_executor:
         future_to_repo = {
             process_executor.submit(
                 process_multicore_repo,
@@ -411,6 +424,7 @@ def process_multicore_repos(
                 )
             count += 1
         log_end_time(start_time)
+    listener.stop()
 
 
 def process_multicore_repo(

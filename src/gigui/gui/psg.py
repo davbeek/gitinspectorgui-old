@@ -52,7 +52,7 @@ def run(settings: Settings) -> None:
 
 # pylint: disable=too-many-locals disable=too-many-branches disable=too-many-statements
 def run_inner(settings: Settings) -> bool:
-    logger.info(f"{settings = }")
+    logger.verbose(f"{settings = }")
 
     # Create variable state, which is properly initialized via a call of
     # window_state_from_settings(...)
@@ -213,7 +213,7 @@ def execute(  # pylint: disable=too-many-branches
 ) -> None:
 
     start_time = time.time()
-    logger.info(f"{values = }")
+    logger.verbose(f"{values = }")
 
     buttons = WindowButtons(window)
 
@@ -288,7 +288,7 @@ def execute(  # pylint: disable=too-many-branches
             return
         setattr(args, key, str(val))
 
-    logger.info(f"{args = }")
+    logger.verbose(f"{args = }")
     buttons.disable_all()
     window.perform_long_operation(
         lambda: gitinspector_main(args, start_time, window), keys.end
