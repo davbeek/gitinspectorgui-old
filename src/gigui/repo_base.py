@@ -376,7 +376,7 @@ class RepoBase:
                 # %n: newline
                 f"{self.head_oid}",
                 "--follow",
-                "--numstat",
+                "--numstat",  # insertions \t deletions \t file_name
                 "--pretty=format:%n%h%n%ct%n%aN",
                 # Avoid confusion between revisions and files, after "--" git treats all
                 # arguments as files.
@@ -422,7 +422,8 @@ class RepoBase:
                 continue
             sha = line
             if sha in self.ex_shas:
-                i += 3
+                logger.info(f"Excluding commit {sha}")
+                i += 4
                 continue
             timestamp = int(lines[i := i + 1])
             author = lines[i := i + 1]
@@ -430,10 +431,14 @@ class RepoBase:
             if not i < len(lines):
                 break
             stat_line = lines[i := i + 1]
-            if person.filter_matched or not stat_line:
+            if not stat_line:
+                continue
+            if person.filter_matched:
+                i += 1
                 continue
             parts = stat_line.split("\t")
             if not len(parts) == 3:
+                logger.error(f"Error in stat line: {stat_line}")
                 continue
             insertions = int(parts[0])
             deletions = int(parts[1])
