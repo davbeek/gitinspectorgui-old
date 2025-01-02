@@ -22,9 +22,9 @@ DEFAULT_WRAP_WIDTH = 88
 logger = logging.getLogger(__name__)
 
 
-def log(arg, text_color=None, end="\n"):
+def log(arg: str, text_color: str | None = None, end: str = "\n"):
     if shared.gui:
-        shared.gui_window.write_event_value("log", (arg, end, text_color))  # type: ignore
+        shared.gui_window.write_event_value("log", (arg + end, text_color if text_color else "black"))  # type: ignore
     else:
         print(arg, end=end)
 
@@ -183,3 +183,9 @@ def out_profile(args, profiler):
             stats = Stats(profiler).strip_dirs()
             log("printing to: gigui.prof")
             stats.dump_stats("gigui.prof")
+
+
+def non_hex_chars_in_list(s_list: list[str]) -> list[str]:
+    hex_chars = set("0123456789abcdefABCDEF")
+    non_hex_chars = [c for s in s_list for c in s if c not in hex_chars]
+    return non_hex_chars

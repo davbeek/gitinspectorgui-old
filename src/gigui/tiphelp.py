@@ -132,8 +132,8 @@ class Tip:
         "e.g.: *@gmail.com john.smith@*"
     )
     ex_revisions: str = (
-        "Filter out all revisions containing any of the space-separated hash strings, "
-        "e.g.: 8755fb33 12345678"
+        "Filter out all revisions starting with any of the space-separated hash strings, "
+        "e.g.: 8755fb3 123456"
     )
     ex_messages: str = (
         "Filter out all revisions containing any of the space-separated commit message "

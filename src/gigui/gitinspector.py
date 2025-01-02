@@ -36,6 +36,7 @@ from gigui.utils import (
     get_outfile_name,
     log,
     log_end_time,
+    non_hex_chars_in_list,
     open_file,
     open_webview,
     out_profile,
@@ -105,6 +106,13 @@ def main(args: Args, start_time: float, gui_window: sg.Window | None = None) -> 
         )
         return
 
+    if non_hex := non_hex_chars_in_list(args.ex_revisions):
+        log(
+            f"Non-hex characters {" ". join(non_hex)} not allowed in exclude "
+            f"revisions option {", ". join(args.ex_revisions)}."
+        )
+        return
+
     outfile_base = args.outfile_base if args.outfile_base else DEFAULT_FILE_BASE
 
     # Process a single repository
@@ -144,7 +152,7 @@ def init_classes(args: Args):
     RepoBase.since = args.since
     RepoBase.until = args.until
     RepoBase.ex_files = args.ex_files
-    RepoBase.ex_revs = set(args.ex_revisions)
+    RepoBase.ex_revisions = set(args.ex_revisions)
     RepoBase.ex_messages = args.ex_messages
     RepoBlameBase.blame_skip = args.blame_skip
     RepoBlameBase.copy_move = args.copy_move

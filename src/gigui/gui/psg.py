@@ -171,8 +171,8 @@ def run_inner(settings: Settings) -> bool:
                 buttons.enable_all()
 
             case keys.log:
-                message, end, color = values["log"]
-                sg.cprint(message, end=end, text_color=color)
+                message, color = values[event]
+                sg.cprint(message, text_color=color, end="")
 
             # Custom logging for GUI, see gigui._logging.GUIOutputHandler.emit
             case keys.debug:

@@ -422,12 +422,12 @@ def output_formats_frame() -> sg.Frame:
             [
                 name_header("General options", ""),
                 name_choice(
-                    "Debug",
+                    "Verbosity",
                     tooltip=tip.verbosity,
                 ),
                 spinbox(
                     keys.verbosity,
-                    list(range(3)),
+                    list(range(4)),
                 ),
                 name_choice(
                     "Dry run",

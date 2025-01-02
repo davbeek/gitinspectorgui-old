@@ -3,7 +3,6 @@ import multiprocessing
 from logging.handlers import QueueHandler, QueueListener
 
 import colorlog
-import PySimpleGUI as sg  # type: ignore
 
 from gigui import shared
 
@@ -11,6 +10,7 @@ FORMAT = "%(name)s %(funcName)s %(lineno)s\n%(message)s\n"
 FORMAT_INFO = "%(message)s"
 
 DEBUG = "debug"
+LOG = "log"
 VERBOSE = 15
 
 logging.addLevelName(VERBOSE, "VERBOSE")
@@ -25,22 +25,21 @@ root_logger = logging.getLogger()
 class GUIOutputHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         log_entry = self.format(record)
-        # Ensure log_entry always starts with a newline. This means that if two log
-        # entries are written in succession, there will be an empty line between them.
-        log_entry = "\n" + log_entry
         match record.levelno:
-            case logging.ERROR:
-                shared.gui_window.write_event_value(DEBUG, (log_entry, "red"))  # type: ignore
-            case logging.WARNING:
-                shared.gui_window.write_event_value(DEBUG, (log_entry, "orange"))  # type: ignore
-            case logging.INFO:
-                shared.gui_window.write_event_value(DEBUG, (log_entry, "black"))  # type: ignore
-            case 15:  # VERBOSE
-                shared.gui_window.write_event_value(DEBUG, (log_entry, "cyan"))  # type: ignore
             case logging.DEBUG:
                 shared.gui_window.write_event_value(DEBUG, (log_entry, "blue"))  # type: ignore
+            case 15:  # VERBOSE
+                shared.gui_window.write_event_value(DEBUG, (log_entry, "green"))  # type: ignore
+            case logging.INFO:
+                shared.gui_window.write_event_value(LOG, (log_entry + "\n", "black"))  # type: ignore
+            case logging.WARNING:
+                shared.gui_window.write_event_value(DEBUG, (log_entry, "orange"))  # type: ignore
+            case logging.ERROR:
+                shared.gui_window.write_event_value(DEBUG, (log_entry, "red"))  # type: ignore
+            case logging.CRITICAL:
+                shared.gui_window.write_event_value(DEBUG, (log_entry, "red"))  # type: ignore
             case _:
-                sg.cprint(log_entry)
+                raise ValueError(f"Unknown log level: {record.levelno}")
 
 
 class CustomColoredFormatter(colorlog.ColoredFormatter):
@@ -60,16 +59,33 @@ class CustomColoredFormatter(colorlog.ColoredFormatter):
             return super().format(record)
 
 
-def get_custom_color_formatter() -> CustomColoredFormatter:
+class CustomFormatter(logging.Formatter):
+    def __init__(self, fmt, info_fmt, *args, **kwargs):
+        super().__init__(fmt, *args, **kwargs)
+        self.default_fmt = fmt
+        self.info_fmt = info_fmt
+
+    def format(self, record):
+        if record.levelno == logging.INFO:
+            original_fmt = self._style._fmt
+            self._style._fmt = self.info_fmt
+            result = super().format(record)
+            self._style._fmt = original_fmt
+            return result
+        else:
+            return super().format(record)
+
+
+def get_custom_cli_color_formatter() -> CustomColoredFormatter:
     return CustomColoredFormatter(
         "%(log_color)s" + FORMAT,
         info_fmt="%(log_color)s" + FORMAT_INFO,  # Different format for INFO level
         reset=True,
         log_colors={
-            "DEBUG": "cyan",
+            "DEBUG": "cyan",  # Changed from blue to cyan for better readability on black
             "VERBOSE": "green",
             "INFO": "white",
-            "WARNING": "yellow",
+            "WARNING": "yellow",  # Changed from orange to yellow for better readability on black
             "ERROR": "red",
             "CRITICAL": "red,bg_white",
         },
@@ -77,17 +93,24 @@ def get_custom_color_formatter() -> CustomColoredFormatter:
     )
 
 
+def get_custom_gui_formatter() -> CustomFormatter:
+    return CustomFormatter(
+        FORMAT,
+        info_fmt=FORMAT_INFO,  # Different format for INFO level
+    )
+
+
 def add_cli_handler():
     cli_handler = logging.StreamHandler()
-    cli_formatter = get_custom_color_formatter()
+    cli_formatter = get_custom_cli_color_formatter()
     cli_handler.setFormatter(cli_formatter)
     root_logger.addHandler(cli_handler)
-    print("CLI handler added")
 
 
 def add_gui_handler():
     gui_handler = GUIOutputHandler()
-    gui_handler.setFormatter(logging.Formatter(FORMAT))
+    gui_formatter = get_custom_gui_formatter()
+    gui_handler.setFormatter(gui_formatter)
     root_logger.addHandler(gui_handler)
 
 
@@ -119,7 +142,7 @@ def configure_logging_for_multiprocessing(queue: multiprocessing.Queue, verbosit
 
 
 def start_logging_listener(queue: multiprocessing.Queue) -> QueueListener:
-    cli_formatter = get_custom_color_formatter()
+    cli_formatter = get_custom_cli_color_formatter()
     cli_handler = logging.StreamHandler()
     cli_handler.setFormatter(cli_formatter)
     queue_listener = QueueListener(queue, cli_handler)

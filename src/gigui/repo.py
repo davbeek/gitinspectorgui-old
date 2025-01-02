@@ -71,7 +71,7 @@ class RepoGI(RepoBlameHistory):
                 super().run_blame_history_static()
             return True
         finally:
-            logger.info(f"Close {self.name}")
+            logger.info(f"        Close {self.name}")
             self.git_repo.close()
 
     def _run_no_history(self) -> bool:

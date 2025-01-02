@@ -76,7 +76,7 @@ def main() -> None:
     if not cli_args.extensions:
         cli_args.extensions = DEFAULT_EXTENSIONS
 
-    logger.verbose(f"{cli_args = }")
+    logger.verbose(f"{cli_args = }")  # type: ignore
 
     args: Args = cli_args.create_args()
 
