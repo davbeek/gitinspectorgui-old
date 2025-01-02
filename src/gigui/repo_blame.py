@@ -12,6 +12,7 @@ from gigui.constants import BLAME_CHUNK_SIZE
 from gigui.data import FileStat
 from gigui.repo_base import RepoBase
 from gigui.typedefs import SHA, Author, BlameLines, Email, FileStr, GitBlames
+from gigui.utils import log_dots
 
 logger = logging.getLogger(__name__)
 
@@ -142,7 +143,7 @@ class RepoBlame(RepoBlameBase):
         i_max: int = len(self.all_fstrs)
         i: int = 0
         chunk_size: int = BLAME_CHUNK_SIZE
-        prefix: str = "        "
+        prefix: str = " " * 8
         logger.info(prefix + f"Blame: {self.name}: {i_max} files")
         if self.multi_thread:
             for chunk_start in range(0, i_max, chunk_size):
@@ -157,6 +158,8 @@ class RepoBlame(RepoBlameBase):
                 for future in as_completed(futures):
                     git_blames, fstr = future.result()
                     i += 1
+                    if self.verbosity == 0:
+                        log_dots(i, i_max, "", "\n", self.multi_core)
                     logger.info(
                         prefix
                         + f"blame {i} of {i_max}: "
@@ -168,6 +171,8 @@ class RepoBlame(RepoBlameBase):
             for fstr in self.all_fstrs:
                 git_blames, fstr = self._get_git_blames_for(fstr, self.head_sha)
                 i += 1
+                if self.verbosity == 0 and not self.multi_core:
+                    log_dots(i, i_max, "", "\n")
                 logger.info(prefix + f"{i} of {i_max}: {fstr}")
                 blames = self._process_git_blames(fstr, git_blames)
                 self.fstr2blames[fstr] = blames  # type: ignore

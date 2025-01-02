@@ -8,6 +8,7 @@ from io import StringIO
 from multiprocessing import Process
 from pathlib import Path
 from pstats import Stats
+from typing import Any
 
 import webview
 
@@ -22,11 +23,25 @@ DEFAULT_WRAP_WIDTH = 88
 logger = logging.getLogger(__name__)
 
 
-def log(arg: str, text_color: str | None = None, end: str = "\n"):
+def log(arg: Any, text_color: str | None = None, end: str = "\n", flush: bool = False):
     if shared.gui:
-        shared.gui_window.write_event_value("log", (arg + end, text_color if text_color else "black"))  # type: ignore
+        shared.gui_window.write_event_value(  # type: ignore
+            "log", (str(arg) + end, (text_color if text_color else "black"))
+        )
     else:
-        print(arg, end=end)
+        print(arg, end=end, flush=flush)
+
+
+def log_dots(
+    i: int, i_max: int, prefix: str = "", postfix: str = "\n", multi_core: bool = False
+):
+    # i from 1 to and including i_max
+    if multi_core:
+        log(".", end="", flush=True)
+    else:
+        if i == 1:
+            log(prefix, end="")
+        log("." if i < i_max else "." + postfix, end="", flush=True)
 
 
 def open_files(fstrs: list[str]):

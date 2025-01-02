@@ -12,7 +12,7 @@ from git import Commit, Repo
 from gigui.constants import GIT_LOG_CHUNK_SIZE
 from gigui.data import CommitGroup, PersonsDB, RepoStats
 from gigui.typedefs import OID, SHA, Author, FileStr, Rev
-from gigui.utils import log
+from gigui.utils import log, log_dots
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +35,7 @@ class RepoBase:
     whitespace: bool
     multi_thread: bool
     multi_core: bool
+    verbosity: int
     ex_files: list[FileStr]
     ex_messages: list[str]
 
@@ -203,7 +204,7 @@ class RepoBase:
 
             blobs: list = _get_subfolder_blobs()
             if not blobs:
-                log(f"        no files found in subfolder {self.subfolder}")
+                log(" " * 8 + f"no files found in subfolder {self.subfolder}")
                 return []
             return [
                 (blob.path, blob.size)  # type: ignore
@@ -333,7 +334,7 @@ class RepoBase:
         i_max: int = len(self.fstrs)
         i: int = 0
         chunk_size: int = GIT_LOG_CHUNK_SIZE
-        prefix: str = "        "
+        prefix: str = " " * 8
         logger.info(
             prefix + f"Git log: {self.name}: {i_max} files"
         )  # Log message sent to QueueHandler
@@ -348,11 +349,14 @@ class RepoBase:
                 for future in as_completed(futures):
                     lines_str, fstr = future.result()
                     i += 1
-                    logger.info(
-                        prefix
-                        + f"log {i} of {i_max}: "
-                        + (f"{self.name}: {fstr}" if self.multi_core else f"{fstr}")
-                    )
+                    if self.verbosity == 0:
+                        log_dots(i, i_max, prefix, " " * 4, self.multi_core)
+                    else:
+                        logger.info(
+                            prefix
+                            + f"log {i} of {i_max}: "
+                            + (f"{self.name}: {fstr}" if self.multi_core else f"{fstr}")
+                        )
                     self.fstr2commit_groups[fstr] = self._process_commit_lines_for(
                         lines_str, fstr
                     )
@@ -360,7 +364,10 @@ class RepoBase:
             for fstr in self.fstrs:
                 lines_str, fstr = self._get_commit_lines_for(fstr)
                 i += 1
-                logger.info(prefix + f"{i} of {i_max}: {fstr}")
+                if self.verbosity == 0 and not self.multi_core:
+                    log_dots(i, i_max, prefix, " " * 4)
+                else:
+                    logger.info(prefix + f"{i} of {i_max}: {fstr}")
                 self.fstr2commit_groups[fstr] = self._process_commit_lines_for(
                     lines_str, fstr
                 )

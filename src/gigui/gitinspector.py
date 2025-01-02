@@ -142,6 +142,7 @@ def main(args: Args, start_time: float, gui_window: sg.Window | None = None) -> 
 
 def init_classes(args: Args):
     RepoGI.blame_history = args.blame_history
+    RepoGI.dry_run = args.dry_run
     RepoBase.include_files = args.include_files
     RepoBase.n_files = args.n_files
     RepoBase.subfolder = args.subfolder
@@ -151,6 +152,7 @@ def init_classes(args: Args):
     RepoBase.multi_core = args.multi_core
     RepoBase.since = args.since
     RepoBase.until = args.until
+    RepoBase.verbosity = args.verbosity
     RepoBase.ex_files = args.ex_files
     RepoBase.ex_revisions = set(args.ex_revisions)
     RepoBase.ex_messages = args.ex_messages
@@ -158,6 +160,7 @@ def init_classes(args: Args):
     RepoBlameBase.copy_move = args.copy_move
     RepoBlameBase.since = args.since
     RepoBlameBase.whitespace = args.whitespace
+    RepoBlameBase.verbosity = args.verbosity
     RepoBlame.multi_thread = args.multi_thread
     RepoBlame.comments = args.comments
     RepoBlame.empty_lines = args.empty_lines
@@ -214,20 +217,16 @@ def process_unicore_repo(
 
     args.multi_core = False
     log("Output in folder " + str(repo.path.parent))
-    log(f"    {repo.name} repository ({1} of {1}) ")
-    if args.dry_run <= 1:
-        with ThreadPoolExecutor(max_workers=MAX_THREAD_WORKERS) as thread_executor:
-            stats_found = repo.run(thread_executor)
-        if stats_found:
-            if args.dry_run == 1:
-                log("")
-            else:  # args.dry_run == 0
-                log("        ", end="")
-                _ = process_repo_output(
-                    args, repo, 1, outfile_base, gui_window, start_time
-                )
-        else:
-            log("No statistics matching filters found")
+    log(" " * 4 + f"{repo.name} repository ({1} of {1}) ")
+    with ThreadPoolExecutor(max_workers=MAX_THREAD_WORKERS) as thread_executor:
+        stats_found = repo.run(thread_executor)
+    if stats_found:
+        if args.dry_run == 1:
+            log("")
+        else:  # args.dry_run == 0
+            process_repo_output(args, repo, 1, outfile_base, gui_window, start_time)
+    else:
+        log("No statistics matching filters found")
 
 
 def process_repo_output(  # pylint: disable=too-many-locals
@@ -237,27 +236,20 @@ def process_repo_output(  # pylint: disable=too-many-locals
     outfile_base: str,
     gui_window: sg.Window | None = None,
     start_time: float | None = None,
-) -> list[FileStr]:  # Files to log
+) -> None:
     """
     Generate result file(s) for the analysis of the given repository.
 
     :return: Files that should be logged
     """
 
-    # Setup logging.
     def logfile(fname: FileStr):
-        if args.multi_core:
-            # Logging is postponed in multi-core.
-            files_to_log.append(fname)
-        else:
-            # Single core.
-            log(fname, end=" ")  # Append space as more filenames may be logged.
+        log(("\n" if args.multi_core and args.verbosity == 0 else "") + " " * 8 + fname)
 
-    files_to_log: list[FileStr] = []
     formats = args.format
 
     if not repo.authors_included:
-        return []
+        return
 
     outfile_name = get_outfile_name(args.fix, outfile_base, repo.name)
     outfilestr = str(repo.path.parent / outfile_name)
@@ -280,16 +272,18 @@ def process_repo_output(  # pylint: disable=too-many-locals
     if not args.multi_core:
         log("")
 
-    # In dry-run, there is nothing to show.
-    if args.dry_run != 0:
-        return files_to_log
+    logger.info(" " * 4 + f"Close {repo.name}")
 
     if len_repos == 1:
         log_end_time(start_time)  # type: ignore
 
+    # In dry-run, there is nothing to show.
+    if args.dry_run != 0:
+        return
+
     # If the result files should not be viewed, we're done.
     if not args.view:
-        return files_to_log
+        return
 
     # args.view is True here, so we open the files.
     if "excel" in formats:
@@ -297,7 +291,7 @@ def process_repo_output(  # pylint: disable=too-many-locals
 
     if "html" in formats and args.blame_history != DYNAMIC:
         open_file(outfilestr + ".html")
-        return []
+        return
 
     if len_repos == 1 and not args.format:
         html_code = get_repo_html(repo, args.blame_skip)
@@ -310,7 +304,6 @@ def process_repo_output(  # pylint: disable=too-many-locals
                 start_werkzeug_server_in_process_with_html(html_code)
             except KeyboardInterrupt:
                 os._exit(0)
-    return []
 
 
 def process_unicore_repos(
@@ -364,26 +357,17 @@ def process_unicore_repo_batch(
 ) -> int:
     log("Output in folder " + str(repos[0].path.parent))
     for repo in repos:
-        dry_run = args.dry_run
-        log(f"    {repo.name} repository ({count} of {len_repos})")
-        if dry_run == 2:
-            continue
-
-        # dry_run == 0 or dry_run == 1
+        log(" " * 4 + f"{repo.name} repository ({count} of {len_repos})")
         stats_found = repo.run(thread_executor)
-        log("        ", end="")
         if not stats_found:
             log("No statistics matching filters found")
         else:  # stats found
-            if dry_run == 1:
-                log("")
-            else:  # dry_run == 0
-                _ = process_repo_output(
-                    args,
-                    repo,
-                    len_repos,
-                    outfile_base,
-                )
+            process_repo_output(
+                args,
+                repo,
+                len_repos,
+                outfile_base,
+            )
         count += 1
     return count
 
@@ -402,36 +386,29 @@ def process_multicore_repos(
         initializer=configure_logging_for_multiprocessing,
         initargs=(queue, args.verbosity),
     ) as process_executor:
-        future_to_repo = {
-            process_executor.submit(
-                process_multicore_repo,
-                args,
-                repo,
-                len_repos,
-                outfile_base,
-            ): repo
-            for repos in repo_lists
-            for repo in repos
-        }
-        count = 1
-        last_parent = None
-        for future in as_completed(future_to_repo):
-            repo = future_to_repo[future]
-            stats_found, files_to_log = future.result()
-            repo_parent = Path(repo.path).parent
-            if not last_parent or repo_parent != last_parent:
-                last_parent = repo_parent
-                log("Output in folder " + str(repo.path.parent))
-            log(f"    {repo.name} repository ({count} of {len_repos}) ")
-            if stats_found:
-                log(f"        {" ".join(files_to_log)}")
-            elif args.dry_run <= 1:
-                log(
-                    "        "
-                    "No statistics matching filters found for "
-                    f"repository {repo.name}"
-                )
-            count += 1
+        for repos in repo_lists:
+            len_repos = len(repos)
+            repo_parent_str = str(Path(repos[0].path).parent)
+            log("Output in folder " + repo_parent_str)
+            future_to_repo = {
+                process_executor.submit(
+                    process_multicore_repo,
+                    args,
+                    repo,
+                    len_repos,
+                    outfile_base,
+                ): repo
+                for repo in repos
+            }
+            for future in as_completed(future_to_repo):
+                repo = future_to_repo[future]
+                stats_found = future.result()
+                if args.dry_run <= 1 and not stats_found:
+                    log(
+                        " " * 8 + "No statistics matching filters found for "
+                        f"repository {repo.name}"
+                    )
+            log("")
         log_end_time(start_time)
     listener.stop()
 
@@ -441,19 +418,16 @@ def process_multicore_repo(
     repo: RepoGI,
     len_repos: int,
     outfile_base: str,
-) -> tuple[bool, list[FileStr]]:
+) -> bool:
     init_classes(args)
     with ThreadPoolExecutor(max_workers=MAX_THREAD_WORKERS) as thread_executor:
-        dry_run = args.dry_run
-        stats_found = False
-        files_to_log: list[FileStr] = []
-        if dry_run <= 1:
-            stats_found = repo.run(thread_executor)
-        if dry_run == 0 and stats_found:
-            files_to_log = process_repo_output(
+        log(" " * 4 + f"Start {repo.name}")
+        stats_found = repo.run(thread_executor)
+        if stats_found:
+            process_repo_output(
                 args,
                 repo,
                 len_repos,
                 outfile_base,
             )
-    return stats_found, files_to_log
+    return stats_found

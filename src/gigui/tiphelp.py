@@ -207,8 +207,8 @@ specify any string."""
     exclude: str = "\n".join(
         textwrap.wrap(
             exclude_string,
-            initial_indent="    ",
-            subsequent_indent="    ",
+            initial_indent=" " * 4,
+            subsequent_indent=" " * 4,
             width=70,
         )
     )

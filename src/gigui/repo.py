@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 # RepoGI = Repo GitInspector
 class RepoGI(RepoBlameHistory):
     blame_history: str
+    dry_run: int
 
     def __init__(self, name: str, location: Path):
         super().__init__(name, location)
@@ -57,8 +58,9 @@ class RepoGI(RepoBlameHistory):
             bool: True after successful execution, False if no stats have been found.
         """
 
-        logger = logging.getLogger(__name__)
         try:
+            if self.dry_run == 2:
+                return True
             self.init_git_repo()
             self.run_base(thread_executor)
             self.run_blame(thread_executor)
@@ -71,10 +73,12 @@ class RepoGI(RepoBlameHistory):
                 super().run_blame_history_static()
             return True
         finally:
-            logger.info(f"        Close {self.name}")
-            self.git_repo.close()
+            if self.dry_run <= 1:
+                self.git_repo.close()
 
     def _run_no_history(self) -> bool:
+        if self.dry_run == 2:
+            return True
 
         # Set stats.author2fstr2fstat, the basis of all other stat tables
         self.author2fstr2fstat = self.stat_tables.get_author2fstr2fstat(
