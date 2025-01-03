@@ -111,18 +111,18 @@ class Tip:
         "statistics. Default extensions: " + " ".join(DEFAULT_EXTENSIONS)
     )
 
-    # Multi-threading and multi-core
-    multi_thread: str = (
+    # Multithread and multicore
+    multithread: str = (
         "Analyse multiple files for changes and blames per repository using multiple threads"
     )
-    multi_core: str = (
+    multicore: str = (
         "Execute multiple repositories using multiple cores, disabled for GUI"
     )
 
     # Exclusion patterns
     ex_files: str = (
         "Filter out all files (or paths) containing any of the space-separated "
-        "strings, e.g.: myfile.py test"
+        "strings, e.g.: myfile.py test*"
     )
     ex_authors: str = (
         "Filter out all authors containing any of the space-separated strings, "
@@ -192,7 +192,7 @@ class Help(Tip):
         f"{', '.join(AVAILABLE_FORMATS)} (default html)."
     )
     # General configuration
-    multi_core: str = "Execute multiple repositories using multiple cores."
+    multicore: str = "Execute multiple repositories using multiple cores."
 
     # Exclusions
     exclude_string: str = """Space-separated list of exclusion patterns describing the

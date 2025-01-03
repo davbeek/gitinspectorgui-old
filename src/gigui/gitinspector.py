@@ -131,7 +131,7 @@ def main(args: Args, start_time: float, gui_window: sg.Window | None = None) -> 
         return
 
     # Process multiple repositories
-    if args.multi_core:
+    if args.multicore:
         process_multicore_repos(args, repo_lists, len_repos, outfile_base, start_time)
     else:
         process_unicore_repos(
@@ -152,8 +152,8 @@ def init_classes(args: Args):
     RepoBase.subfolder = args.subfolder
     RepoBase.extensions = args.extensions
     RepoBase.whitespace = args.whitespace
-    RepoBase.multi_thread = args.multi_thread
-    RepoBase.multi_core = args.multi_core
+    RepoBase.multithread = args.multithread
+    RepoBase.multicore = args.multicore
     RepoBase.since = args.since
     RepoBase.until = args.until
     RepoBase.verbosity = args.verbosity
@@ -165,7 +165,7 @@ def init_classes(args: Args):
     RepoBlameBase.since = args.since
     RepoBlameBase.whitespace = args.whitespace
     RepoBlameBase.verbosity = args.verbosity
-    RepoBlame.multi_thread = args.multi_thread
+    RepoBlame.multithread = args.multithread
     RepoBlame.comments = args.comments
     RepoBlame.empty_lines = args.empty_lines
     RepoBlameHistory.blame_history = args.blame_history
@@ -219,7 +219,7 @@ def process_unicore_repo(
 ) -> None:
     # Process a single repository in case len(repos) == 1 which also means on a single core.
 
-    args.multi_core = False
+    args.multicore = False
     log("Output in folder " + str(repo.path.parent))
     log(" " * 4 + f"{repo.name} repository ({1} of {1}) ")
     with ThreadPoolExecutor(max_workers=MAX_THREAD_WORKERS) as thread_executor:
@@ -248,7 +248,7 @@ def process_repo_output(  # pylint: disable=too-many-locals
     """
 
     def logfile(fname: FileStr):
-        log(("\n" if args.multi_core and args.verbosity == 0 else "") + " " * 8 + fname)
+        log(("\n" if args.multicore and args.verbosity == 0 else "") + " " * 8 + fname)
 
     formats = args.format
 

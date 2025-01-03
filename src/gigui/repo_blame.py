@@ -77,7 +77,7 @@ class RepoBlameBase(RepoBase):
         start_oid = self.sha2oid[start_sha]
         git_blames: GitBlames
         try:
-            if self.multi_thread:
+            if self.multithread:
                 repo = Repo(self.location)
                 git_blames = repo.blame(
                     start_oid, fstr, rev_opts=blame_opts
@@ -128,7 +128,7 @@ class RepoBlameBase(RepoBase):
 
 
 class RepoBlame(RepoBlameBase):
-    multi_thread: bool
+    multithread: bool
     comments: bool
     empty_lines: bool
 
@@ -145,7 +145,7 @@ class RepoBlame(RepoBlameBase):
         chunk_size: int = BLAME_CHUNK_SIZE
         prefix: str = " " * 8
         logger.info(prefix + f"Blame: {self.name}: {i_max} files")
-        if self.multi_thread:
+        if self.multithread:
             for chunk_start in range(0, i_max, chunk_size):
                 chunk_end = min(chunk_start + chunk_size, i_max)
                 chunk_fstrs = self.all_fstrs[chunk_start:chunk_end]
@@ -159,11 +159,11 @@ class RepoBlame(RepoBlameBase):
                     git_blames, fstr = future.result()
                     i += 1
                     if self.verbosity == 0:
-                        log_dots(i, i_max, "", "\n", self.multi_core)
+                        log_dots(i, i_max, "", "\n", self.multicore)
                     logger.info(
                         prefix
                         + f"blame {i} of {i_max}: "
-                        + (f"{self.name}: {fstr}" if self.multi_core else f"{fstr}")
+                        + (f"{self.name}: {fstr}" if self.multicore else f"{fstr}")
                     )
                     blames = self._process_git_blames(fstr, git_blames)
                     self.fstr2blames[fstr] = blames
@@ -171,7 +171,7 @@ class RepoBlame(RepoBlameBase):
             for fstr in self.all_fstrs:
                 git_blames, fstr = self._get_git_blames_for(fstr, self.head_sha)
                 i += 1
-                if self.verbosity == 0 and not self.multi_core:
+                if self.verbosity == 0 and not self.multicore:
                     log_dots(i, i_max, "", "\n")
                 logger.info(prefix + f"{i} of {i_max}: {fstr}")
                 blames = self._process_git_blames(fstr, git_blames)

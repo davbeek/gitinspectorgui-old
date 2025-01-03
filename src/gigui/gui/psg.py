@@ -76,7 +76,7 @@ def run_inner(settings: Settings) -> bool:
 
     # Multicore not working and not implemented in GUI. No checkbox to enable it.
     # Ensure that multicore is False.
-    settings.multi_core = False
+    settings.multicore = False
 
     while True:
         event, values = window.read()  # type: ignore
@@ -251,7 +251,7 @@ def execute(  # pylint: disable=too-many-branches
             keys.format,
             keys.since,
             keys.until,
-            keys.multi_core,
+            keys.multicore,
             keys.gui_settings_full_path,
         }:
             if value["type"] == "array":

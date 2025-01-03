@@ -222,18 +222,17 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
         help=hlp.extensions,
     )
 
-    # Multi-threading and multi-core
-    group_general = parser.add_argument_group("Multi-threading and multi-core")
+    # Multithread and multicore
+    group_general = parser.add_argument_group("Multithread and multicore")
     group_general.add_argument(
-        "--multi-threading",
-        dest="multi_thread",
+        "--multithread",
         action=BooleanOptionalAction,
-        help=hlp.multi_thread,
+        help=hlp.multithread,
     )
     group_general.add_argument(
-        "--multi-core",
+        "--multicore",
         action=BooleanOptionalAction,
-        help=hlp.multi_core,
+        help=hlp.multicore,
     )
 
     # Exclusion patterns

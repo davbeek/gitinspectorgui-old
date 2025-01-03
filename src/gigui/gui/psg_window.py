@@ -376,7 +376,7 @@ def output_formats_frame() -> sg.Frame:
                 ),
                 checkbox(
                     "Multi-threading",
-                    keys.multi_thread,
+                    keys.multithread,
                 ),
                 name_input(
                     "Since",

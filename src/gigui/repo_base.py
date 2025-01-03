@@ -33,8 +33,8 @@ class RepoBase:
     subfolder: str
     extensions: list[str]
     whitespace: bool
-    multi_thread: bool
-    multi_core: bool
+    multithread: bool
+    multicore: bool
     verbosity: int
     ex_files: list[FileStr]
     ex_messages: list[str]
@@ -347,7 +347,7 @@ class RepoBase:
         logger.info(
             prefix + f"Git log: {self.name}: {i_max} files"
         )  # Log message sent to QueueHandler
-        if self.multi_thread:
+        if self.multithread:
             for chunk_start in range(0, i_max, chunk_size):
                 chunk_end = min(chunk_start + chunk_size, i_max)
                 chunk_fstrs = self.fstrs[chunk_start:chunk_end]
@@ -359,12 +359,12 @@ class RepoBase:
                     lines_str, fstr = future.result()
                     i += 1
                     if self.verbosity == 0:
-                        log_dots(i, i_max, prefix, " " * 4, self.multi_core)
+                        log_dots(i, i_max, prefix, " " * 4, self.multicore)
                     else:
                         logger.info(
                             prefix
                             + f"log {i} of {i_max}: "
-                            + (f"{self.name}: {fstr}" if self.multi_core else f"{fstr}")
+                            + (f"{self.name}: {fstr}" if self.multicore else f"{fstr}")
                         )
                     self.fstr2commit_groups[fstr] = self._process_commit_lines_for(
                         lines_str, fstr
@@ -373,7 +373,7 @@ class RepoBase:
             for fstr in self.fstrs:
                 lines_str, fstr = self._get_commit_lines_for(fstr)
                 i += 1
-                if self.verbosity == 0 and not self.multi_core:
+                if self.verbosity == 0 and not self.multicore:
                     log_dots(i, i_max, prefix, " " * 4)
                 else:
                     logger.info(prefix + f"{i} of {i_max}: {fstr}")
@@ -404,7 +404,7 @@ class RepoBase:
             return args
 
         lines_str: str
-        if self.multi_thread:
+        if self.multithread:
             repo = Repo(self.location)
             lines_str = repo.git.log(git_log_args())
             repo.close()

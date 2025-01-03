@@ -57,8 +57,8 @@ class Args:
     copy_move: int = DEFAULT_COPY_MOVE
     verbosity: int = 0
     dry_run: int = 0
-    multi_thread: bool = True
-    multi_core: bool = False
+    multithread: bool = True
+    multicore: bool = False
     since: str = ""
     until: str = ""
     ex_files: list[str] = field(default_factory=list)
@@ -280,8 +280,8 @@ class SettingsFile:
             "copy_move": {"type": "integer"},
             "verbosity": {"type": "integer"},
             "dry_run": {"type": "integer"},
-            "multi_thread": {"type": "boolean"},
-            "multi_core": {"type": "boolean"},
+            "multithread": {"type": "boolean"},
+            "multicore": {"type": "boolean"},
             "since": {"type": "string"},
             "until": {"type": "string"},
             "ex_authors": {"type": "array", "items": {"type": "string"}},

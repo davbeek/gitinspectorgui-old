@@ -33,10 +33,10 @@ def log(arg: Any, text_color: str | None = None, end: str = "\n", flush: bool = 
 
 
 def log_dots(
-    i: int, i_max: int, prefix: str = "", postfix: str = "\n", multi_core: bool = False
+    i: int, i_max: int, prefix: str = "", postfix: str = "\n", multicore: bool = False
 ):
     # i from 1 to and including i_max
-    if multi_core:
+    if multicore:
         log(".", end="", flush=True)
     else:
         if i == 1:

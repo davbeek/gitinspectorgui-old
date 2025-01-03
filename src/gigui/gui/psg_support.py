@@ -82,7 +82,7 @@ class WindowButtons:
 
 def window_state_from_settings(window: sg.Window, settings: Settings) -> None:
     settings_dict = asdict(settings)
-    # settings_min is settings dict with 6 keys removed: keys.fix - keys.multi_core
+    # settings_min is settings dict with 6 keys removed: keys.fix - keys.multicore
     settings_min = {
         key: value
         for key, value in settings_dict.items()
@@ -92,7 +92,7 @@ def window_state_from_settings(window: sg.Window, settings: Settings) -> None:
             keys.format,
             keys.gui_settings_full_path,
             keys.profile,
-            keys.multi_core,
+            keys.multicore,
         }
     }
     for key, val in settings_min.items():
