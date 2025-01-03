@@ -82,7 +82,8 @@ class Tip:
         "2: Detailed debug output"
     )
     dry_run: str = (
-        "0: normal execution, 1: analysis without output files, 2: no analysis no output files"
+        "0: normal execution, 1: fast analysis without viewer or output files, "
+        "2: no analysis no output, only repo names."
     )
 
     # Inclusions and exclusions

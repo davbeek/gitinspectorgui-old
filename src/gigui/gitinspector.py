@@ -54,6 +54,9 @@ def main(args: Args, start_time: float, gui_window: sg.Window | None = None) -> 
         profiler = Profile()
         profiler.enable()
 
+    if args.dry_run == 1:
+        args.copy_move = 0
+
     args.include_files = args.include_files if args.include_files else ["*"]
 
     set_logging_level_from_verbosity(args.verbosity)
@@ -96,7 +99,8 @@ def main(args: Args, start_time: float, gui_window: sg.Window | None = None) -> 
     if len_repos > 1 and not args.format and args.dry_run == 0:
         log(
             "Multiple repos detected and no output format selected.\n"
-            "Please select an output format."
+            "Please select an output format. "
+            + ("E.g. -F html" if not gui_window else "E.g. select html.")
         )
         return
     if not args.view and not args.format and args.dry_run == 0:
