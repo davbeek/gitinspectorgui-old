@@ -4,7 +4,7 @@ import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime
-from fnmatch import fnmatch
+from fnmatch import fnmatchcase
 from pathlib import Path
 
 from git import Commit, Repo
@@ -179,7 +179,7 @@ class RepoBase:
                 if (
                     blob.type == "blob"  # type: ignore
                     and any(
-                        fnmatch(blob.path, pattern)  # type: ignore
+                        fnmatchcase(blob.path.lower(), pattern.lower())  # type: ignore
                         for pattern in include_files
                     )
                     and blob.path in files_set  # type: ignore
@@ -207,7 +207,7 @@ class RepoBase:
                     for blob in self.head_commit.tree.traverse()
                     if (
                         (blob.type == "blob")  # type: ignore
-                        and fnmatch(blob.path, f"{self.subfolder}*")  # type: ignore
+                        and fnmatchcase(blob.path.lower(), f"{self.subfolder}*".lower())  # type: ignore
                     )
                 ]
 
@@ -233,7 +233,9 @@ class RepoBase:
 
     # Returns True if file should be excluded
     def _matches_ex_file(self, fstr: FileStr) -> bool:
-        return any(fnmatch(fstr, pattern) for pattern in self.ex_files)
+        return any(
+            fnmatchcase(fstr.lower(), pattern.lower()) for pattern in self.ex_files
+        )
 
     def _get_biggest_files_from(self, matches: list[FileStr]) -> list[FileStr]:
         return matches
@@ -291,7 +293,10 @@ class RepoBase:
                 continue
             timestamp = int(lines[i := i + 1])
             message = lines[i := i + 1]
-            if any(fnmatch(message, pattern) for pattern in self.ex_messages):
+            if any(
+                fnmatchcase(message.lower(), pattern.lower())
+                for pattern in self.ex_messages
+            ):
                 ex_shas.add(sha)
                 i += 3
                 continue
