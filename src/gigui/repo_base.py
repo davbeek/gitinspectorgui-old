@@ -121,7 +121,16 @@ class RepoBase:
             self.nr2sha[nr] = sha
             nr -= 1
 
-        self.head_commit = self.git_repo.head.commit
+        # Set head_commit to the top-level commit at the date given by self.until
+        if self.until:
+            commits = list(self.git_repo.iter_commits(until=self.until))
+            if commits:
+                self.head_commit = commits[0]
+            else:
+                self.head_commit = self.git_repo.head.commit
+        else:
+            self.head_commit = self.git_repo.head.commit
+
         self.head_oid = self.head_commit.hexsha
         self.head_sha = self.oid2sha[self.head_oid]
 
