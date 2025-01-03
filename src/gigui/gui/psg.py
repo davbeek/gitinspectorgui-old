@@ -18,6 +18,8 @@ from gigui.gitinspector import main as gitinspector_main
 from gigui.gui.psg_support import (
     GUIState,
     WindowButtons,
+    disable_element,
+    enable_element,
     help_window,
     log,
     popup,
@@ -102,6 +104,22 @@ def run_inner(settings: Settings) -> bool:
                 )
                 last_window_height = window_height
 
+                # Custom logging for GUI, see gigui._logging.GUIOutputHandler.emit
+            case keys.debug:
+                message, color = values["debug"]
+                sg.cprint(message, text_color=color)
+
+            case keys.log:
+                message, color = values[event]
+                sg.cprint(message, text_color=color, end="")
+
+            case keys.open_webview:
+                html_code, repo_name = values[event]
+                open_webview(html_code, repo_name, gui=True)
+
+            # Top level buttons
+            ###########################
+
             case keys.col_percent:
                 update_col_percent(window, last_window_height, values[event], state)  # type: ignore
 
@@ -112,6 +130,73 @@ def run_inner(settings: Settings) -> bool:
 
             case keys.clear:
                 window[keys.multiline].update(value="")  # type: ignore
+
+            case keys.help:
+                help_window()
+
+            case keys.about:
+                log(Help.about_info)
+
+            # Window closed, or Exit button clicked
+            case sg.WIN_CLOSED | keys.exit:
+                break
+
+            # Execute command has finished via window.perform_long_operation in
+            # run_gitinspector().
+            case keys.end:
+                buttons.enable_all()
+
+            # IO configuration
+            ##################################
+
+            case keys.input_fstrs:
+                process_input_fstrs(values[event], state, window)
+
+            case keys.outfile_base:
+                update_outfile_str(state, window)
+
+            case event if event in (keys.postfix, keys.prefix, keys.nofix):
+                state.fix = event
+                update_outfile_str(state, window)
+
+            case keys.subfolder:
+                state.subfolder = values[event]
+                process_inputs(state, window)
+
+            case keys.n_files:
+                process_n_files(values[keys.n_files], window[event])  # type: ignore
+
+            # Output generation and formatting
+            ##################################
+
+            case keys.blame_history:
+                value = values[event]
+                match value:
+                    case "none":
+                        enable_element(window[keys.view])  # type: ignore
+                        enable_element(window[keys.html])  # type: ignore
+                        enable_element(window[keys.excel])  # type: ignore
+
+                    case "dynamic":
+                        window[keys.view].update(value=True)  # type: ignore
+                        window[keys.html].update(value=False)  # type: ignore
+                        window[keys.excel].update(value=False)  # type: ignore
+                        disable_element(window[keys.view])  # type: ignore
+                        disable_element(window[keys.html])  # type: ignore
+                        disable_element(window[keys.excel])  # type: ignore
+
+                    case "static":
+                        window[keys.html].update(value=True)  # type: ignore
+                        window[keys.excel].update(value=False)  # type: ignore
+                        enable_element(window[keys.view])  # type: ignore
+                        disable_element(window[keys.html])  # type: ignore
+                        disable_element(window[keys.excel])  # type: ignore
+
+            case keys.verbosity:
+                set_logging_level_from_verbosity(values[event])
+
+            # Settings
+            ##################################
 
             case keys.save:
                 new_settings = Settings.from_values_dict(values)
@@ -154,54 +239,6 @@ def run_inner(settings: Settings) -> bool:
                     update_settings_file_str(True, window)
                 else:
                     update_settings_file_str(False, window)
-
-            case keys.help:
-                help_window()
-
-            case keys.about:
-                log(Help.about_info)
-
-            # Window closed, or Exit button clicked
-            case sg.WIN_CLOSED | keys.exit:
-                break
-
-            # Execute command has finished via window.perform_long_operation in
-            # run_gitinspector().
-            case keys.end:
-                buttons.enable_all()
-
-            case keys.log:
-                message, color = values[event]
-                sg.cprint(message, text_color=color, end="")
-
-            # Custom logging for GUI, see gigui._logging.GUIOutputHandler.emit
-            case keys.debug:
-                message, color = values["debug"]
-                sg.cprint(message, text_color=color)
-
-            case keys.input_fstrs:
-                process_input_fstrs(values[event], state, window)
-
-            case keys.outfile_base:
-                update_outfile_str(state, window)
-
-            case event if event in (keys.postfix, keys.prefix, keys.nofix):
-                state.fix = event
-                update_outfile_str(state, window)
-
-            case keys.subfolder:
-                state.subfolder = values[event]
-                process_inputs(state, window)
-
-            case keys.n_files:
-                process_n_files(values[keys.n_files], window[event])  # type: ignore
-
-            case keys.verbosity:
-                set_logging_level_from_verbosity(values[event])
-
-            case keys.open_webview:
-                html_code, repo_name = values[event]
-                open_webview(html_code, repo_name, gui=True)
 
     return recreate_window
 

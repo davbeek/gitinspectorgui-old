@@ -121,6 +121,7 @@ def window_state_from_settings(window: sg.Window, settings: Settings) -> None:
     # correct displaying of the column height
     window.write_event_value(keys.col_percent, min(settings.col_percent + 5, 100))
     window.write_event_value(keys.col_percent, settings.col_percent)
+    window.write_event_value(keys.blame_history, settings.blame_history)
     if settings.gui_settings_full_path:
         settings_fstr = str(SettingsFile.get_location())
     else:

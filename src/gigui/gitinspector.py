@@ -84,7 +84,9 @@ def main(args: Args, start_time: float, gui_window: sg.Window | None = None) -> 
         return
     if args.blame_history == DYNAMIC and args.format != []:
         logger.warning(
-            "Dynamic blame history is available only when no output formats are selected."
+            "Dynamic blame history is available only when no output formats are "
+            "selected, because it is generated on the fly and the output cannot be "
+            "stored in a file."
         )
         return
     if not len_repos:
