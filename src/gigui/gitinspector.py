@@ -272,10 +272,6 @@ def process_repo_output(  # pylint: disable=too-many-locals
             with open(outfilestr + ".html", "w", encoding="utf-8") as f:
                 f.write(html_code)
 
-    # All formats done, end the log line in the single core case.
-    if not args.multi_core:
-        log("")
-
     logger.info(" " * 4 + f"Close {repo.name}")
 
     if len_repos == 1:
@@ -412,7 +408,6 @@ def process_multicore_repos(
                         " " * 8 + "No statistics matching filters found for "
                         f"repository {repo.name}"
                     )
-            log("")
         log_end_time(start_time)
     listener.stop()
 
