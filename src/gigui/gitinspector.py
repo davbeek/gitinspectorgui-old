@@ -230,7 +230,7 @@ def process_unicore_repo(
         else:  # args.dry_run == 0
             process_repo_output(args, repo, 1, outfile_base, gui_window, start_time)
     else:
-        log("No statistics matching filters found")
+        log(" " * 8 + "No statistics matching filters found")
 
 
 def process_repo_output(  # pylint: disable=too-many-locals
@@ -360,7 +360,7 @@ def process_unicore_repo_batch(
         log(" " * 4 + f"{repo.name} repository ({count} of {len_repos})")
         stats_found = repo.run(thread_executor)
         if not stats_found:
-            log("No statistics matching filters found")
+            log(" " * 8 + "No statistics matching filters found")
         else:  # stats found
             process_repo_output(
                 args,

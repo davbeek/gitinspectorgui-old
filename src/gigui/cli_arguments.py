@@ -80,18 +80,15 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
         "--subfolder",
         help=hlp.subfolder,
     )
-    files_group = group_input.add_mutually_exclusive_group()
-    files_group.add_argument(
+    group_input.add_argument(
         "-n",
         "--n-files",
-        # Unfortunately, for an empty option string, get_pos_number_or_empty is not
-        # called.
-        type=get_pos_number_or_empty,
+        type=get_pos_number_or_empty,  # Use -n "" to get all files
         nargs="?",  # Accept zero or one argument
         metavar="N",
         help=hlp.n_files,
     )
-    files_group.add_argument(
+    group_input.add_argument(
         "-f",
         "--include-files",
         action="extend",
