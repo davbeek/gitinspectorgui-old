@@ -484,21 +484,20 @@ class RepoBase:
             target = self.fr2f2a2sha_set
             if fstr_root not in target:
                 target[fstr_root] = {}
+                # Ensure that there is at least one entry for fstr_root in the target
+                # when --blame-history in {dynamic, static} is used. This is necessary
+                # for when the first commit in the list of commits from the top down, is
+                # a rename without any changes in the file. Such renames are not show in
+                # the output for git log --follow --numstat.
+                target[fstr_root][fstr_root] = {}
+                target[fstr_root][fstr_root][author] = set()
+                target[fstr_root][fstr_root][author].add(sha)
+
             if fstr not in target[fstr_root]:
                 target[fstr_root][fstr] = {}
             if author not in target[fstr_root][fstr]:
                 target[fstr_root][fstr][author] = set()
             target[fstr_root][fstr][author].add(sha)
-            if fstr_root not in target[fstr_root].keys():
-                # No commits for fstr_root have been done yet, so the file fstr must
-                # have been renamed to fstr_root. Renames without any other changes are
-                # not shown in the git log --follow output. Duplicate the entry for fstr
-                # to fstr_root, because there must be at least one commit for fstr_root
-                # which is the first commit in the list of commits for the html output
-                # when --blame-history in {dynamic, static} is used.
-                target[fstr_root][fstr_root] = {}
-                target[fstr_root][fstr_root][author] = set()
-                target[fstr_root][fstr_root][author].add(sha)
 
             if (
                 len(commit_groups) > 1
