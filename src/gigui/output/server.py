@@ -1,10 +1,12 @@
 import logging
 from multiprocessing import Queue
+from threading import Thread  # Add this import
 
 from werkzeug.routing import Map, Rule
 from werkzeug.serving import run_simple
 from werkzeug.wrappers import Request, Response
 
+import gigui._logging  # noqa # Ensure the verbose method is added to the logger
 from gigui.output.html import Html
 
 PORT = 8080
@@ -58,4 +60,6 @@ def run_server(q: Queue, html_code: Html, browser_id: str, port: int) -> None:
         else:
             return Response("Not found", status=404)
 
-    run_simple("localhost", port, app)
+    # Run the server in a new thread
+    server_thread = Thread(target=run_simple, args=("localhost", port, app))
+    server_thread.start()
