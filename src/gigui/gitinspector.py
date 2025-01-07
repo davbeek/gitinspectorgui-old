@@ -121,8 +121,9 @@ def main(args: Args, start_time: float, gui_window: sg.Window | None = None) -> 
 
     outfile_base = args.outfile_base if args.outfile_base else DEFAULT_FILE_BASE
 
-    # Process a single repository
     if len_repos == 1:
+        # Process a single repository
+        # No need to test for multicore here, as single repos always use single core.
         process_unicore_repo(
             args,
             repo_lists[0][0],
@@ -130,12 +131,11 @@ def main(args: Args, start_time: float, gui_window: sg.Window | None = None) -> 
             gui_window,
             start_time,
         )
-        return
-
-    # Process multiple repositories
-    if args.multicore:
+    elif args.multicore:
+        # Process multiple repositories on multiple cores
         process_multicore_repos(args, repo_lists, len_repos, outfile_base, start_time)
-    else:
+    else:  # not args.multicore, len(repos) > 1
+        # Process multiple repositories on a single core
         process_unicore_repos(
             args,
             repo_lists,
@@ -143,7 +143,8 @@ def main(args: Args, start_time: float, gui_window: sg.Window | None = None) -> 
             outfile_base,
             start_time,
         )
-    out_profile(args, profiler)
+
+    out_profile(profiler, args.profile)
 
 
 def init_classes(args: Args):

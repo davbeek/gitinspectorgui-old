@@ -179,19 +179,19 @@ def get_version() -> str:
     return version
 
 
-def out_profile(args, profiler):
+def out_profile(profiler, nr_lines: int):
     def log_profile(profile: Profile, sort: str):
         io_stream = StringIO()
         stats = Stats(profile, stream=io_stream).strip_dirs()
-        stats.sort_stats(sort).print_stats(args.profile)
+        stats.sort_stats(sort).print_stats(nr_lines)
         s = io_stream.getvalue()
         log(s)
 
-    if args.profile:
+    if nr_lines:
         assert profiler is not None
         log("Profiling results:")
         profiler.disable()
-        if 0 < args.profile < 100:
+        if 0 < nr_lines < 100:
             log_profile(profiler, "cumulative")
             log_profile(profiler, "time")
         else:
