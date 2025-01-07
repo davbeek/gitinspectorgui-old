@@ -220,8 +220,11 @@ class RepoBase:
                 for blob in blobs
                 if (
                     # exclude files with incorrect extensions and those in ex_file
-                    ((blob.path.split(".")[-1] in self.extensions))  # type: ignore
-                    and not self._matches_ex_file(blob.path)  # type: ignore
+                    (
+                        "*" in self.extensions
+                        or (blob.path.split(".")[-1] in self.extensions)
+                    )
+                    and not self._matches_ex_file(blob.path)
                 )
             ]
 
