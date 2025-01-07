@@ -23,11 +23,6 @@ of the contribution of each author to selected repositories.
 
 ## Download and installation: Windows
 
-### GUI
-
-Stand-alone executables for Windows and macOS can be downloaded from the
-[releases page](https://github.com/davbeek/gitinspectorgui/releases).
-
 ### Install Git for Windows
 
 The GitinspectorGUI app is only about 18MB in size, but it requires Git for
@@ -43,11 +38,37 @@ items in File Explorer and create a Git desktop icon.
 
 ### Download the GitinspectorGUI app
 
-Download the `windows-gitinspectorgui-setup.exe` file, execute it, and follow the
-on-screen installation instructions. The GitinspectorGUI executable will be
-available under the program group GitinspectorGUI.
+The stand-alone executable can be downloaded from the [releases
+page](https://github.com/davbeek/gitinspectorgui/releases). Download the
+`windows-gitinspectorgui-setup.exe` file, execute it, and follow the on-screen
+installation instructions. The GitinspectorGUI executable will be available
+under the program group GitinspectorGUI.
 
 ## Download and installation: macOS
+
+### Download and install Git
+
+There are multiple ways to install Git for macOS, but they all require the
+command line. The easiest way to do this is if you use Miniconda or Anaconda,
+Homebrew or MacPorts as package manager:
+
+Via conda:
+`conda install git`
+
+Via Homebrew:
+`brew install git`
+
+Via MacPorts:
+`sudo port install git`
+
+If you do not use a package manager, git can be installed as part of the XCode
+Command Line Tools via:
+
+`xcode-select --install`
+
+This does not install the complete XCode IDE and takes about 1GB.
+
+### Install the GitinspectorGUI app
 
 Download the appropriate dmg file for your hardware. There are two versions for macOS:
 
@@ -75,18 +96,37 @@ button will allow the GitinspectorGUI app to be executed.
 
 ### CLI
 
-For CLI versions, you need to have a working Python installation, so that you
-can install GitinspectorGUI from PyPI via `pip install gitinspectorgui`. You can
-then execute the program by running `python -m gigui -h` to display the help
-info in the CLI.
+For the CLI version, you need to have a working Python installation so that you
+can install GitinspectorGUI from PyPI via:
 
-You also need to have a working Git program. For Windows, see the instructions
-under the [GUI](#gui) heading.
+`pip install gitinspectorgui`
 
-Note that the program name is gitinspectorgui in PyPI, but the
-name of the actually installed Python package is the abbreviated form `gigui`.
+You can then display the gitinspectorgui help info by executing:
+
+`python -m gigui -h`
+
+This displays the help info in the CLI. Like the GUI app, the CLI version also
+requires Git to be installed.
+
+Note that the program name is `gitinspectorgui` in PyPI, but the name of the
+actually installed Python package is the abbreviated form `gigui`.
 
 ## Installation: Linux
+
+First install git via your Linux distribution's package manager.
+
+There is no executable app binary available for Linux. To only way to run
+gitinspectorgui on Linux is by installing gitinspectorgui from PyPI. This can be
+done via:
+
+`pip install gitinspectorgui`
+
+You can then display the gitinspectorgui help info by executing:
+
+`python -m gigui -h`
+
+Note that the program name is `gitinspectorgui` in PyPI, but the name of the
+actually installed Python package is the abbreviated form `gigui`.
 
 ## Documentation
 
