@@ -18,9 +18,9 @@ VERSION="$(<$ROOT_DIR/src/gigui/version.txt)"
 
 # Define the name of the .dmg file based on the platform and add version number
 if [ "$PLATFORM" = "x86_64" ]; then
-    DMG_PLATFORM_FILE="GitinspectorGUI-Intel-$VERSION.dmg"
+    DMG_PLATFORM_FILE="macOS-GitinspectorGUI-Intel-$VERSION.dmg"
 else
-    DMG_PLATFORM_FILE="GitinspectorGUI-AppleSilicon-$VERSION.dmg"
+    DMG_PLATFORM_FILE="macOS-GitinspectorGUI-AppleSilicon-$VERSION.dmg"
 fi
 
 cd $ROOT_DIR/app && {

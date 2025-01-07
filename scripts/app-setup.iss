@@ -31,7 +31,7 @@ DisableDirPage=no
 ; Remove the following line to run in administrative install mode (install for all users.)
 PrivilegesRequired=lowest
 OutputDir=C:\Users\Bert\1-repos\github\gitinspectorgui\app\pyinstall-setup
-OutputBaseFilename=gitinspectorgui-setup
+OutputBaseFilename=windows-gitinspectorgui-setup
 SetupIconFile=C:\Users\Bert\1-repos\github\gitinspectorgui\src\gigui\gui\images\icon.ico
 Compression=lzma
 SolidCompression=yes
