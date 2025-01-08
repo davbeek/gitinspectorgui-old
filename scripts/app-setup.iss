@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "GitinspectorGUI"
-#define MyAppVersion "0.3.5"
+#define MyAppVersion "4.0.0rc1"
 #define MyAppURL "https://gitinspectorgui.readthedocs.io/"
 #define MyAppExeName "gitinspectorgui.exe"
 

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "gitinspectorgui"
-version = "0.3.5"
+version = "4.0.0rc1"
 description = "A CLI and GUI tool for numerical and blame analysis of git repositories."
 authors = ["Bert van Beek <d.a.v.beek@tue.nl>", "Jingjing Wang"]
 license = "MIT"
