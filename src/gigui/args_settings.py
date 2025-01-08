@@ -26,7 +26,13 @@ from gigui.constants import (
     SUBDIR_NESTING_DEPTH,
 )
 from gigui.keys import Keys, KeysArgs
-from gigui.utils import log
+from gigui.utils import (
+    log,
+    to_posix_fstr,
+    to_posix_fstrs,
+    to_system_fstr,
+    to_system_fstrs,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +101,8 @@ class Settings(Args):
     def from_args(cls, args: Args, gui_settings_full_path: bool) -> "Settings":
         # Create a Settings object using the instance variables from Args and the given
         # gui_settings_full_path
-        return cls(gui_settings_full_path=gui_settings_full_path, **args.__dict__)
+        settings = cls(gui_settings_full_path=gui_settings_full_path, **args.__dict__)
+        return settings.as_posix()
 
     def create_settings_file(self, settings_path: Path):
         settings_dict = asdict(self)
@@ -107,7 +114,7 @@ class Settings(Args):
         settings_dict = asdict(self)
         jsonschema.validate(settings_dict, SettingsFile.SETTINGS_SCHEMA)
         try:
-            settings_path = SettingsFile.get_location()
+            settings_path = SettingsFile.get_location_path()
         except (
             FileNotFoundError,
             json.decoder.JSONDecodeError,
@@ -142,6 +149,20 @@ class Settings(Args):
             key = key.replace("_", "-")
             log(f"{key:22}: {value}")
 
+    def as_posix(self) -> "Settings":
+        self.input_fstrs = to_posix_fstrs(self.input_fstrs)
+        self.ex_files = to_posix_fstrs(self.ex_files)
+        self.include_files = to_posix_fstrs(self.include_files)
+        self.subfolder = to_posix_fstr(self.subfolder)
+        return self
+
+    def as_system(self) -> "Settings":
+        self.input_fstrs = to_system_fstrs(self.input_fstrs)
+        self.ex_files = to_system_fstrs(self.ex_files)
+        self.include_files = to_system_fstrs(self.include_files)
+        self.subfolder = to_system_fstr(self.subfolder)
+        return self
+
     @classmethod
     def create_from_settings_dict(
         cls, settings_dict: dict[str, str | int | bool | list[str]]
@@ -150,7 +171,7 @@ class Settings(Args):
         settings = cls()
         for key in settings_schema:
             setattr(settings, key, settings_dict[key])
-        return settings
+        return settings.as_posix()
 
     @classmethod
     def from_values_dict(cls, values: dict[str, str | int | bool]) -> "Settings":
@@ -180,7 +201,7 @@ class Settings(Args):
                 formats.append(fmt)
         settings.format = formats
 
-        return settings
+        return settings.as_posix()
 
 
 @dataclass
@@ -305,7 +326,7 @@ class SettingsFile:
         return Path(location_settings["settings_location"])
 
     @classmethod
-    def get_location(cls) -> Path:
+    def get_location_path(cls) -> Path:
         try:
             with open(cls.SETTINGS_LOCATION_PATH, "r", encoding="utf-8") as f:
                 s = f.read()
@@ -318,11 +339,11 @@ class SettingsFile:
             jsonschema.ValidationError,
         ):
             cls.create_location_file_for(cls.DEFAULT_LOCATION_SETTINGS)
-            return cls.get_location()
+            return cls.get_location_path()
 
     @classmethod
     def show(cls):
-        path = cls.get_location()
+        path = cls.get_location_path()
         log(f"{path}:")
         settings, _ = cls.load()
         if not shared.gui:
@@ -330,11 +351,11 @@ class SettingsFile:
 
     @classmethod
     def get_location_name(cls) -> str:
-        return cls.get_location().name
+        return cls.get_location_path().name
 
     @classmethod
     def load(cls) -> tuple[Settings, str]:
-        return cls.load_from(cls.get_location())
+        return cls.load_from(cls.get_location_path())
 
     @classmethod
     def load_from(cls, file: PathLike) -> tuple[Settings, str]:
@@ -347,7 +368,7 @@ class SettingsFile:
                 settings_dict = json.loads(s)
                 jsonschema.validate(settings_dict, cls.SETTINGS_SCHEMA)
                 settings = Settings(**settings_dict)
-                return settings, ""
+                return settings.as_posix(), ""
         except (
             ValueError,
             FileNotFoundError,
@@ -366,14 +387,14 @@ class SettingsFile:
     @classmethod
     def get_settings_file(cls) -> str:
         try:
-            return cls.get_location().as_posix()
+            return cls.get_location_path().as_posix()
         except (
             FileNotFoundError,
             json.decoder.JSONDecodeError,
             jsonschema.ValidationError,
         ):
             cls.create_location_file_for(cls.DEFAULT_LOCATION_SETTINGS)
-            return cls.get_location().as_posix()
+            return cls.get_location_path().as_posix()
 
     @classmethod
     def set_location(cls, location: PathLike):

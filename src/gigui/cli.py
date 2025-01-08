@@ -43,15 +43,13 @@ def main() -> None:
     if cli_args.profile:
         cli_args.view = False
 
-    # Replace "." by current working dir and resolve paths.
-    input_fstrs = [
-        (os.getcwd() if fstr == "." else fstr) for fstr in cli_args.input_fstrs
-    ]
-    input_fstrs_resolved = [str(Path(fstr).resolve()) for fstr in input_fstrs]
-    cli_args.input_fstrs = input_fstrs_resolved
+    # Convert input fstrs to resolved paths and then to posix path strings, this
+    # automatically resolves "." to cwd in posix format.
+    input_fstrs = [Path(fstr).resolve().as_posix() for fstr in cli_args.input_fstrs]
+    cli_args.input_fstrs = input_fstrs
 
     if len(cli_args.input_fstrs) == 0:
-        cli_args.input_fstrs.append(os.getcwd())
+        cli_args.input_fstrs.append(Path(".").resolve().as_posix())
 
     # Validate formats
     for fmt in cli_args.format:
@@ -123,7 +121,7 @@ def handle_settings_file(namespace: Namespace, cli_args: CLIArgs):
 
     elif namespace.reset:
         SettingsFile.reset()
-        log(f"Settings file reset to {SettingsFile.get_location()}.")
+        log(f"Settings file reset to {SettingsFile.get_location_path()}.")
         settings, _ = SettingsFile.load()
         settings.log()
 
