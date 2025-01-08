@@ -27,6 +27,8 @@ _build/
 # Profile data for the Python code visualizer
 .prof
 
-# macOS and Windows paths for user dependant setting
+# macOS and Windows paths for user dependent setting
 app-setup-target-dir.txt
 app-dmg-target-dir.txt
+
+RELEASE_PLAN.current.md

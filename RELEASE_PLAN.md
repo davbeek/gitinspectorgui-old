@@ -2,13 +2,15 @@
 
 ## Prepare
 
--   [x] Fix all milestone 0.4.0 issues
--   [x] Generate and test apps on Apple silicon Mac
+-   [] Fix all milestone 0.4.0 issues
+-   [] Generate and test apps on Apple silicon Mac
 
 ## Release
 
--   [x] Update to next release candidate; first time here => 0.4.0rc1
--   [x] Generate and test apps on Apple silicon Mac
+-   [] Bump version number to next release candidate: 0.4.0rc1, 0.4.0.rc2 ... 0.4.0
+-   [] Push new version
+-   [] Bump tag, this automatically creates a new GitHub release
+-   [] Generate and test apps on Apple silicon Mac
 -   [] Same on Windows
 -   [] Create a GitHub release
 -   [] Generate and test apps on Intel Mac
