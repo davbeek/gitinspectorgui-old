@@ -18,31 +18,31 @@ of the contribution of each author to selected repositories.
 
 -   The GUI and CLI interface have the same options and functionality.
 
--   Executable apps with GUI interface are available for macOS and Windows. In
-    addition, a Python package can be installed from PyPI.
+    Executable apps with a GUI interface are available for macOS and Windows.
+    Additionally, a Python package can be installed from PyPI. This solution
+    works on all platforms that support Python, including Linux.
 
 ## Download and installation: Windows
 
 ### Install Git for Windows
 
 The GitinspectorGUI app is only about 18MB in size, but it requires Git for
-Windows to be installed on your computer. Git for Windows is around 375MB in
+Windows to be available on your system. Git for Windows is around 375MB in
 size and can be downloaded from
 [git-scm.com](https://git-scm.com/downloads/win).
 
 Git for Windows presents numerous questions during installation. For users
-unfamiliar with Git, these questions might seem overwhelming. However, leaving
+unfamiliar with Git, these questions can seem overwhelming. However, leaving
 all options at their default settings will ensure proper functionality. A
 drawback of using the default settings is that it may add extra context menu
-items in File Explorer and create a Git desktop icon.
+items in File Explorer.
 
-### Download the GitinspectorGUI app
+### Download and install the GitinspectorGUI executable
 
-The stand-alone executable can be downloaded from the [releases
-page](https://github.com/davbeek/gitinspectorgui/releases). Download the
-`windows-gitinspectorgui-setup.exe` file, execute it, and follow the on-screen
-installation instructions. The GitinspectorGUI executable will be available
-under the program group GitinspectorGUI.
+Download the stand-alone executable `windows-gitinspectorgui-setup.exe` from the
+[releases page](https://github.com/davbeek/gitinspectorgui/releases). Execute
+it, and follow the on-screen installation instructions. The GitinspectorGUI
+executable will be available under the program group GitinspectorGUI.
 
 ## Download and installation: macOS
 
@@ -61,7 +61,7 @@ Via Homebrew:
 Via MacPorts:
 `sudo port install git`
 
-If you do not use a package manager, git can be installed as part of the XCode
+If you do not use a package manager, Git can be installed as part of the XCode
 Command Line Tools via:
 
 `xcode-select --install`
@@ -79,7 +79,7 @@ Download the appropriate dmg file for your hardware. There are two versions for 
 
 Open the downloaded file by double clicking. This opens a window with the
 GitinspectorGUI app. Drag the icon onto the Applications folder or to a
-temporary folder, from where it can be moved to the Applications folder. You can
+temporary location, from where it can be moved to the Applications folder. You can
 then open the GitinspectorGUI app from the Applications folder.
 
 The first time you open the GitinspectorGUI app, you will get an error message
@@ -113,10 +113,10 @@ actually installed Python package is the abbreviated form `gigui`.
 
 ## Installation: Linux
 
-First install git via your Linux distribution's package manager.
+First install Git via your Linux distribution's package manager.
 
 There is no executable app binary available for Linux. To only way to run
-gitinspectorgui on Linux is by installing gitinspectorgui from PyPI. This can be
+gitinspectorgui on Linux is by installing it from PyPI. This can be
 done via:
 
 `pip install gitinspectorgui`
