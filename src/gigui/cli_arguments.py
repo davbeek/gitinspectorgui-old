@@ -299,9 +299,3 @@ def valid_datetime_type(arg_datetime_str):
                 f"Given Datetime ({arg_datetime_str}) not valid! "
                 "Expected format: 'YYYY-MM-DD'."
             ) from e
-
-
-def ensure_trailing_slash(subfolder):
-    if len(subfolder) and (not subfolder.endswith("/")):
-        subfolder += "/"
-    return subfolder

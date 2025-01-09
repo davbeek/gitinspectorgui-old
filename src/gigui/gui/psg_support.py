@@ -1,7 +1,6 @@
-import glob
-import os
 import shlex
 import webbrowser
+from copy import copy
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
@@ -25,6 +24,7 @@ from gigui.keys import Keys
 from gigui.repo import is_git_repo
 from gigui.tiphelp import Help
 from gigui.typedefs import FilePattern, FileStr
+from gigui.utils import get_posix_dir_matches_for, to_posix_fstrs
 
 keys = Keys()
 
@@ -33,13 +33,18 @@ keys = Keys()
 # initialization of the run_inner function.
 @dataclass
 class GUIState:
+    # All file strings are in POSIX format, containing only forward slashes as path
+    # separators, apart from outfile_base which is not supposed to contain path
+    # separators.
     col_percent: int
     gui_settings_full_path: bool
-    input_patterns: list[FilePattern] = field(default_factory=list)
+    input_patterns: list[FilePattern] = field(
+        default_factory=list
+    )  # as entered by user
     input_fstr_matches: list[FileStr] = field(default_factory=list)
     input_repo_path: Path | None = None
     fix: str = keys.prefix
-    outfile_base: str = (
+    outfile_base: FileStr = (
         # Not strictly needed, included to avoid parameter passing of
         # values[keys.outfile_base] in various functions.
         DEFAULT_FILE_BASE
@@ -81,6 +86,9 @@ class WindowButtons:
 
 
 def window_state_from_settings(window: sg.Window, settings: Settings) -> None:
+    settings = copy(
+        settings
+    ).as_system()  # ensure all file strings are in system format
     settings_dict = asdict(settings)
     # settings_min is settings dict with 6 keys removed: keys.fix - keys.multicore
     settings_min = {
@@ -123,9 +131,9 @@ def window_state_from_settings(window: sg.Window, settings: Settings) -> None:
     window.write_event_value(keys.col_percent, settings.col_percent)
     window.write_event_value(keys.blame_history, settings.blame_history)
     if settings.gui_settings_full_path:
-        settings_fstr = str(SettingsFile.get_location())
+        settings_fstr = str(SettingsFile.get_location_path())
     else:
-        settings_fstr = SettingsFile.get_location().stem
+        settings_fstr = SettingsFile.get_location_path().stem
     window[keys.settings_file].update(value=settings_fstr)  # type: ignore
 
 
@@ -273,19 +281,19 @@ def update_settings_file_str(
     window: sg.Window,
 ) -> None:
     if full_path:
-        file_string = str(SettingsFile.get_location())
+        file_string = str(SettingsFile.get_location_path())
     else:
-        file_string = SettingsFile.get_location().stem
+        file_string = SettingsFile.get_location_path().stem
     window[keys.settings_file].update(value=file_string)  # type: ignore
 
 
 def process_input_fstrs(input_fstrs: str, state: GUIState, window: sg.Window) -> None:
     try:
-        input_patterns = shlex.split(input_fstrs)
+        input_patterns: list[FileStr] = shlex.split(input_fstrs)
     except ValueError:
         window[keys.input_fstrs].update(background_color=INVALID_INPUT_COLOR)  # type: ignore
         return
-    state.input_patterns = input_patterns
+    state.input_patterns = to_posix_fstrs(input_patterns)
     process_inputs(state, window)
 
 
@@ -300,7 +308,7 @@ def process_inputs(state: GUIState, window: sg.Window) -> None:
         update_outfile_str(state, window)
         return
 
-    matches: list[FileStr] = get_dir_matches(state.input_patterns, window[keys.input_fstrs])  # type: ignore
+    matches: list[FileStr] = get_posix_dir_matches(state.input_patterns, window[keys.input_fstrs])  # type: ignore
     state.input_fstr_matches = matches
 
     if len(matches) == 1 and is_git_repo(Path(matches[0])):
@@ -320,14 +328,12 @@ def process_inputs(state: GUIState, window: sg.Window) -> None:
         update_outfile_str(state, window)
 
 
-def get_dir_matches(
+def get_posix_dir_matches(
     patterns: list[FilePattern], sg_input: sg.Input, colored: bool = True
 ) -> list[FileStr]:
     all_matches: list[FileStr] = []
     for pattern in patterns:
-        matches: list[FileStr] = [
-            match for match in glob.glob(pattern) if os.path.isdir(match)
-        ]
+        matches: list[FileStr] = get_posix_dir_matches_for(pattern)
         if not matches:
             if colored:
                 sg_input.update(background_color=INVALID_INPUT_COLOR)
@@ -343,7 +349,8 @@ def get_dir_matches(
 
 
 def check_subfolder(state: GUIState, window: sg.Window) -> None:
-    # check_subfolder is called by process_inputs when state.input_repo_path is valid
+    # check_subfolder() is called by process_inputs() when state.input_repo_path
+    # is valid
     if not state.subfolder:
         state.subfolder_valid = True
         window[keys.subfolder].update(background_color=VALID_INPUT_COLOR)  # type: ignore

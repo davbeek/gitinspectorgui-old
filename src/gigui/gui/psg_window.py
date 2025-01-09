@@ -469,7 +469,7 @@ def settings_frame() -> sg.Frame:
                     file_types=(("JSON", "*.json"),),
                     default_extension=".json",
                     enable_events=True,
-                    initial_folder=str(SettingsFile.get_location()),
+                    initial_folder=str(SettingsFile.get_location_path()),
                     pad=BUTTON_PADDING,
                 ),
                 sg.FileBrowse(
@@ -478,7 +478,7 @@ def settings_frame() -> sg.Frame:
                     target=keys.load,
                     file_types=(("JSON", "*.json"),),
                     enable_events=True,
-                    initial_folder=str(SettingsFile.get_location().parent),
+                    initial_folder=str(SettingsFile.get_location_path().parent),
                     pad=BUTTON_PADDING,
                 ),
                 button("Reset", keys.reset),

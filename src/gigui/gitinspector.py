@@ -1,4 +1,3 @@
-import glob
 import logging
 import multiprocessing
 import os
@@ -34,12 +33,15 @@ from gigui.repo_blame import RepoBlame, RepoBlameBase, RepoBlameHistory
 from gigui.typedefs import FileStr
 from gigui.utils import (
     get_outfile_name,
+    get_posix_dir_matches_for,
     log,
     log_end_time,
     non_hex_chars_in_list,
     open_file,
     open_webview,
     out_profile,
+    to_posix_fstr,
+    to_posix_fstrs,
 )
 
 # pylint: disable=too-many-arguments disable=too-many-positional-arguments
@@ -63,6 +65,8 @@ def main(args: Args, start_time: float, gui_window: sg.Window | None = None) -> 
     logger.verbose(f"{args = }")  # type: ignore
     init_classes(args)
     repo_lists: list[list[RepoGI]] = []
+
+    args.input_fstrs = to_posix_fstrs(args.input_fstrs)
 
     dir_strs = get_dir_matches(args.input_fstrs)
     dirs_sorted = sorted(dir_strs)
@@ -120,6 +124,11 @@ def main(args: Args, start_time: float, gui_window: sg.Window | None = None) -> 
         return
 
     outfile_base = args.outfile_base if args.outfile_base else DEFAULT_FILE_BASE
+
+    args.ex_files = to_posix_fstrs(args.ex_files)
+    args.include_files = to_posix_fstrs(args.include_files)
+    args.subfolder = to_posix_fstr(args.subfolder)
+    args.outfile_base = to_posix_fstr(args.outfile_base)
 
     if len_repos == 1:
         # Process a single repository
@@ -202,13 +211,13 @@ def init_classes(args: Args):
 def get_dir_matches(input_fstrs: list[FileStr]) -> list[FileStr]:
     matching_fstrs: list[FileStr] = []
     for pattern in input_fstrs:
-        matches = glob.glob(pattern)
+        matches: list[FileStr] = get_posix_dir_matches_for(pattern)
         if not matches:
             logger.warning(
                 f'No repositories found for input folder pattern "{pattern}"'
             )
         for match in matches:
-            if os.path.isdir(match) and match not in matching_fstrs:
+            if match not in matching_fstrs:
                 matching_fstrs.append(match)
     return matching_fstrs
 

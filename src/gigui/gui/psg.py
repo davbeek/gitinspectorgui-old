@@ -36,7 +36,7 @@ from gigui.gui.psg_support import (
 from gigui.gui.psg_window import make_window
 from gigui.keys import Keys
 from gigui.tiphelp import Help, Tip
-from gigui.utils import open_webview
+from gigui.utils import open_webview, to_posix_fstr
 
 logger = logging.getLogger(__name__)
 
@@ -160,7 +160,7 @@ def run_inner(settings: Settings) -> bool:
                 update_outfile_str(state, window)
 
             case keys.subfolder:
-                state.subfolder = values[event]
+                state.subfolder = to_posix_fstr(values[event])
                 process_inputs(state, window)
 
             case keys.n_files:
@@ -209,7 +209,7 @@ def run_inner(settings: Settings) -> bool:
                 new_settings = Settings.from_values_dict(values)
                 new_settings.save_as(destination)
                 update_settings_file_str(state.gui_settings_full_path, window)
-                log(f"Settings saved to {str(SettingsFile.get_location())}")
+                log(f"Settings saved to {str(SettingsFile.get_location_path())}")
 
             case keys.load:
                 settings_file = values[keys.load]
