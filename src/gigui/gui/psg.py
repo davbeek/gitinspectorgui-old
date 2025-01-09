@@ -14,7 +14,7 @@ from gigui import shared
 from gigui._logging import set_logging_level_from_verbosity
 from gigui.args_settings import Args, Settings, SettingsFile
 from gigui.constants import AVAILABLE_FORMATS, DEBUG_SHOW_MAIN_EVENT_LOOP, DYNAMIC
-from gigui.gitinspector import main as gitinspector_main
+from gigui.gitinspector import run as gitinspector_run
 from gigui.gui.psg_support import (
     GUIState,
     WindowButtons,
@@ -23,7 +23,6 @@ from gigui.gui.psg_support import (
     help_window,
     log,
     popup,
-    popup_custom,
     process_input_fstrs,
     process_inputs,
     process_n_files,
@@ -44,21 +43,22 @@ tip = Tip()
 keys = Keys()
 
 
-def run(settings: Settings) -> None:
+def run_gui(settings: Settings) -> None:
     recreate_window: bool = True
-    while recreate_window:
-        recreate_window = run_inner(settings)
-        settings = Settings()
-        set_logging_level_from_verbosity(settings.verbosity)
-
-
-# pylint: disable=too-many-locals disable=too-many-branches disable=too-many-statements
-def run_inner(settings: Settings) -> bool:
-    logger.verbose(f"{settings = }")  # type: ignore
 
     # Create variable state, which is properly initialized via a call of
     # window_state_from_settings(...)
     state: GUIState = GUIState(settings.col_percent, settings.gui_settings_full_path)
+
+    while recreate_window:
+        recreate_window = run_inner(settings, state)
+        set_logging_level_from_verbosity(settings.verbosity)
+
+
+# pylint: disable=too-many-locals disable=too-many-branches disable=too-many-statements
+def run_inner(settings: Settings, state: GUIState) -> bool:
+    logger.verbose(f"{settings = }")  # type: ignore
+
     shared.gui = True
 
     # Is set to True when handling "Reset settings file" menu item
@@ -123,10 +123,10 @@ def run_inner(settings: Settings) -> bool:
             case keys.col_percent:
                 update_col_percent(window, last_window_height, values[event], state)  # type: ignore
 
-            case keys.execute:
+            case keys.run:
                 # Update processing of input patterns because dir state may have changed
                 process_inputs(state, window)  # type: ignore
-                execute(window, values, state)
+                run(window, values, state)
 
             case keys.clear:
                 window[keys.multiline].update(value="")  # type: ignore
@@ -141,7 +141,7 @@ def run_inner(settings: Settings) -> bool:
             case sg.WIN_CLOSED | keys.exit:
                 break
 
-            # Execute command has finished via window.perform_long_operation in
+            # Run command has finished via window.perform_long_operation in
             # run_gitinspector().
             case keys.end:
                 buttons.enable_all()
@@ -199,39 +199,40 @@ def run_inner(settings: Settings) -> bool:
             ##################################
 
             case keys.save:
-                new_settings = Settings.from_values_dict(values)
-                new_settings.gui_settings_full_path = state.gui_settings_full_path
-                new_settings.save()
+                settings.from_values_dict(values)
+                settings.gui_settings_full_path = state.gui_settings_full_path
+                settings.save()
                 log("Settings saved to " + SettingsFile.get_settings_file())
 
             case keys.save_as:
+                settings.from_values_dict(values)
+                settings.gui_settings_full_path = state.gui_settings_full_path
                 destination = values[keys.save_as]
-                new_settings = Settings.from_values_dict(values)
-                new_settings.save_as(destination)
+                settings.save_as(destination)
                 update_settings_file_str(state.gui_settings_full_path, window)
                 log(f"Settings saved to {str(SettingsFile.get_location_path())}")
 
             case keys.load:
                 settings_file = values[keys.load]
                 settings_folder = str(Path(settings_file).parent)
-                new_settings, _ = SettingsFile.load_from(settings_file)
+                settings.load_safe_from(settings_file)
                 SettingsFile.set_location(settings_file)
                 window[keys.load].InitialFolder = settings_folder  # type: ignore
-                window_state_from_settings(window, new_settings)
+                window_state_from_settings(window, settings)
                 update_settings_file_str(state.gui_settings_full_path, window)
                 log(f"Settings loaded from {settings_file}")
 
             case keys.reset:
-                res = popup_custom(
-                    "Clear settings file",
-                    "This will cause all settings to be reset to their default values. "
-                    "Are you sure?",
-                )
-                if res == "OK":
-                    SettingsFile.reset()
-                    window.close()
-                    recreate_window = True
-                    break  # strangely enough also works without the break
+                settings.reset()
+                window.close()
+                recreate_window = True
+                break  # strangely enough also works without the break
+
+            case keys.reset_file:
+                SettingsFile.reset()
+                window.close()
+                recreate_window = True
+                break  # strangely enough also works without the break
 
             case keys.toggle_settings_file:
                 state.gui_settings_full_path = not state.gui_settings_full_path
@@ -243,7 +244,7 @@ def run_inner(settings: Settings) -> bool:
     return recreate_window
 
 
-def execute(  # pylint: disable=too-many-branches
+def run(  # pylint: disable=too-many-branches
     window: sg.Window,
     values: dict,
     state: GUIState,
@@ -328,7 +329,7 @@ def execute(  # pylint: disable=too-many-branches
     logger.verbose(f"{args = }")  # type: ignore
     buttons.disable_all()
     window.perform_long_operation(
-        lambda: gitinspector_main(args, start_time, window), keys.end
+        lambda: gitinspector_run(args, start_time, window), keys.end
     )
 
 
@@ -337,4 +338,4 @@ if __name__ == "__main__":
     error: str
     current_settings, error = SettingsFile.load()
     multiprocessing.freeze_support()
-    run(current_settings)
+    run_gui(current_settings)

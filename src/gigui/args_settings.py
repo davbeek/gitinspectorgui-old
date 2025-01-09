@@ -22,10 +22,12 @@ from gigui.constants import (
     DEFAULT_FILE_BASE,
     DEFAULT_N_FILES,
     FIX_TYPE,
+    INIT_COL_PERCENT,
     PREFIX,
     SUBDIR_NESTING_DEPTH,
 )
 from gigui.keys import Keys, KeysArgs
+from gigui.typedefs import FileStr
 from gigui.utils import (
     log,
     to_posix_fstr,
@@ -39,9 +41,9 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class Args:
-    col_percent: int = 80  # Not used in CLI
+    col_percent: int = INIT_COL_PERCENT  # Not used in CLI
     profile: int = 0  # Not used in GUI
-    input_fstrs: list[str] = field(default_factory=list)
+    input_fstrs: list[FileStr] = field(default_factory=list)
     outfile_base: str = DEFAULT_FILE_BASE
     fix: str = PREFIX
     depth: int = SUBDIR_NESTING_DEPTH
@@ -96,6 +98,7 @@ class Settings(Args):
             raise ValueError("n_files must be a non-negative integer")
         if not self.depth >= 0:
             raise ValueError("depth must be a non-negative integer")
+        self.as_posix()
 
     @classmethod
     def from_args(cls, args: Args, gui_settings_full_path: bool) -> "Settings":
@@ -126,13 +129,11 @@ class Settings(Args):
         self.create_settings_file(settings_path)
 
     def save_as(self, pathlike: PathLike):
-        settings_file_path = Path(pathlike)
         settings_dict = asdict(self)
         jsonschema.validate(settings_dict, SettingsFile.SETTINGS_SCHEMA)
-        with open(settings_file_path, "w", encoding="utf-8") as f:
-            d = json.dumps(settings_dict, indent=4, sort_keys=True)
-            f.write(d)
-        SettingsFile.set_location(settings_file_path)
+        settings_path = Path(pathlike)
+        self.create_settings_file(settings_path)
+        SettingsFile.set_location(settings_path)
 
     def to_cli_args(self) -> "CLIArgs":
         args = CLIArgs()
@@ -163,20 +164,19 @@ class Settings(Args):
         self.subfolder = to_system_fstr(self.subfolder)
         return self
 
-    @classmethod
-    def create_from_settings_dict(
-        cls, settings_dict: dict[str, str | int | bool | list[str]]
-    ) -> "Settings":
-        settings_schema = SettingsFile.SETTINGS_SCHEMA["properties"]
-        settings = cls()
-        for key in settings_schema:
-            setattr(settings, key, settings_dict[key])
-        return settings.as_posix()
+    def reset(self) -> None:
+        default_settings = Settings()
+        for key, value in asdict(default_settings).items():
+            setattr(self, key, value)
 
-    @classmethod
-    def from_values_dict(cls, values: dict[str, str | int | bool]) -> "Settings":
+    def load_safe_from(self, file: PathLike) -> None:
+        settings = SettingsFile.load_safe_from(file)
+        for key, value in asdict(settings).items():
+            setattr(self, key, value)
+
+    def from_values_dict(self, values: dict[str, str | int | bool]) -> None:
         settings_schema: dict[str, Any] = SettingsFile.SETTINGS_SCHEMA["properties"]
-        settings = cls()
+        settings = Settings()
 
         values[Keys.n_files] = (
             0 if not values[Keys.n_files] else int(values[Keys.n_files])
@@ -200,18 +200,30 @@ class Settings(Args):
             if values[fmt]:
                 formats.append(fmt)
         settings.format = formats
+        for key, value in asdict(settings).items():
+            setattr(self, key, value)
 
-        return settings.as_posix()
+    @classmethod
+    def create_from_settings_dict(
+        cls, settings_dict: dict[str, str | int | bool | list[str]]
+    ) -> "Settings":
+        settings_schema = SettingsFile.SETTINGS_SCHEMA["properties"]
+        settings = cls()
+        for key in settings_schema:
+            setattr(settings, key, settings_dict[key])
+        return settings
 
 
 @dataclass
 class CLIArgs(Args):
-    gui: bool = False
-    show: bool = False
-    save: bool = False
-    save_as: str = ""
+    reset_file: bool = False
     load: str = ""
     reset: bool = False
+    save: bool = False
+    save_as: str = ""
+    show: bool = False
+    gui: bool = False
+    run: bool = False
 
     def create_settings(self) -> Settings:
         logger.verbose(f"CLI self = {self}")  # type: ignore
@@ -234,6 +246,14 @@ class CLIArgs(Args):
         return args
 
     def update_with_namespace(self, namespace: Namespace):
+        assert not (namespace.run and namespace.input_fstrs)
+        if namespace.run and not namespace.input_fstrs:
+            namespace.input_fstrs = namespace.run
+
+        # Change namespace.run from a list of FileStr to a boolean because self.run is a
+        # boolean.
+        namespace.run = namespace.run is not None
+
         if namespace.input_fstrs == []:
             namespace.input_fstrs = None
         nmsp_dict: dict = vars(namespace)
@@ -266,7 +286,7 @@ class SettingsFile:
         "additionalProperties": False,
         "minProperties": 1,
     }
-    DEFAULT_LOCATION_SETTINGS: dict[str, str] = {
+    DEFAULT_LOCATION_SETTINGS: dict[str, FileStr] = {
         "settings_location": INITIAL_SETTINGS_PATH.as_posix(),
     }
 
@@ -318,7 +338,7 @@ class SettingsFile:
     # Create file that contains the location of the settings file and return this
     # settings file location.
     @classmethod
-    def create_location_file_for(cls, location_settings: dict[str, str]) -> Path:
+    def create_location_file_for(cls, location_settings: dict[str, FileStr]) -> Path:
         jsonschema.validate(location_settings, cls.SETTINGS_LOCATION_SCHEMA)
         d = json.dumps(location_settings, indent=4)
         with open(cls.SETTINGS_LOCATION_PATH, "w", encoding="utf-8") as f:
@@ -345,9 +365,12 @@ class SettingsFile:
     def show(cls):
         path = cls.get_location_path()
         log(f"{path}:")
-        settings, _ = cls.load()
+        settings, error = cls.load()
         if not shared.gui:
-            settings.log()
+            if error:
+                log(error)
+            else:
+                settings.log()
 
     @classmethod
     def get_location_name(cls) -> str:
@@ -356,6 +379,14 @@ class SettingsFile:
     @classmethod
     def load(cls) -> tuple[Settings, str]:
         return cls.load_from(cls.get_location_path())
+
+    @classmethod
+    def load_safe(cls) -> Settings:
+        settings, error = cls.load()
+        if error:
+            cls.show_error(error)
+            return cls.reset()
+        return settings
 
     @classmethod
     def load_from(cls, file: PathLike) -> tuple[Settings, str]:
@@ -378,10 +409,25 @@ class SettingsFile:
             return Settings(), str(e)
 
     @classmethod
+    def load_safe_from(cls, file: PathLike) -> Settings:
+        settings, error = cls.load_from(file)
+        if error:
+            cls.show_error(error)
+            return cls.reset()
+        return settings
+
+    @classmethod
+    def show_error(cls, error: str) -> None:
+        logger.warning("Cannot load settings file, loading default settings.")
+        if shared.gui:
+            log("Save settings to avoid this message.")
+        else:
+            log("Save settings (--save) to avoid this message.")
+
+    @classmethod
     def reset(cls) -> Settings:
         cls.create_location_file_for(cls.DEFAULT_LOCATION_SETTINGS)
-        settings = Settings()
-        settings.save()
+        settings = cls.load_safe()
         return settings
 
     @classmethod
@@ -400,4 +446,5 @@ class SettingsFile:
     def set_location(cls, location: PathLike):
         # Creating a new file or overwriting the existing file is both done using the
         # same "with open( ..., "w") as f" statement.
-        cls.create_location_file_for({"settings_location": str(location)})
+        absolute_location: FileStr = Path(location).resolve().as_posix()
+        cls.create_location_file_for({"settings_location": absolute_location})

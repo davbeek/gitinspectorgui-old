@@ -16,36 +16,17 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
     mutex_group_titled = parser.add_argument_group("Mutually exclusive options")
     mutex_group = mutex_group_titled.add_mutually_exclusive_group()
     mutex_group.add_argument(
+        "-r",
+        "--run",
+        nargs="*",  # produce a list of zero or more input folder paths
+        metavar="PATH",
+        help=hlp.run,
+    )
+    mutex_group.add_argument(
+        "-g",
         "--gui",
         action="store_true",
         help=hlp.gui,
-    )
-    mutex_group.add_argument(
-        "--show",
-        action="store_true",
-        help=hlp.show,
-    )
-    mutex_group.add_argument(
-        "--save",
-        action="store_true",
-        help=hlp.save,
-    )
-    mutex_group.add_argument(
-        "--save-as",
-        type=str,
-        metavar="PATH",
-        help=hlp.save_as,
-    )
-    mutex_group.add_argument(
-        "--load",
-        type=str,
-        metavar="PATH",
-        help=hlp.load,
-    )
-    mutex_group.add_argument(
-        "--reset",
-        action="store_true",
-        help=hlp.reset,
     )
     mutex_group.add_argument(
         "-V",
@@ -63,13 +44,15 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
 
     # Input
     group_input = parser.add_argument_group("Input")
+    # folder and folders
     group_input.add_argument(
-        "input_fstrs",
-        nargs="*",  # produce a list of paths
+        "-i",
+        "--input",
+        dest="input_fstrs",
+        nargs="+",  # produce a list of at least one input folder path(s)
         metavar="PATH",
         help=hlp.input_fstrs,
     )
-    # folder and folders
     group_input.add_argument(
         "-d",
         "--depth",
@@ -230,6 +213,42 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
         "--multicore",
         action=BooleanOptionalAction,
         help=hlp.multicore,
+    )
+
+    # Settings
+    group_settings = parser.add_argument_group("Settings")
+    mutex_group = group_settings.add_mutually_exclusive_group()
+    mutex_group.add_argument(
+        "--reset-file",
+        action="store_true",
+        help=hlp.reset_file,
+    )
+    mutex_group.add_argument(
+        "--load",
+        type=str,
+        metavar="PATH",
+        help=hlp.load,
+    )
+    group_settings.add_argument(
+        "--reset",
+        action="store_true",
+        help=hlp.reset,
+    )
+    group_settings.add_argument(
+        "--save",
+        action="store_true",
+        help=hlp.save,
+    )
+    group_settings.add_argument(
+        "--save-as",
+        type=str,
+        metavar="PATH",
+        help=hlp.save_as,
+    )
+    group_settings.add_argument(
+        "--show",
+        action="store_true",
+        help=hlp.show,
     )
 
     # Exclusion patterns

@@ -157,14 +157,23 @@ class Help(Tip):
     gui: str = """
         Start the GUI, taking all settings from the settings file and ignoring all
         other CLI arguments."""
+    run: str = """
+        Start the analysis. Optionally, a space separated list of relative or absolute
+        PATH(s) to a repository or folders for analysis may be given."""
     version: str = "Output version information."
-    show: str = "Show the settings location and its values."
-    save: str = "Save settings file."
-    save_as: str = "Save settings file to PATH."
-    load: str = "Load settings file from PATH and update its location."
-    reset: str = (
-        "Reset saved settings and location of settings file to their default values."
+
+    reset_file: str = (
+        "Reset location of settings file to its default value and load settings from "
+        "there."
     )
+    load: str = "Load settings from PATH and update location of settings file to PATH."
+    reset: str = "Reset settings to their default values, but do not save."
+    save: str = "Save settings and exit."
+    save_as: str = (
+        "Save settings to PATH, update location of settings file to PATH and exit."
+    )
+    show: str = "Show location of settings file and all settings values, then exit."
+
     about: str = "Output license information."
     about_info: str = (
         f"GitinspectorGUI version {get_version()}. It utilizes the PySimpleGUI "
@@ -173,7 +182,7 @@ class Help(Tip):
     )
     # Input
     input_fstrs: str = """
-         Space-separated list of relative or absolute PATH(s) to repository, folders
+         Space-separated list of relative or absolute PATH(s) to a repository or folders
          to be analyzed."""
     depth: str = """
         Number of levels of subfolders of the input folder PATH that is searched for

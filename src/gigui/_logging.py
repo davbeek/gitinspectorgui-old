@@ -6,7 +6,7 @@ import colorlog
 
 from gigui import shared
 
-FORMAT = "%(name)s %(funcName)s %(lineno)s\n%(message)s\n"
+FORMAT = "%(levelname)s %(name)s %(funcName)s %(lineno)s\n%(message)s\n"
 FORMAT_INFO = "%(message)s"
 
 DEBUG = "debug"

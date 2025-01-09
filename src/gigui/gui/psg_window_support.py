@@ -53,10 +53,11 @@ def input_box(
     disabled: bool = False,
     size=SIZE_NONE,
     expand_x: bool = True,
+    pad=((3, 2), 2),
 ) -> sg.Input:
     return sg.Input(
         k=key,
-        pad=((3, 2), 2),
+        pad=pad,
         expand_x=expand_x,
         enable_events=True,
         disabled=disabled,

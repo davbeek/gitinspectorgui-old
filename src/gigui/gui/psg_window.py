@@ -20,7 +20,6 @@ from gigui.constants import (
     WINDOW_SIZE_Y,
 )
 from gigui.gui.psg_window_support import (
-    BUTTON_PADDING,
     button,
     checkbox,
     column,
@@ -153,7 +152,7 @@ def layout_top_row() -> list[sg.Column]:
         sg.Column(
             [
                 [
-                    button("Execute", keys.execute),
+                    button("Run", keys.run),
                     button("Clear", keys.clear),
                     button("Help", keys.help, pad=((20, 3), 2)),
                     button("About", keys.about),
@@ -452,7 +451,7 @@ def output_formats_frame() -> sg.Frame:
 
 def settings_frame() -> sg.Frame:
     return frame(
-        "Settings",
+        "",
         layout=[
             [
                 name_header("Settings file", ""),
@@ -460,8 +459,16 @@ def settings_frame() -> sg.Frame:
                     keys.settings_file,
                     size=15,
                     disabled=True,
+                    pad=((3, 2), 5),
                 ),
-                button("Save", keys.save, pad=((5, 3), 0)),
+            ],
+            [
+                name_header("", ""),
+                button(
+                    "Save",
+                    keys.save,
+                    pad=((5, 3), 0),
+                ),
                 sg.FileSaveAs(
                     "Save As",
                     key=keys.save_as,
@@ -470,7 +477,7 @@ def settings_frame() -> sg.Frame:
                     default_extension=".json",
                     enable_events=True,
                     initial_folder=str(SettingsFile.get_location_path()),
-                    pad=BUTTON_PADDING,
+                    pad=(3, 0),
                 ),
                 sg.FileBrowse(
                     "Load",
@@ -479,10 +486,23 @@ def settings_frame() -> sg.Frame:
                     file_types=(("JSON", "*.json"),),
                     enable_events=True,
                     initial_folder=str(SettingsFile.get_location_path().parent),
-                    pad=BUTTON_PADDING,
+                    pad=(3, 0),
                 ),
-                button("Reset", keys.reset),
-                button("Toggle", keys.toggle_settings_file),
+                button(
+                    "Reset",
+                    key=keys.reset,
+                    pad=(3, 0),
+                ),
+                button(
+                    "Reset File",
+                    key=keys.reset_file,
+                    pad=(3, 0),
+                ),
+                button(
+                    "Toggle",
+                    key=keys.toggle_settings_file,
+                    pad=(3, 0),
+                ),
             ],
         ],
     )

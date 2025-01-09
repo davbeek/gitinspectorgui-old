@@ -58,7 +58,7 @@ class WindowButtons:
         self.window = window
 
         self.buttons: list[str] = [
-            keys.execute,
+            keys.run,
             keys.clear,
             keys.save,
             keys.save_as,

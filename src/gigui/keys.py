@@ -53,7 +53,7 @@ class Keys(KeysArgs):
     # Complete settings column
     config_column: str = "config_column"
     # Top row
-    execute: str = "execute"
+    run: str = "run"
     clear: str = "clear"
     show: str = "show"
     help: str = "help"
@@ -65,6 +65,7 @@ class Keys(KeysArgs):
     save_as: str = "save_as"
     load: str = "load"
     reset: str = "reset"
+    reset_file: str = "reset_file"
     toggle_settings_file: str = "toggle_settings_file"
     gui_settings_full_path: str = "gui_settings_full_path"
     # IO configuration

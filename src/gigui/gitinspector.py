@@ -50,7 +50,7 @@ logger = logging.getLogger(__name__)
 # logger = multiprocessing.get_logger()
 
 
-def main(args: Args, start_time: float, gui_window: sg.Window | None = None) -> None:
+def run(args: Args, start_time: float, gui_window: sg.Window | None = None) -> None:
     profiler = None
     if args.profile:
         profiler = Profile()
@@ -83,7 +83,7 @@ def main(args: Args, start_time: float, gui_window: sg.Window | None = None) -> 
     if args.blame_history == DYNAMIC and len_repos > 1:
         logger.warning(
             "Dynamic blame history is not supported for multiple repositories.\n"
-            "Please select static blame history or a single repository."
+            "Select static blame history or a single repository."
         )
         return
     if args.blame_history == DYNAMIC and args.format != []:
@@ -94,7 +94,10 @@ def main(args: Args, start_time: float, gui_window: sg.Window | None = None) -> 
         )
         return
     if not len_repos:
-        log("Found no repositories.")
+        log(
+            "Missing search path. Specify a valid relative or absolute search "
+            "path. E.g. '.' for the current directory."
+        )
         return
     if len_repos > 1 and args.fix == Keys.nofix:
         log(
@@ -105,14 +108,14 @@ def main(args: Args, start_time: float, gui_window: sg.Window | None = None) -> 
     if len_repos > 1 and not args.format and args.dry_run == 0:
         log(
             "Multiple repos detected and no output format selected.\n"
-            "Please select an output format. "
+            "Select an output format or set dry run. "
             + ("E.g. -F html" if not gui_window else "E.g. select html.")
         )
         return
     if not args.view and not args.format and args.dry_run == 0:
         log(
             "View option not set and no output format selected.\n"
-            "Please set the view option and/or an output format."
+            "Set the view option and/or an output format."
         )
         return
 
@@ -232,8 +235,11 @@ def process_unicore_repo(
     # Process a single repository in case len(repos) == 1 which also means on a single core.
 
     args.multicore = False
-    log("Output in folder " + str(repo.path.parent))
-    log(" " * 4 + f"{repo.name} repository ({1} of {1}) ")
+    if args.format:
+        log("Output in folder " + str(repo.path.parent))
+        log(" " * 4 + f"{repo.name} repository ({1} of {1}) ")
+    else:
+        log(f"Repository {repo.path}")
     with ThreadPoolExecutor(max_workers=MAX_THREAD_WORKERS) as thread_executor:
         stats_found = repo.run(thread_executor)
     if stats_found:

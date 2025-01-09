@@ -13,23 +13,7 @@
             "cwd": "${workspaceFolder}",
             // "cwd": "${userHome}/1-repos/templates/1dh",
             "args": [
-                // ".",
-                // "${workspaceFolder}",
-                // "${workspaceFolder}/../../templates/1dh",
-                // "--ex-author=Bert",
-                // "--ex-file=lib"
-                // "--show-renames",
-                // "--scaled-percentages",
-                // "--ex-email=d.a.v.beek*",
-                // "--since=2024-06-01",
-                // "--async=2",
-                // "--dry-run=2",
-                // "-F=excel",
-                // "-F=html",
-                // "--include-files=plant-usecases.cif",
-                // "--multi-core",
-                // "--no-multi-thread",
-                // "--blame-history"
+                "-r",
             ],
         },
         {
