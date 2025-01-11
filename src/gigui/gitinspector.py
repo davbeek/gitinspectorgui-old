@@ -32,8 +32,8 @@ from gigui.repo_base import RepoBase
 from gigui.repo_blame import RepoBlame, RepoBlameBase, RepoBlameHistory
 from gigui.typedefs import FileStr
 from gigui.utils import (
+    get_dir_matches,
     get_outfile_name,
-    get_posix_dir_matches_for,
     log,
     log_end_time,
     non_hex_chars_in_list,
@@ -207,22 +207,6 @@ def init_classes(args: Args):
     stat_rows.scaled_percentages = args.scaled_percentages
     html.blame_exclusions_hide = args.blame_exclusions == HIDE
     html.blame_history = args.blame_history
-
-
-# Normally, the input paths have already been expanded by the shell, but in case the
-# wildcard were protected in quotes, we expand them here.
-def get_dir_matches(input_fstrs: list[FileStr]) -> list[FileStr]:
-    matching_fstrs: list[FileStr] = []
-    for pattern in input_fstrs:
-        matches: list[FileStr] = get_posix_dir_matches_for(pattern)
-        if not matches:
-            logger.warning(
-                f'No repositories found for input folder pattern "{pattern}"'
-            )
-        for match in matches:
-            if match not in matching_fstrs:
-                matching_fstrs.append(match)
-    return matching_fstrs
 
 
 def process_unicore_repo(

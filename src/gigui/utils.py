@@ -228,6 +228,22 @@ def to_system_fstrs(fstrs: list[str]) -> list[str]:
     return [to_system_fstr(fstr) for fstr in fstrs]
 
 
+# Normally, the input paths have already been expanded by the shell, but in case the
+# wildcard were protected in quotes, we expand them here.
+def get_dir_matches(input_fstrs: list[FileStr]) -> list[FileStr]:
+    matching_fstrs: list[FileStr] = []
+    for pattern in input_fstrs:
+        matches: list[FileStr] = get_posix_dir_matches_for(pattern)
+        if not matches:
+            logger.warning(
+                f'No repositories found for input folder pattern "{pattern}"'
+            )
+        for match in matches:
+            if match not in matching_fstrs:
+                matching_fstrs.append(match)
+    return matching_fstrs
+
+
 def get_posix_dir_matches_for(pattern: FileStr) -> list[FileStr]:
     # Return a list of posix directories that match the pattern and are not hidden.
     # The pattern is case insensitive.

@@ -13,7 +13,8 @@ from gigui.constants import AVAILABLE_FORMATS, DEFAULT_EXTENSIONS
 from gigui.gitinspector import run as run_gitinspector
 from gigui.gui.psg import run_gui
 from gigui.tiphelp import Help
-from gigui.utils import log
+from gigui.typedefs import FileStr
+from gigui.utils import get_dir_matches, log
 
 # Limit the width of the help text to 80 characters.
 os.environ["COLUMNS"] = "90"
@@ -40,6 +41,16 @@ def main() -> None:
         return
 
     namespace = parser.parse_args()
+
+    if namespace.input_fstrs:
+        input_fstrs = [
+            Path(fstr).resolve().as_posix() for fstr in namespace.input_fstrs
+        ]
+        matches: list[FileStr] = get_dir_matches(input_fstrs)
+        if not matches:
+            return
+        else:
+            namespace.input_fstrs = input_fstrs
 
     if namespace.reset_file:
         settings = SettingsFile.reset()
@@ -153,4 +164,7 @@ def load_settings(save: bool, save_as: str) -> Settings:
 
 if __name__ == "__main__":
     multiprocessing.freeze_support()
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        os._exit(0)
