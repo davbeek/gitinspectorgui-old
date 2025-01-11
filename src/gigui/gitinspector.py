@@ -1,6 +1,8 @@
 import logging
 import multiprocessing
 import os
+import threading
+import time
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from cProfile import Profile
 from pathlib import Path
@@ -47,7 +49,8 @@ from gigui.utils import (
 # pylint: disable=too-many-arguments disable=too-many-positional-arguments
 
 logger = logging.getLogger(__name__)
-# logger = multiprocessing.get_logger()
+
+threads: list[threading.Thread] = []
 
 
 def run(args: Args, start_time: float, gui_window: sg.Window | None = None) -> None:
@@ -99,17 +102,10 @@ def run(args: Args, start_time: float, gui_window: sg.Window | None = None) -> N
             "path. E.g. '.' for the current directory."
         )
         return
-    if len_repos > 1 and args.fix == Keys.nofix:
+    if len_repos > 1 and args.fix == Keys.nofix and args.format:
         log(
-            "Multiple repos detected and nofix option selected.\n"
-            "Multiple repos need the (default prefix) or postfix option."
-        )
-        return
-    if len_repos > 1 and not args.format and args.dry_run == 0:
-        log(
-            "Multiple repos detected and no output format selected.\n"
-            "Select an output format or set dry run. "
-            + ("E.g. -F html" if not gui_window else "E.g. select html.")
+            "Multiple repos detected and nofix option selected for file output.\n"
+            "Multiple repos with file output need the (default prefix) or postfix option."
         )
         return
     if not args.view and not args.format and args.dry_run == 0:
@@ -135,7 +131,6 @@ def run(args: Args, start_time: float, gui_window: sg.Window | None = None) -> N
 
     if len_repos == 1:
         # Process a single repository
-        # No need to test for multicore here, as single repos always use single core.
         process_unicore_repo(
             args,
             repo_lists[0][0],
@@ -155,6 +150,17 @@ def run(args: Args, start_time: float, gui_window: sg.Window | None = None) -> N
             outfile_base,
             start_time,
         )
+
+        try:
+            for thread in threads:
+                thread.join()
+        except KeyboardInterrupt:
+            logger.info("Keyboard interrupt received in module gitinspector")
+            for thread in threads:
+                if thread.is_alive():
+                    thread.join()
+            time.sleep(0.5)  # Wait for the threads to finish and cleanup
+            os._exit(0)
 
     out_profile(profiler, args.profile)
 
@@ -306,6 +312,15 @@ def process_repo_output(  # pylint: disable=too-many-locals
                 start_werkzeug_server_in_process_with_html(html_code)
             except KeyboardInterrupt:
                 os._exit(0)
+
+    if len_repos > 1 and not args.format and args.view:
+        html_code = get_repo_html(repo, args.blame_skip)
+        thread = threading.Thread(
+            target=start_werkzeug_server_in_process_with_html,
+            args=(html_code,),
+        )
+        thread.start()
+        threads.append(thread)
 
 
 def process_unicore_repos(

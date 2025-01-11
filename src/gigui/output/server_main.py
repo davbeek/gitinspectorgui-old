@@ -1,12 +1,13 @@
 import re
 import socket
-import time  # Add this import
+import time
 import webbrowser
 from multiprocessing import Process, Queue
+from queue import Empty  # Add this import
 from uuid import uuid4
 
 from gigui.constants import DYNAMIC
-from gigui.output import html  # to use the shared global variable current_repo
+from gigui.output import html
 from gigui.output.blame_rows import BlameHistoryRows
 from gigui.output.html import BlameTableSoup, create_html_document, load_css, logger
 from gigui.output.server import PORT, run_server
@@ -47,25 +48,33 @@ def start_werkzeug_server_in_process_with_html(html_code: Html) -> None:
         browser = webbrowser.get()
         browser.open_new_tab(f"http://localhost:{port}")
 
-        while True:
-            request = process_queue.get()
-            if request[0] == "shutdown" and request[1] == browser_id:
-                break
-            if request[0] == "load_table" and request[2] == browser_id:
-                table_id = request[1]
-                table_html = handle_load_table(
-                    table_id, html.current_repo.blame_history
-                )
-                process_queue.put(table_html)
-            else:
-                logger.error(f"Unknown request: {request}")
+        while server_process.is_alive():  # Check if server_process is still alive
+            try:
+                request = process_queue.get(timeout=0.4)
+                if request[0] == "shutdown" and request[1] == browser_id:
+                    break
+                if request[0] == "load_table" and request[2] == browser_id:
+                    table_id = request[1]
+                    table_html = handle_load_table(
+                        table_id, html.current_repo.blame_history
+                    )
+                    process_queue.put(table_html)
+                else:
+                    logger.error(f"Unknown request: {request}")
+            except Empty:
+                pass  # Handle the queue.Empty exception
 
-        server_process.terminate()
-        server_process.join()  # Ensure the process is fully terminated
+    except KeyboardInterrupt:
+        logger.info("Keyboard interrupt received in module server_main")
+        process_queue.put(("shutdown", browser_id))  # Send shutdown request to server
     except Exception as e:
-        server_process.terminate()  # type: ignore
-        server_process.join()  # type: ignore # Ensure the process is fully terminated
+        logger.info("Exception received in module server_main")
         raise e
+    finally:
+        logger.info("Server main at finally")
+        if server_process.is_alive():  # type: ignore
+            server_process.terminate()  # type: ignore
+            server_process.join()  # type: ignore # Ensure the process is fully terminated
 
 
 def is_port_in_use(port: int) -> bool:
