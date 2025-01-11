@@ -102,6 +102,25 @@ def run(args: Args, start_time: float, gui_window: sg.Window | None = None) -> N
             "path. E.g. '.' for the current directory."
         )
         return
+    if len_repos > 1 and args.fix == Keys.nofix:
+        log(
+            "Multiple repos detected and nofix option selected.\n"
+            "Multiple repos need the (default prefix) or postfix option."
+        )
+        return
+    if (
+        len_repos > 1
+        and not args.format
+        and args.dry_run == 0
+        and args.multicore
+        and args.view
+    ):
+        log(
+            "Multiple repos detected and no output format selected for multicore.\n"
+            "Select an output format or disable multi-core or set dry run. "
+            + ("E.g. -F html or --no-multicore.")
+        )
+        return
     if len_repos > 1 and args.fix == Keys.nofix and args.format:
         log(
             "Multiple repos detected and nofix option selected for file output.\n"
