@@ -24,6 +24,7 @@ from gigui.constants import (
     HIDE,
     MAX_BROWSER_TABS,
     MAX_THREAD_WORKERS,
+    NONE,
     STATIC,
 )
 from gigui.data import FileStat, Person
@@ -189,7 +190,9 @@ def run(args: Args, start_time: float, gui_window: sg.Window | None = None) -> N
             start_time,
         )
 
+    if threads:
         try:
+
             log("Close all browser tabs or press q followed by Enter to quit.")
             while True:
                 if select.select([sys.stdin], [], [], 0.1)[
@@ -342,7 +345,7 @@ def process_repo_output(  # pylint: disable=too-many-locals
         log_end_time(start_time)  # type: ignore
 
     # In dry-run, there is nothing to show.
-    if args.dry_run != 0:
+    if not args.dry_run == 0:
         return
 
     # If the result files should not be viewed, we're done.
@@ -357,20 +360,17 @@ def process_repo_output(  # pylint: disable=too-many-locals
         open_file(outfilestr + ".html")
         return
 
-    if len_repos == 1 and not args.format:
-        html_code = get_repo_html(repo, args.blame_skip)
+    if args.format:
+        return
+
+    # The following holds: args.view and not args.format and "no dry run"
+    html_code = get_repo_html(repo, args.blame_skip)
+    if len_repos == 1 and args.blame_history in {NONE, STATIC}:
         if gui_window:
             gui_window.write_event_value(Keys.open_webview, (html_code, repo.name))
-        elif args.blame_history != DYNAMIC:  # CLI mode, dynamic or no blame history
+        else:  # CLI mode
             open_webview(html_code, repo.name)
-        else:  # CLI mode, dynamic blame history
-            try:
-                start_werkzeug_server_in_process_with_html(html_code, stop_event)
-            except KeyboardInterrupt:
-                os._exit(0)
-
-    if len_repos > 1 and not args.format and args.view:
-        html_code = get_repo_html(repo, args.blame_skip)
+    else:
         thread = threading.Thread(
             target=start_werkzeug_server_in_process_with_html,
             args=(html_code, stop_event),
