@@ -171,6 +171,7 @@ def run(args: Args, start_time: float, gui_window: sg.Window | None = None) -> N
         )
 
         try:
+            log("Close all browser tabs or press Ctrl+C to finish...")
             for thread in threads:
                 thread.join()
         except KeyboardInterrupt:
