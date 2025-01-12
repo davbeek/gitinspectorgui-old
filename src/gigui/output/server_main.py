@@ -1,5 +1,4 @@
 import re
-import socket
 import threading
 import time
 import webbrowser
@@ -12,6 +11,9 @@ from gigui.output import html, server
 from gigui.output.blame_rows import BlameHistoryRows
 from gigui.output.html import BlameTableSoup, create_html_document, load_css, logger
 from gigui.typedefs import SHA, FileStr, Html
+
+FIRST_PORT = 8080
+port_global: int = FIRST_PORT
 
 
 # This the main function that is called from the main process to start the server.
@@ -29,15 +31,13 @@ def start_werkzeug_server_in_process_with_html(
     process_queue = Queue()
     browser_id = str(uuid4())[-12:]
 
+    port = get_port()
     html_code = create_html_document(html_code, load_css(), browser_id)
-
-    port: int = server.PORT
-    while is_port_in_use(port):
-        port += 1
 
     try:
         # Start the server in a separate process and communicate with it via the queue and
         # shared data dictionary.
+
         server_process = Process(
             target=server.run,
             args=(process_queue, html_code, browser_id, port),
@@ -76,7 +76,7 @@ def start_werkzeug_server_in_process_with_html(
         logger.info("server_main: keyboard interrupt received")
         process_queue.put(("shutdown", browser_id))  # Send shutdown request to server
     except Exception as e:
-        logger.info("server_main: exception received in module server_main")
+        logger.error("server_main: exception received in module server_main")
         raise e
     finally:
         time.sleep(0.1)  # Wait for the server_process to handle the shutdown request
@@ -86,10 +86,11 @@ def start_werkzeug_server_in_process_with_html(
         logger.info("server_main: terminated")
 
 
-def is_port_in_use(port: int) -> bool:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        in_use: bool = s.connect_ex(("localhost", port)) == 0
-        return in_use
+def get_port() -> int:
+    global port_global
+    port = port_global
+    port_global += 1
+    return port
 
 
 def handle_load_table(table_id: str, blame_history: str) -> Html:

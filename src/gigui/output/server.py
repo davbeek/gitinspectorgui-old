@@ -7,7 +7,7 @@ from werkzeug.routing import Map, Rule
 from werkzeug.serving import make_server
 from werkzeug.wrappers import Request, Response
 
-import gigui._logging  # noqa
+import gigui._logging  # noqa # ensure that logging.verbose is available
 from gigui.output.html import Html
 
 PORT = 8080
