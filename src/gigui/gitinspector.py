@@ -11,6 +11,7 @@ from pathlib import Path
 
 import PySimpleGUI as sg  # type: ignore
 
+from gigui import shared
 from gigui._logging import (
     configure_logging_for_multiprocessing,
     set_logging_level_from_verbosity,
@@ -118,8 +119,8 @@ def run(args: Args, start_time: float, gui_window: sg.Window | None = None) -> N
             "Multiple repos need the (default prefix) or postfix option."
         )
         return
-    if not args.format and args.view and args.dry_run == 0:
-        if len_repos > 1 and args.multicore:
+    if not args.format and args.view and len_repos > 1 and args.dry_run == 0:
+        if args.multicore:
             log(
                 "Multiple repos detected and no output format selected for multicore.\n"
                 "Select an output format or disable multi-core or set dry run. "
@@ -129,8 +130,14 @@ def run(args: Args, start_time: float, gui_window: sg.Window | None = None) -> N
         if len_repos > MAX_BROWSER_TABS:
             logger.warning(
                 f"No output format selected and number of {len_repos} repositories "
-                f"exceeds the maximum number of {MAX_BROWSER_TABS} browser tabs. "
+                f"exceeds the maximum number of {MAX_BROWSER_TABS} browser tabs.\n"
                 "Select an output format or set dry run."
+            )
+            return
+        if shared.gui:
+            log(
+                "Multiple repos detected and no output format selected.\n"
+                "Select an output format or switch to the command line."
             )
             return
     if len_repos > 1 and args.fix == Keys.nofix and args.format:
