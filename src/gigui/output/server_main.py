@@ -1,5 +1,6 @@
 import re
 import socket
+import threading
 import time
 import webbrowser
 from multiprocessing import Process, Queue
@@ -7,10 +8,9 @@ from queue import Empty  # Add this import
 from uuid import uuid4
 
 from gigui.constants import DYNAMIC
-from gigui.output import html
+from gigui.output import html, server
 from gigui.output.blame_rows import BlameHistoryRows
 from gigui.output.html import BlameTableSoup, create_html_document, load_css, logger
-from gigui.output.server import PORT, run_server
 from gigui.typedefs import SHA, FileStr, Html
 
 
@@ -19,7 +19,10 @@ from gigui.typedefs import SHA, FileStr, Html
 # It also opens the web browser to serve the initial contents.
 # The server process is terminated when the main process receives a shutdown request via
 # the queue.
-def start_werkzeug_server_in_process_with_html(html_code: Html) -> None:
+def start_werkzeug_server_in_process_with_html(
+    html_code: Html,
+    stop_event: threading.Event,
+) -> None:
     server_process: Process
     process_queue: Queue
 
@@ -28,7 +31,7 @@ def start_werkzeug_server_in_process_with_html(html_code: Html) -> None:
 
     html_code = create_html_document(html_code, load_css(), browser_id)
 
-    port: int = PORT
+    port: int = server.PORT
     while is_port_in_use(port):
         port += 1
 
@@ -36,7 +39,7 @@ def start_werkzeug_server_in_process_with_html(html_code: Html) -> None:
         # Start the server in a separate process and communicate with it via the queue and
         # shared data dictionary.
         server_process = Process(
-            target=run_server,
+            target=server.run,
             args=(process_queue, html_code, browser_id, port),
         )
         server_process.start()
@@ -49,8 +52,13 @@ def start_werkzeug_server_in_process_with_html(html_code: Html) -> None:
         browser.open_new_tab(f"http://localhost:{port}")
 
         while server_process.is_alive():  # Check if server_process is still alive
+            if stop_event.is_set():
+                process_queue.put(
+                    ("shutdown", browser_id)
+                )  # Send shutdown request to server_process
+                break
             try:
-                request = process_queue.get(timeout=0.4)
+                request = process_queue.get(timeout=0.2)
                 if request[0] == "shutdown" and request[1] == browser_id:
                     break
                 if request[0] == "load_table" and request[2] == browser_id:
@@ -65,16 +73,17 @@ def start_werkzeug_server_in_process_with_html(html_code: Html) -> None:
                 pass  # Handle the queue.Empty exception
 
     except KeyboardInterrupt:
-        logger.info("Keyboard interrupt received in module server_main")
+        logger.info("server_main: keyboard interrupt received")
         process_queue.put(("shutdown", browser_id))  # Send shutdown request to server
     except Exception as e:
-        logger.info("Exception received in module server_main")
+        logger.info("server_main: exception received in module server_main")
         raise e
     finally:
-        logger.info("Server main at finally")
+        time.sleep(0.1)  # Wait for the server_process to handle the shutdown request
         if server_process.is_alive():  # type: ignore
             server_process.terminate()  # type: ignore
             server_process.join()  # type: ignore # Ensure the process is fully terminated
+        logger.info("server_main: terminated")
 
 
 def is_port_in_use(port: int) -> bool:

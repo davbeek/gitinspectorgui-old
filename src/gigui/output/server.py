@@ -1,9 +1,10 @@
 import logging
 from multiprocessing import Queue
 from threading import Thread
+from typing import Callable
 
 from werkzeug.routing import Map, Rule
-from werkzeug.serving import run_simple
+from werkzeug.serving import make_server
 from werkzeug.wrappers import Request, Response
 
 import gigui._logging  # noqa
@@ -23,22 +24,17 @@ url_map = Map(
     ]
 )
 
-shutdown_func = None  # Add this global variable
+shutdown_func: Callable
 
 
 # This is the main function that runs on the server. It catches all requests from
 # javascript and either calls server functions defined here, or sends the requests to
 # the main process via the queue.
-def run_server(q: Queue, html_code: Html, browser_id: str, port: int) -> None:
+def run(q: Queue, html_code: Html, browser_id: str, port: int) -> None:
     global shutdown_func  # Use the global variable
 
     @Request.application
     def app(request: Request) -> Response:
-        global shutdown_func  # Use the global variable
-        shutdown_func = request.environ.get(
-            "werkzeug.server.shutdown"
-        )  # Store the shutdown function
-
         logger.verbose(f"From browser = {request.path} {request.args.get('id')}")  # type: ignore
 
         if request.path == "/":
@@ -48,6 +44,9 @@ def run_server(q: Queue, html_code: Html, browser_id: str, port: int) -> None:
             shutdown_id = request.args.get("id")
             if shutdown_id == browser_id:
                 q.put(("shutdown", browser_id))  # Send to main process
+                logger.info("server: shutdown request sent to main")
+                # Use a separate thread to call shutdown_func
+                Thread(target=shutdown_func).start()
                 return Response(
                     content_type="text/plain",
                 )
@@ -67,18 +66,20 @@ def run_server(q: Queue, html_code: Html, browser_id: str, port: int) -> None:
         else:
             return Response("Not found", status=404)
 
-    # Run the server in a new thread
-    server_thread = Thread(target=run_simple, args=("localhost", port, app))
+    server = make_server("localhost", port, app)
+    shutdown_func = server.shutdown  # Store the shutdown function
+
+    server_thread = Thread(target=server.serve_forever)
     server_thread.start()
 
     try:
         while server_thread.is_alive():
-            server_thread.join(1)
+            server_thread.join(0.2)
     except KeyboardInterrupt:
-        logger.info("Keyboard interrupt received in module server")
+        logger.info("server: keyboard interrupt received")
         # Use werkzeug's shutdown mechanism
-        if shutdown_func:
-            shutdown_func()
+        shutdown_func()
         server_thread.join()
     finally:
         server_thread.join()
+        logger.info("server: terminated")

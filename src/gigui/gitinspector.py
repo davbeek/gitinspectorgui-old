@@ -1,6 +1,8 @@
 import logging
 import multiprocessing
 import os
+import select
+import sys
 import threading
 import time
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
@@ -15,7 +17,14 @@ from gigui._logging import (
     start_logging_listener,
 )
 from gigui.args_settings import Args
-from gigui.constants import DEFAULT_FILE_BASE, DYNAMIC, HIDE, MAX_THREAD_WORKERS, STATIC
+from gigui.constants import (
+    DEFAULT_FILE_BASE,
+    DYNAMIC,
+    HIDE,
+    MAX_BROWSER_TABS,
+    MAX_THREAD_WORKERS,
+    STATIC,
+)
 from gigui.data import FileStat, Person
 from gigui.keys import Keys
 from gigui.output import html, stat_rows
@@ -51,6 +60,7 @@ from gigui.utils import (
 logger = logging.getLogger(__name__)
 
 threads: list[threading.Thread] = []
+stop_event = threading.Event()
 
 
 def run(args: Args, start_time: float, gui_window: sg.Window | None = None) -> None:
@@ -108,19 +118,21 @@ def run(args: Args, start_time: float, gui_window: sg.Window | None = None) -> N
             "Multiple repos need the (default prefix) or postfix option."
         )
         return
-    if (
-        len_repos > 1
-        and not args.format
-        and args.dry_run == 0
-        and args.multicore
-        and args.view
-    ):
-        log(
-            "Multiple repos detected and no output format selected for multicore.\n"
-            "Select an output format or disable multi-core or set dry run. "
-            + ("E.g. -F html or --no-multicore.")
-        )
-        return
+    if not args.format and args.view and args.dry_run == 0:
+        if len_repos > 1 and args.multicore:
+            log(
+                "Multiple repos detected and no output format selected for multicore.\n"
+                "Select an output format or disable multi-core or set dry run. "
+                + ("E.g. -F html or --no-multicore.")
+            )
+            return
+        if len_repos > MAX_BROWSER_TABS:
+            logger.warning(
+                f"No output format selected and number of {len_repos} repositories "
+                f"exceeds the maximum number of {MAX_BROWSER_TABS} browser tabs. "
+                "Select an output format or set dry run."
+            )
+            return
     if len_repos > 1 and args.fix == Keys.nofix and args.format:
         log(
             "Multiple repos detected and nofix option selected for file output.\n"
@@ -171,15 +183,32 @@ def run(args: Args, start_time: float, gui_window: sg.Window | None = None) -> N
         )
 
         try:
-            log("Close all browser tabs or press Ctrl+C to finish...")
-            for thread in threads:
-                thread.join()
+            log("Close all browser tabs or press q followed by Enter to quit.")
+            while True:
+                if select.select([sys.stdin], [], [], 0.1)[
+                    0
+                ]:  # Check if there is input
+                    if input().lower() == "q":
+                        stop_event.set()
+                        time.sleep(
+                            0.1
+                        )  # Wait for the server to handle the shutdown request
+                        break
+                threads_finished = True
+                for thread in threads:
+                    thread.join(timeout=0.1)
+                    if thread.is_alive():
+                        threads_finished = False
+                        continue
+                if threads_finished:
+                    break
         except KeyboardInterrupt:
-            logger.info("Keyboard interrupt received in module gitinspector")
+            logger.info("GI: keyboard interrupt received")
+        finally:
             for thread in threads:
                 if thread.is_alive():
                     thread.join()
-            time.sleep(0.5)  # Wait for the threads to finish and cleanup
+            time.sleep(0.1)  # Wait for the threads to finish and cleanup
             os._exit(0)
 
     out_profile(profiler, args.profile)
@@ -329,7 +358,7 @@ def process_repo_output(  # pylint: disable=too-many-locals
             open_webview(html_code, repo.name)
         else:  # CLI mode, dynamic blame history
             try:
-                start_werkzeug_server_in_process_with_html(html_code)
+                start_werkzeug_server_in_process_with_html(html_code, stop_event)
             except KeyboardInterrupt:
                 os._exit(0)
 
@@ -337,7 +366,7 @@ def process_repo_output(  # pylint: disable=too-many-locals
         html_code = get_repo_html(repo, args.blame_skip)
         thread = threading.Thread(
             target=start_werkzeug_server_in_process_with_html,
-            args=(html_code,),
+            args=(html_code, stop_event),
         )
         thread.start()
         threads.append(thread)

@@ -50,7 +50,7 @@ WEBVIEW_WIDTH = 1400
 WEBVIEW_HEIGHT = 800
 
 # Output settings web browser
-MAX_BROWSER_TABS = 10
+MAX_BROWSER_TABS = 20
 
 # Output settings Excel
 ABBREV_CNT = 30
