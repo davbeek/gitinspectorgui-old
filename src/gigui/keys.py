@@ -12,7 +12,7 @@ class KeysArgs:
     fix: str = "fix"
     depth: str = "depth"
     view: str = "view"
-    format: str = "format"
+    formats: str = "formats"
     scaled_percentages: str = "scaled_percentages"
     blame_exclusions: str = "blame_exclusions"
     blame_skip: str = "blame_skip"

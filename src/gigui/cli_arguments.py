@@ -104,10 +104,10 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
     )
     group_generation.add_argument(
         "-F",
-        "--format",
+        "--formats",
         action="extend",
         nargs="*",
-        help=hlp.format,
+        help=hlp.formats,
     )
 
     # Below follow the subgroups from group "Output generation and formatting". The

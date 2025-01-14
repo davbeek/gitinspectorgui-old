@@ -1,28 +1,16 @@
-import platform
 import sys
-from pathlib import Path
 
-from xlsxwriter import Workbook  # type: ignore[import-untyped]
+from git import TYPE_CHECKING
 from xlsxwriter.chart import Chart  # type: ignore[import-untyped]
 from xlsxwriter.workbook import Format as ExcelFormat  # type: ignore[import-untyped]
 from xlsxwriter.worksheet import Worksheet  # type: ignore[import-untyped]
 
-from gigui.output.blame_rows import BlameRows, header_blames, string2truncated
-from gigui.output.stat_rows import (
-    AuthorsFilesTableRows,
-    AuthorsTableRows,
-    FilesAuthorsTableRows,
-    FilesTableRows,
-    header_authors,
-    header_authors_files,
-    header_files,
-    header_files_authors,
-)
-from gigui.repo import RepoGI
-from gigui.typedefs import FileStr, Row
-from gigui.utils import get_relative_fstr
+from gigui.typedefs import Row
 
 type FormatSpec = dict[str, str | int | float]  # type: ignore
+
+if TYPE_CHECKING:
+    from gigui.output.repo_excel import Book
 
 MAX_LENGTH_SHEET_NAME = 31  # hard coded in Excel
 
@@ -57,7 +45,7 @@ class Sheet:
     ):
         self.worksheet: Worksheet = worksheet
         self.book: "Book" = book
-        self.formats: dict[str, ExcelFormat] = book.formats
+        self.formatstr2excelformat: dict[str, ExcelFormat] = book.formatstr2excelformat
 
         self.row: int = 0
         self.col: int = 0
@@ -152,7 +140,7 @@ class TableSheet(Sheet):
             col = self.head2col[head]
             width = self.head2width.get(head)
             format_name = self.head2format_name.get(head)
-            excel_format = self.formats.get(format_name)  # type: ignore
+            excel_format = self.formatstr2excelformat.get(format_name)  # type: ignore
             self.worksheet.set_column(col, col, width, excel_format)
 
     def add_table(self, header: list[dict[str, str]]) -> None:
@@ -223,7 +211,7 @@ class StatsSheet(TableSheet):
             {
                 "type": "formula",
                 "criteria": "MOD($A2,2)=1",
-                "format": self.formats["row_white"],
+                "format": self.formatstr2excelformat["row_white"],
             },
         )
         self.worksheet.conditional_format(
@@ -234,7 +222,7 @@ class StatsSheet(TableSheet):
             {
                 "type": "formula",
                 "criteria": "MOD($A2,2)=0",
-                "format": self.formats["row_light_green"],
+                "format": self.formatstr2excelformat["row_light_green"],
             },
         )
 
@@ -331,9 +319,11 @@ class BlameSheet(TableSheet):
             code_col: int = self.head2col["Code"]
             self.write_row(row[:code_col])
             if is_comment:
-                self.write(row[code_col], self.formats["code_italic_format"])
+                self.write(
+                    row[code_col], self.formatstr2excelformat["code_italic_format"]
+                )
             else:
-                self.write(row[code_col], self.formats["code_format"])
+                self.write(row[code_col], self.formatstr2excelformat["code_format"])
 
         self.head2format_name |= {
             "Date": "date_format",
@@ -356,186 +346,10 @@ class BlameSheet(TableSheet):
         # Override font of Code column to default font by setting the format to None
         for col_name in ["SHA", "Code"]:
             self.worksheet.write(
-                0, self.head2col[col_name], col_name, self.formats["clear"]
+                0,
+                self.head2col[col_name],
+                col_name,
+                self.formatstr2excelformat["clear"],
             )
 
         self.set_conditional_author_formats()
-
-
-class Book:
-    blame_skip: bool
-    blame_history: str
-    subfolder: str
-
-    def __init__(self, name: str, repo: RepoGI):
-        self.name: str = name
-        self.repo: RepoGI = repo
-
-        self.outfile: str = self.name + ".xlsx"
-        self.workbook = Workbook(self.name + ".xlsx")
-        self.formats: dict[str, ExcelFormat] = {}
-        self.author_color_formats: list[ExcelFormat] = []
-        self.author_colors = [
-            AUTHOR_LIGHT_GREEN,
-            AUTHOR_LIGHT_BLUE,
-            AUTHOR_LIGHT_RED,
-            AUTHOR_LIGHT_YELLOW,
-            AUTHOR_LIGHT_ORANGE,
-            AUTHOR_LIGHT_PURPLE,
-            AUTHOR_LIGHT_GRAY,
-        ]
-
-        # Remove all formatting, so that the default format is used.
-        self.add_format("clear", {})
-
-        self.add_format("align_left", {"align": "left"})
-        self.add_format("align_right", {"align": "right"})
-
-        self.add_format(
-            "row_white",
-            {"bg_color": WHITE, "border": 1, "border_color": ROW_WHITE_BORDER},
-        )
-        self.add_format(
-            "row_light_green",
-            {
-                "bg_color": ROW_LIGHT_GREEN,
-                "border": 1,
-                "border_color": ROW_LIGHT_GREEN_BORDER,
-            },
-        )
-        self.add_format(
-            "num_format",
-            {"num_format": "0"},
-        )
-
-        fixed_width_font: dict[str, str | int | float]
-        match platform.system():
-            case "Windows":
-                fixed_width_font = {
-                    "font_name": "Consolas",
-                    "font_size": 10,
-                }
-            case "Darwin":
-                fixed_width_font = {
-                    "font_name": "Menlo",
-                    "font_size": 9.5,
-                }
-            case _:
-                fixed_width_font = {
-                    "font_name": "Liberation Mono, 'DejaVu Sans Mono', 'Ubuntu Mono', Courier New",
-                    "font_size": 9.5,
-                }
-
-        sha_format_spec = {**fixed_width_font, "align": "right"}
-        self.add_format("SHA_format", sha_format_spec)
-
-        code_format_spec = {**fixed_width_font, "indent": 1}
-        self.add_format("code_format", code_format_spec)
-        self.add_format(
-            "code_italic_format", {**fixed_width_font, "indent": 1, "italic": True}
-        )
-
-        self.add_format("date_format", {"num_format": 14})
-
-        for c in self.author_colors:
-            self.author_color_formats.append(
-                self.workbook.add_format(
-                    {"bg_color": c, "border": 1, "border_color": "#D8E4BC"}
-                )
-            )
-
-        Path(self.outfile).unlink(missing_ok=True)
-
-        self.add_authors_sheet()
-        self.add_authors_files_sheet()
-        self.add_files_authors_sheet()
-        self.add_files_sheet()
-        if not self.blame_skip:
-            self.add_blame_sheets()
-        self.close()
-
-    def add_format(self, format_name: str, format_spec: FormatSpec) -> None:
-        excel_format = self.workbook.add_format(format_spec)
-        self.formats[format_name] = excel_format
-
-    def add_authors_sheet(self) -> None:
-        rows: list[Row] = AuthorsTableRows(self.repo).get_rows(html=False)
-        AuthorsSheet(
-            rows,
-            self.workbook.add_chart({"type": "pie"}),  # type: ignore
-            header_authors(html=False),
-            self.workbook.add_worksheet("Authors"),
-            self,
-        )
-
-    def add_authors_files_sheet(self) -> None:
-        rows: list[Row] = AuthorsFilesTableRows(self.repo).get_rows(html=False)
-        AuthorsFilesSheet(
-            rows,
-            header_authors_files(html=False),
-            self.workbook.add_worksheet("Authors-Files"),
-            self,
-        )
-
-    def add_files_authors_sheet(self) -> None:
-        rows: list[Row] = FilesAuthorsTableRows(self.repo).get_rows(html=False)
-        FilesAuthorsSheet(
-            rows,
-            header_files_authors(html=False),
-            self.workbook.add_worksheet("Files-Authors"),
-            self,
-        )
-
-    def add_files_sheet(self) -> None:
-        rows: list[Row] = FilesTableRows(self.repo).get_rows()
-        FilesSheet(
-            rows,
-            header_files(),
-            self.workbook.add_worksheet("Files"),
-            self,
-        )
-
-    def add_blame_sheet(
-        self,
-        name,
-        rows: list[Row],
-        iscomments: list[bool],
-    ) -> None:
-        if rows:
-            sheet_name = name.replace("/", ">")
-            BlameSheet(
-                rows,
-                iscomments,
-                header_blames(),
-                self.workbook.add_worksheet(sheet_name),
-                self,
-            )
-
-    def add_blame_sheets(
-        self,
-    ) -> None:
-        fstrs: list[FileStr] = []
-        fstr2rows: dict[FileStr, list[Row]] = {}
-        fstr2iscomments: dict[FileStr, list[bool]] = {}
-
-        for fstr in self.repo.fstrs:
-            rows, iscomments = BlameRows(self.repo).get_fstr_blame_rows(fstr)
-            if rows:
-                fstrs.append(fstr)
-                fstr2rows[fstr] = rows
-                fstr2iscomments[fstr] = iscomments
-
-        relative_fstrs = [get_relative_fstr(fstr, self.subfolder) for fstr in fstrs]
-        relative_fstr2truncated = string2truncated(
-            relative_fstrs, MAX_LENGTH_SHEET_NAME
-        )
-
-        for fstr, rel_fstr in zip(fstrs, relative_fstrs):
-            self.add_blame_sheet(
-                relative_fstr2truncated[rel_fstr],
-                fstr2rows[fstr],
-                fstr2iscomments[fstr],
-            )
-
-    def close(self) -> None:
-        self.workbook.close()

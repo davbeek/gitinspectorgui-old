@@ -97,7 +97,7 @@ def window_state_from_settings(window: sg.Window, settings: Settings) -> None:
         if key
         not in {
             keys.fix,
-            keys.format,
+            keys.formats,
             keys.gui_settings_full_path,
             keys.profile,
             keys.multicore,
@@ -113,10 +113,10 @@ def window_state_from_settings(window: sg.Window, settings: Settings) -> None:
     # default values of boolean window.Element are False
     window.Element(settings.fix).Update(value=True)  # type: ignore
 
-    if settings.format:
+    if settings.formats:
         for key in set(AVAILABLE_FORMATS):
             window.Element(key).Update(  # type:ignore
-                value=key in settings.format
+                value=key in settings.formats
             )
 
     window.write_event_value(keys.input_fstrs, " ".join(settings.input_fstrs))

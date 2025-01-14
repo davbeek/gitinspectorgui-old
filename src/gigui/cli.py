@@ -97,7 +97,7 @@ def main() -> None:
         cli_args.view = False
 
     # Validate formats
-    for fmt in cli_args.format:
+    for fmt in cli_args.formats:
         if fmt not in AVAILABLE_FORMATS:
             # Print error message and exit
             parser.error(

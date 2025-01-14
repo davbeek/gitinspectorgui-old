@@ -6,23 +6,8 @@ from pathlib import Path
 from bs4 import BeautifulSoup, Tag
 
 from gigui.constants import DYNAMIC, HIDE, NONE, SHOW, STATIC
-from gigui.output.blame_rows import (
-    BlameHistoryRows,
-    BlameRows,
-    header_blames,
-    string2truncated,
-)
-from gigui.output.stat_rows import (
-    AuthorsFilesTableRows,
-    AuthorsTableRows,
-    FilesAuthorsTableRows,
-    FilesTableRows,
-    header_authors,
-    header_authors_files,
-    header_files,
-    header_files_authors,
-)
-from gigui.repo import RepoGI
+from gigui.output.repo_blame_rows import RepoBlameRows
+from gigui.repo_data import RepoData
 from gigui.typedefs import SHA, Author, FileStr, Html, Row
 from gigui.utils import get_relative_fstr, log
 
@@ -77,38 +62,25 @@ blame_history: str
 
 logger = logging.getLogger(__name__)
 
-# Global definition of the current repository. Defined in this module instead of in
-# shared_data to prevent circular imports.
-current_repo: RepoGI
 
-
-class TableRootSoup:
-    def __init__(self, repo: RepoGI) -> None:
-        self.repo: RepoGI = repo
-
+class RepoColor(RepoBlameRows):
     def _get_color_for_author(self, author: Author) -> str:
-        author_nr = self.repo.author_star2nr[author]
+        author_nr = self.author_star2nr[author]
         return BG_AUTHOR_COLORS[author_nr % len(BG_AUTHOR_COLORS)]
 
     def _get_color_for_sha_nr(self, sha_nr: int) -> str:
-
-        sha = self.repo.nr2sha[sha_nr]
-        author = self.repo.sha2author[sha]
-        color_class = self._get_color_for_author(author)
-        return color_class
+        sha = self.nr2sha[sha_nr]
+        author = self.sha2author[sha]
+        return self._get_color_for_author(author)
 
 
-class TableSoup(TableRootSoup):
+class TableSoup(RepoColor):
     blame_exclusions: str
-    empty_lines: bool
-    subfolder: FileStr
 
-    def __init__(self, repo: RepoGI) -> None:
-        super().__init__(repo)
+    def __init__(self, name: str, location: Path) -> None:
+        super().__init__(name, location)
 
         self.soup = BeautifulSoup("<div></div>", "html.parser")
-
-        self.author2color_class: dict[Author, str]
 
     def _add_header_row(self, header_row: list[str], table: Tag) -> None:
         thead: Tag = self.soup.new_tag("thead")
@@ -141,60 +113,30 @@ class TableSoup(TableRootSoup):
         table.insert(0, thead)  # ensure thead comes before tbody
 
 
-class StatTableSoup(TableSoup):
-    def __init__(self, repo: RepoGI) -> None:
-        super().__init__(repo)
-
-        self.table: Tag = self.soup.new_tag("table")
-        self.tbody: Tag = self.soup.new_tag("tbody")
-
-        self.rows: list[Row]  # to be set by child classes
-
-    def _add_colored_rows_table(
-        self, header_row: list[str], bg_colors: list[str]
-    ) -> None:
-        self._add_header_row(header_row, self.table)
-        for row in self.rows:
-            tr = self.soup.new_tag("tr")
-            tr["class"] = bg_colors[(int(row[0]) % len(bg_colors))]
-            self.tbody.append(tr)
-            for i_col, data in enumerate(row):
-                td = self.soup.new_tag("td")
-                td["class"] = HEADER_CLASS_DICT[header_row[i_col]]
-                if header_row[i_col] == "Empty":
-                    td.string = ""
-                else:
-                    td.string = str(data)
-                tr.append(td)
-        self.table.append(self.tbody)
-
-
-class AuthorsTableSoup(StatTableSoup):
-    def get_table(self) -> Tag:
-        self.rows: list[Row] = AuthorsTableRows(self.repo).get_rows()
-        self._add_colored_rows_table(
-            header_authors(),
+class RepoStatTableSoup(TableSoup):
+    def get_authors_soup(self) -> Tag:
+        rows: list[Row] = self.get_author_rows()
+        return self._get_colored_rows_table_soup(
+            rows,
+            self.header_authors(),
             BG_AUTHOR_COLORS,
         )
-        return self.table
 
-
-class AuthorsFilesTableSoup(StatTableSoup):
-    def get_table(self) -> Tag:
-        self.rows: list[Row] = AuthorsFilesTableRows(self.repo).get_rows()
-        self._add_colored_rows_table(
-            header_authors_files(),
+    def get_authors_files_soup(self) -> Tag:
+        rows: list[Row] = self.get_authors_files_rows()
+        return self._get_colored_rows_table_soup(
+            rows,
+            self.header_authors_files(),
             BG_AUTHOR_COLORS,
         )
-        return self.table
 
+    def get_files_authors_soup(self) -> Tag:  # pylint: disable=too-many-locals
+        table: Tag = self.soup.new_tag("table")
+        tbody: Tag = self.soup.new_tag("tbody")
 
-class FilesAuthorsTableSoup(StatTableSoup):
-    def get_table(self) -> Tag:  # pylint: disable=too-many-locals
-        row_table = FilesAuthorsTableRows(self.repo)
-        rows: list[Row] = row_table.get_rows()
+        rows: list[Row] = self.get_files_authors_rows()
 
-        header_row: list[str] = header_files_authors()
+        header_row: list[str] = self.header_files_authors()
 
         # pylint: disable=invalid-name
         ID_COL: int = header_row.index("ID")  # = 0
@@ -206,7 +148,7 @@ class FilesAuthorsTableSoup(StatTableSoup):
         color_class: str
         author: Author
 
-        self._add_header_row(header_row, self.table)
+        self._add_header_row(header_row, table)
 
         first_file = True
         row_id = 0
@@ -217,7 +159,7 @@ class FilesAuthorsTableSoup(StatTableSoup):
 
             tr = self.soup.new_tag("tr")
             tr["class"] = BG_ROW_COLORS[(int(row[ID_COL]) % len(BG_ROW_COLORS))]
-            self.tbody.append(tr)
+            tbody.append(tr)
 
             author = row[AUTHOR_COL]  # type: ignore
 
@@ -242,21 +184,76 @@ class FilesAuthorsTableSoup(StatTableSoup):
                     )
                     td.string = str(data)
                 tr.append(td)
-        self.table.append(self.tbody)
-        return self.table
+        table.append(tbody)
+        return table
+
+    def get_files_soup(self) -> Tag:
+        rows = self.get_files_rows()
+        return self._get_colored_rows_table_soup(
+            rows,
+            self.header_files(),
+            BG_ROW_COLORS,
+        )
+
+    def _get_colored_rows_table_soup(
+        self, rows, header_row: list[str], bg_colors: list[str]
+    ) -> Tag:
+        table: Tag = self.soup.new_tag("table")
+        tbody: Tag = self.soup.new_tag("tbody")
+
+        self._add_header_row(header_row, table)
+        for row in rows:
+            tr = self.soup.new_tag("tr")
+            tr["class"] = bg_colors[(int(row[0]) % len(bg_colors))]
+            tbody.append(tr)
+            for i_col, data in enumerate(row):
+                td = self.soup.new_tag("td")
+                td["class"] = HEADER_CLASS_DICT[header_row[i_col]]
+                if header_row[i_col] == "Empty":
+                    td.string = ""
+                else:
+                    td.string = str(data)
+                tr.append(td)
+        table.append(tbody)
+        return table
 
 
-class FilesTableSoup(StatTableSoup):
-    def get_table(self) -> Tag:
-        self.rows: list[Row] = FilesTableRows(self.repo).get_rows()
-        self._add_colored_rows_table(header_files(), BG_ROW_COLORS)
-        return self.table
-
-
-class BlameBaseTableSoup(TableSoup):
+class RepoBlameTableSoup(RepoStatTableSoup):
     blame_history: str
 
-    def get_table(
+    def get_blame_table_soup(self, fstr: FileStr) -> Tag | None:
+        rows: list[Row]
+        iscomments: list[bool]
+        table: Tag | None
+
+        rows, iscomments = self.get_fstr_blame_rows(fstr)
+        if not rows:
+            log(f"No blame output matching filters found for file {fstr}")
+            return None
+
+        table = self._get_blame_table_from_rows(rows, iscomments)
+        return table
+
+    def get_blame_history_static_tables_soup(
+        self,
+        fstr_root: FileStr,
+        sha2nr: dict[SHA, int],
+        blame_tab_index: int,
+    ) -> list[Tag]:
+        tables: list[Tag] = []
+        if fstr_root not in self.fstr2shas:
+            return []
+        for sha in self.fstr2shas[fstr_root]:
+            rows, iscomments = self.get_fr_sha_blame_rows(fstr_root, sha)
+            if not rows:
+                continue
+            nr = sha2nr[sha]
+            table = self._get_blame_table_from_rows(rows, iscomments)
+            table["id"] = f"file-{blame_tab_index}-sha-{nr}"
+            tables.append(table)
+        return tables
+
+    def _get_blame_table_from_rows(
         self,
         rows: list[Row],
         iscomments: list[bool],
@@ -270,7 +267,7 @@ class BlameBaseTableSoup(TableSoup):
         if self.blame_history == DYNAMIC:
             table["id"] = f"file-{fstr_nr}-sha-{sha_nr}"
 
-        header_row = header_blames()
+        header_row = self.header_blames()
         self._add_header_row(header_row, table)
 
         bg_colors_cnt = len(BG_AUTHOR_COLORS)
@@ -304,70 +301,30 @@ class BlameBaseTableSoup(TableSoup):
         return table
 
 
-class BlameTableSoup(BlameBaseTableSoup):
-    def get_fstr_table(self, fstr: FileStr) -> Tag | None:
-        rows: list[Row]
-        iscomments: list[bool]
-        table: Tag | None
-
-        rows, iscomments = BlameRows(self.repo).get_fstr_blame_rows(fstr)
-        if not rows:
-            log(f"No blame output matching filters found for file {fstr}")
-            return None
-
-        table = self.get_table(rows, iscomments)
-        return table
-
-
-class BlameHistoryStaticTableSoup(BlameBaseTableSoup):
-    def __init__(self, repo: RepoGI) -> None:
-        super().__init__(repo)
-        self.fstr2shas: dict[FileStr, list[SHA]] = self.repo.fstr2shas
-
-    def get_fstr_tables(
-        self,
-        fstr_root: FileStr,
-        sha2nr: dict[SHA, int],
-        blame_tab_index: int,
-    ) -> list[Tag]:
-        tables: list[Tag] = []
-        if fstr_root not in self.fstr2shas:
-            return []
-        for sha in self.fstr2shas[fstr_root]:
-            rows, iscomments = BlameHistoryRows(self.repo).get_fr_sha_blame_rows(
-                fstr_root, sha
-            )
-            if not rows:
-                continue
-            nr = sha2nr[sha]
-            table = self.get_table(rows, iscomments)
-            table["id"] = f"file-{blame_tab_index}-sha-{nr}"
-            tables.append(table)
-        return tables
-
-
-class BlameTablesSoup(TableRootSoup):
+class RepoBlameTablesSoup(RepoBlameTableSoup):
     subfolder: FileStr
     blame_history: str
 
-    def __init__(self, repo: RepoGI, global_soup: BeautifulSoup) -> None:
-        super().__init__(repo)
-        self.global_soup = global_soup
+    def __init__(self, name: str, location: Path) -> None:
+        super().__init__(name, location)
 
-    def add_tables(self) -> None:
+        # Is set when get_html() from superclass RepoHTML is called.
+        self.global_soup: BeautifulSoup
+
+    def add_blame_tables_soup(self) -> None:
         table: Tag | None
         tables: list[Tag]
         fstr2table: dict[FileStr, Tag] = {}
         fstr2tables: dict[FileStr, list[Tag]] = {}
         fstrs: list[FileStr] = []
-        sha2nr: dict[SHA, int] = self.repo.sha2nr
+        sha2nr: dict[SHA, int] = self.sha2nr
         nav_ul: Tag = self.global_soup.find(id="tab-buttons")  # type: ignore
         tab_div: Tag = self.global_soup.find(id="tab-contents")  # type: ignore
 
         blame_tab_index = 0
-        for fstr in self.repo.fstrs:
+        for fstr in self.fstrs:
             if self.blame_history == STATIC:
-                tables = BlameHistoryStaticTableSoup(self.repo).get_fstr_tables(
+                tables = self.get_blame_history_static_tables_soup(
                     fstr, sha2nr, blame_tab_index
                 )
                 if tables:
@@ -377,14 +334,14 @@ class BlameTablesSoup(TableRootSoup):
                 fstr2tables[fstr] = []
                 fstrs.append(fstr)
             elif self.blame_history == NONE:
-                table = BlameTableSoup(self.repo).get_fstr_table(fstr)
+                table = self.get_blame_table_soup(fstr)
                 if table:
                     fstr2table[fstr] = table
                     fstrs.append(fstr)
             blame_tab_index += 1
 
         relative_fstrs = [get_relative_fstr(fstr, self.subfolder) for fstr in fstrs]
-        relative_fstr2truncated = string2truncated(
+        relative_fstr2truncated = self.string2truncated(
             relative_fstrs,
             MAX_LENGTH_TAB_NAME,
         )
@@ -407,7 +364,7 @@ class BlameTablesSoup(TableRootSoup):
 
             if self.blame_history in {STATIC, DYNAMIC}:
                 self._add_radio_buttons(
-                    self.repo.fstr2shas[fstr],
+                    self.fstr2shas[fstr],
                     sha2nr,
                     blame_container,
                     blame_tab_index,
@@ -491,54 +448,53 @@ class BlameTablesSoup(TableRootSoup):
 
 
 # pylint: disable=too-many-locals
-def get_repo_html(
-    repo: RepoGI,
-    blame_skip: bool,
-) -> Html:
+class RepoHTML(RepoBlameTablesSoup):
     """
     Generate html with complete analysis results of the provided repository.
     """
 
-    global current_repo
-    current_repo = repo
+    blame_skip: bool
 
-    # Load the template file.
-    module_dir = Path(__file__).resolve().parent
-    html_path = module_dir / "static" / "template.html"
-    with open(html_path, "r", encoding="utf-8") as f:
-        html_template = f.read()
+    def get_html(self) -> Html:
 
-    if repo.blame_history in {NONE, STATIC}:
-        # If blame_history == DYNAMIC, create_html_document is called in server_main.py
-        html_template = create_html_document(html_template, load_css())
+        # Load the template file.
+        module_dir = Path(__file__).resolve().parent
+        html_path = module_dir / "static" / "template.html"
+        with open(html_path, "r", encoding="utf-8") as f:
+            html_template = f.read()
 
-    soup = BeautifulSoup(html_template, "html.parser")
+        if self.blame_history in {NONE, STATIC}:
+            # If blame_history == DYNAMIC, create_html_document is called in server_main.py
+            html_template = create_html_document(html_template, load_css())
 
-    title_tag: Tag = soup.find(name="title")  # type: ignore
-    title_tag.string = f"{repo.name} viewer"
+        self.global_soup = BeautifulSoup(html_template, "html.parser")
+        soup = self.global_soup
 
-    authors_tag: Tag = soup.find(id="authors")  # type: ignore
-    authors_tag.append(AuthorsTableSoup(repo).get_table())
+        title_tag: Tag = soup.find(name="title")  # type: ignore
+        title_tag.string = f"{self.name} viewer"
 
-    authors_files_tag: Tag = soup.find(id="authors-files")  # type: ignore
-    authors_files_tag.append(AuthorsFilesTableSoup(repo).get_table())
+        authors_tag: Tag = soup.find(id="authors")  # type: ignore
+        authors_tag.append(self.get_authors_soup())
 
-    files_authors_tag: Tag = soup.find(id="files-authors")  # type: ignore
-    files_authors_tag.append(FilesAuthorsTableSoup(repo).get_table())
+        authors_files_tag: Tag = soup.find(id="authors-files")  # type: ignore
+        authors_files_tag.append(self.get_authors_files_soup())
 
-    files_tag: Tag = soup.find(id="files")  # type: ignore
-    files_tag.append(FilesTableSoup(repo).get_table())
+        files_authors_tag: Tag = soup.find(id="files-authors")  # type: ignore
+        files_authors_tag.append(self.get_files_authors_soup())
 
-    # Add blame output if not skipped.
-    if not blame_skip:
-        BlameTablesSoup(repo, soup).add_tables()
+        files_tag: Tag = soup.find(id="files")  # type: ignore
+        files_tag.append(self.get_files_soup())
 
-    html: Html = str(soup)
-    html = html.replace("&amp;nbsp;", "&nbsp;")
-    html = html.replace("&amp;lt;", "&lt;")
-    html = html.replace("&amp;gt;", "&gt;")
-    html = html.replace("&amp;quot;", "&quot;")
-    return html
+        # Add blame output if not skipped.
+        if not self.blame_skip:
+            self.add_blame_tables_soup()
+
+        html: Html = str(soup)
+        html = html.replace("&amp;nbsp;", "&nbsp;")
+        html = html.replace("&amp;lt;", "&lt;")
+        html = html.replace("&amp;gt;", "&gt;")
+        html = html.replace("&amp;quot;", "&quot;")
+        return html
 
 
 # Is called by gitinspector module

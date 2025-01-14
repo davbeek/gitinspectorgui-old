@@ -196,7 +196,7 @@ class Help(Tip):
         prefix or postfix to the output file name."""
 
     # IO arguments
-    format: str = (
+    formats: str = (
         "Space-separated list of output formats. Select from "
         f"{', '.join(AVAILABLE_FORMATS)} (default html)."
     )

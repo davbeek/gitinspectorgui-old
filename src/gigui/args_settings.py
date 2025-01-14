@@ -48,7 +48,7 @@ class Args:
     fix: str = PREFIX
     depth: int = SUBDIR_NESTING_DEPTH
     view: bool = True
-    format: list[str] = field(default_factory=lambda: [])
+    formats: list[str] = field(default_factory=lambda: [])
     scaled_percentages: bool = False
     blame_exclusions: str = BLAME_EXCLUSIONS_DEFAULT
     blame_skip: bool = False
@@ -199,7 +199,7 @@ class Settings(Args):
         for fmt in AVAILABLE_FORMATS:
             if values[fmt]:
                 formats.append(fmt)
-        settings.format = formats
+        settings.formats = formats
         for key, value in asdict(settings).items():
             setattr(self, key, value)
 
@@ -297,7 +297,7 @@ class SettingsFile:
             "profile": {"type": "integer"},  # Not used in GUI
             "input_fstrs": {"type": "array", "items": {"type": "string"}},
             "view": {"type": "boolean"},
-            "format": {
+            "formats": {
                 "type": "array",
                 "items": {"type": "string", "enum": AVAILABLE_FORMATS},
             },

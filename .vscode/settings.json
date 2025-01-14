@@ -118,6 +118,8 @@
     "cSpell.words": [
         "colorlog",
         "cprint",
+        "excelformat",
+        "formatstr",
         "foss",
         "fstat",
         "fstr",
@@ -129,6 +131,7 @@
         "glsl",
         "hexsha",
         "htmls",
+        "initargs",
         "iscomments",
         "jsonschema",
         "jspx",

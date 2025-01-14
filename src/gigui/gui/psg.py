@@ -286,7 +286,7 @@ def run(  # pylint: disable=too-many-branches
             keys.profile,
             keys.fix,
             keys.n_files,
-            keys.format,
+            keys.formats,
             keys.since,
             keys.until,
             keys.multicore,
@@ -310,7 +310,7 @@ def run(  # pylint: disable=too-many-branches
     for key in AVAILABLE_FORMATS:
         if values[key]:
             formats.append(key)
-    args.format = formats
+    args.formats = formats
 
     for key in keys.since, keys.until:
         val = values[key]
