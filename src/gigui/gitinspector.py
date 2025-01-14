@@ -97,12 +97,6 @@ def run(args: Args, start_time: float, gui_window: sg.Window | None = None) -> N
             "Static blame history is supported only for html or no output formats.\n"
         )
         return
-    if args.blame_history == DYNAMIC and len_repos > 1:
-        logger.warning(
-            "Dynamic blame history is not supported for multiple repositories.\n"
-            "Select static blame history or a single repository."
-        )
-        return
     if args.blame_history == DYNAMIC and args.formats != []:
         logger.warning(
             "Dynamic blame history is available only when no output formats are "
