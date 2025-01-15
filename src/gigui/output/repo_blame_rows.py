@@ -24,11 +24,6 @@ class RepoBlameRows(RepoStatRows):
         blames: list[Blame] = self.generate_fr_blame_history(fstr_root, sha)
         return self._get_blame_rows(blames)
 
-    # This method is never called??????
-    def generate_fr_f_sha_blame_rows(self, fstr_root: FileStr, fstr: FileStr, sha: SHA):
-        blames: list[Blame] = self.generate_fr_f_blame_history(fstr_root, fstr, sha)
-        return self._get_blame_rows(blames)
-
     def _get_blame_rows(self, blames: list[Blame]) -> tuple[list[Row], list[bool]]:
         rows: list[Row] = []
         is_comments: list[bool] = []

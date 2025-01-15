@@ -1,19 +1,20 @@
 # noinspection PyPep8Naming
-import logging
 import multiprocessing
 import shlex  # Use shlex.split to handle quoted strings
 import sys
 import time
 from datetime import datetime
+from logging import getLogger
 from pathlib import Path
 from typing import Any
 
 import PySimpleGUI as sg  # type: ignore[import-untyped]
 
-from gigui import shared
+from gigui import _logging, shared
 from gigui._logging import set_logging_level_from_verbosity
 from gigui.args_settings import Args, Settings, SettingsFile
 from gigui.constants import AVAILABLE_FORMATS, DEBUG_SHOW_MAIN_EVENT_LOOP, DYNAMIC
+from gigui.gigui_runner import run_repos
 from gigui.gui.psg_support import (
     GUIState,
     WindowButtons,
@@ -33,11 +34,10 @@ from gigui.gui.psg_support import (
 )
 from gigui.gui.psg_window import make_window
 from gigui.keys import Keys
-from gigui.repos import run_repos
 from gigui.tiphelp import Help, Tip
-from gigui.utils import open_webview, to_posix_fstr
+from gigui.utils import to_posix_fstr
 
-logger = logging.getLogger(__name__)
+logger = getLogger(__name__)
 
 tip = Tip()
 keys = Keys()
@@ -57,7 +57,7 @@ def run_gui(settings: Settings) -> None:
 
 # pylint: disable=too-many-locals disable=too-many-branches disable=too-many-statements
 def run_inner(settings: Settings, state: GUIState) -> bool:
-    logger.verbose(f"{settings = }")  # type: ignore
+    logger.debug(f"{settings = }")  # type: ignore
 
     shared.gui = True
 
@@ -112,10 +112,6 @@ def run_inner(settings: Settings, state: GUIState) -> bool:
             case keys.log:
                 message, color = values[event]
                 sg.cprint(message, text_color=color, end="")
-
-            case keys.open_webview:
-                html_code, repo_name = values[event]
-                open_webview(html_code, repo_name, gui=True)
 
             # Top level buttons
             ###########################
@@ -251,7 +247,7 @@ def run(  # pylint: disable=too-many-branches
 ) -> None:
 
     start_time = time.time()
-    logger.verbose(f"{values = }")  # type: ignore
+    logger.debug(f"{values = }")  # type: ignore
 
     buttons = WindowButtons(window)
 
@@ -326,9 +322,9 @@ def run(  # pylint: disable=too-many-branches
             return
         setattr(args, key, str(val))
 
-    logger.verbose(f"{args = }")  # type: ignore
+    logger.debug(f"{args = }")  # type: ignore
     buttons.disable_all()
-    window.perform_long_operation(lambda: run_repos(args, start_time, window), keys.end)
+    window.perform_long_operation(lambda: run_repos(args, start_time), keys.end)
 
 
 if __name__ == "__main__":
@@ -336,4 +332,5 @@ if __name__ == "__main__":
     error: str
     current_settings, error = SettingsFile.load()
     multiprocessing.freeze_support()
+    _logging.ini_for_gui_base()
     run_gui(current_settings)

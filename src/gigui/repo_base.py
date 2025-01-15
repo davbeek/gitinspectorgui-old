@@ -1,21 +1,21 @@
 import copy
-import logging
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime
 from fnmatch import fnmatchcase
+from logging import getLogger
 from pathlib import Path
 
 from git import Commit, Repo
 
-from gigui.args_settings import Args
-from gigui.constants import GIT_LOG_CHUNK_SIZE
+from gigui.args_settings import Args, MiniRepo
+from gigui.constants import GIT_LOG_CHUNK_SIZE, MAX_THREAD_WORKERS
 from gigui.data import CommitGroup, PersonsDB, RepoStats
 from gigui.typedefs import OID, SHA, Author, FileStr, Rev
 from gigui.utils import log, log_dots
 
-logger = logging.getLogger(__name__)
+logger = getLogger(__name__)
 
 
 # SHAShortDate object is used to order and number commits by date, starting at 1 for the
@@ -27,10 +27,10 @@ class SHADate:
 
 
 class RepoBase:
-    def __init__(self, name: str, location: Path, args: Args):
-        self.name: str = name
-        self.location: Path = location
-        self.args: Args = args
+    def __init__(self, mini_repo: MiniRepo):
+        self.name: str = mini_repo.name
+        self.location: Path = mini_repo.location
+        self.args: Args = mini_repo.args
 
         # Here the values of the --ex-revision option are stored as a set.
         self.ex_revisions: set[Rev] = set(self.args.ex_revisions)
@@ -74,8 +74,6 @@ class RepoBase:
         ###################################################
         # The following vars are to be set in init_git_repo
         ###################################################
-
-        self.thread_executor: ThreadPoolExecutor
 
         self.sha2oid: dict[SHA, OID] = {}
         self.oid2sha: dict[OID, SHA] = {}
@@ -124,7 +122,7 @@ class RepoBase:
         self.head_oid = self.head_commit.hexsha
         self.head_sha = self.oid2sha[self.head_oid]
 
-    def run_base(self, thread_executor: ThreadPoolExecutor) -> None:
+    def run_base(self) -> None:
 
         # Set list top level fstrs (based on until par and allowed file extensions)
         self.fstrs = self._get_worktree_files()
@@ -132,7 +130,7 @@ class RepoBase:
         self._set_fstr2line_count()
         self._get_commits_first_pass()
 
-        self._set_fstr2commits(thread_executor)
+        self._set_fstr2commits()
         self.all_fstrs = copy.deepcopy(self.fstrs)
 
     def _convert_to_timestamp(self, date_str: str) -> int:
@@ -317,7 +315,7 @@ class RepoBase:
         else:
             return []
 
-    def _set_fstr2commits(self, thread_executor: ThreadPoolExecutor) -> None:
+    def _set_fstr2commits(self) -> None:
         # When two lists of commits share the same commit at the end,
         # the duplicate commit is removed from the longer list.
         def reduce_commits():
@@ -337,7 +335,7 @@ class RepoBase:
                         commit_groups2.pop()
                         i -= 1
 
-        logger = logging.getLogger(__name__)
+        logger = getLogger(__name__)
         i_max: int = len(self.fstrs)
         i: int = 0
         chunk_size: int = GIT_LOG_CHUNK_SIZE
@@ -346,31 +344,32 @@ class RepoBase:
             prefix + f"Git log: {self.name}: {i_max} files"
         )  # Log message sent to QueueHandler
         if self.args.multithread:
-            for chunk_start in range(0, i_max, chunk_size):
-                chunk_end = min(chunk_start + chunk_size, i_max)
-                chunk_fstrs = self.fstrs[chunk_start:chunk_end]
-                futures = [
-                    thread_executor.submit(self._get_commit_lines_for, fstr)
-                    for fstr in chunk_fstrs
-                ]
-                for future in as_completed(futures):
-                    lines_str, fstr = future.result()
-                    i += 1
-                    if self.args.verbosity == 0:
-                        log_dots(i, i_max, prefix, " " * 4, self.args.multicore)
-                    else:
-                        logger.info(
-                            prefix
-                            + f"log {i} of {i_max}: "
-                            + (
-                                f"{self.name}: {fstr}"
-                                if self.args.multicore
-                                else f"{fstr}"
+            with ThreadPoolExecutor(max_workers=MAX_THREAD_WORKERS) as thread_executor:
+                for chunk_start in range(0, i_max, chunk_size):
+                    chunk_end = min(chunk_start + chunk_size, i_max)
+                    chunk_fstrs = self.fstrs[chunk_start:chunk_end]
+                    futures = [
+                        thread_executor.submit(self._get_commit_lines_for, fstr)
+                        for fstr in chunk_fstrs
+                    ]
+                    for future in as_completed(futures):
+                        lines_str, fstr = future.result()
+                        i += 1
+                        if self.args.verbosity == 0:
+                            log_dots(i, i_max, prefix, " " * 4, self.args.multicore)
+                        else:
+                            logger.info(
+                                prefix
+                                + f"log {i} of {i_max}: "
+                                + (
+                                    f"{self.name}: {fstr}"
+                                    if self.args.multicore
+                                    else f"{fstr}"
+                                )
                             )
+                        self.fstr2commit_groups[fstr] = self._process_commit_lines_for(
+                            lines_str, fstr
                         )
-                    self.fstr2commit_groups[fstr] = self._process_commit_lines_for(
-                        lines_str, fstr
-                    )
         else:  # single thread
             for fstr in self.fstrs:
                 lines_str, fstr = self._get_commit_lines_for(fstr)
@@ -378,7 +377,7 @@ class RepoBase:
                 if self.args.verbosity == 0 and not self.args.multicore:
                     log_dots(i, i_max, prefix, " " * 4)
                 else:
-                    logger.info(prefix + f"{i} of {i_max}: {fstr}")
+                    logger.info(prefix + f"{i} of {i_max}: {self.name} {fstr}")
                 self.fstr2commit_groups[fstr] = self._process_commit_lines_for(
                     lines_str, fstr
                 )

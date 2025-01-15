@@ -10,10 +10,11 @@
             "request": "launch",
             "module": "gigui",
             "justMyCode": false,
-            "cwd": "${workspaceFolder}",
-            // "cwd": "${userHome}/1-repos/templates/1dh",
+            // "cwd": "${workspaceFolder}",
+            "cwd": "${userHome}/1-repos/templates",
             "args": [
-                "-r",
+                "-r"
+                // "-r=1dh",
             ],
         },
         {

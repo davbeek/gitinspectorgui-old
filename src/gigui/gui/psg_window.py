@@ -1,7 +1,7 @@
 # noinspection PyPep8Naming
 import base64
-import logging
 import sys
+from logging import getLogger
 from pathlib import Path
 
 import PySimpleGUI as sg  # type: ignore
@@ -35,7 +35,7 @@ from gigui.gui.psg_window_support import (
 from gigui.keys import Keys
 from gigui.tiphelp import Tip
 
-logger = logging.getLogger(__name__)
+logger = getLogger(__name__)
 
 COL_HEIGHT_UNLIMITED = int(
     (WINDOW_SIZE_Y - WINDOW_HEIGHT_CORR) * INIT_COL_PERCENT / 100
@@ -51,7 +51,7 @@ keys = Keys()
 # noinspection PyUnresolvedReferences
 def make_window() -> sg.Window:
     # Cannot use logging here, as there is not yet any new window to log to and the
-    # window in common and _logging still points to the old window after a "Reset
+    # window in common and logging still points to the old window after a "Reset
     # settings file" command has been given.
 
     sg.theme("SystemDefault")
@@ -67,7 +67,7 @@ def make_window() -> sg.Window:
         margins=(0, 0),
         background_color="white",
     )
-    add_gui_handler()
+    add_gui_handler()  # cannot add handler before window is created
     config_column = window[keys.config_column]
 
     widget = config_column.Widget  # type: ignore
@@ -426,7 +426,7 @@ def output_formats_frame() -> sg.Frame:
                 ),
                 spinbox(
                     keys.verbosity,
-                    list(range(4)),
+                    list(range(3)),
                 ),
                 name_choice(
                     "Dry run",

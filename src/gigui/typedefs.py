@@ -10,7 +10,7 @@ type OID = str  # type: ignore  # Object ID = long commit SHA, 40 chars
 type SHA = str  # type: ignore # short commit SHA, often 7 chars
 type Rev = OID | SHA  # type: ignore  # long or short commit SHA
 
-type Html = str  # type: ignore
+type HtmlStr = str  # type: ignore
 
 type BlameLine = str  # type: ignore # single line of code
 type BlameLines = list[BlameLine]  # type: ignore

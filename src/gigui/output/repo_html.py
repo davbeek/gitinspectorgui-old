@@ -1,14 +1,13 @@
-import logging
-
 # Add these imports
+from logging import getLogger
 from pathlib import Path
 
 from bs4 import BeautifulSoup, Tag
 
-from gigui.args_settings import Args
+from gigui.args_settings import MiniRepo
 from gigui.constants import DYNAMIC, HIDE, NONE, SHOW, STATIC
 from gigui.output.repo_blame_rows import RepoBlameRows
-from gigui.typedefs import SHA, Author, FileStr, Html, Row
+from gigui.typedefs import SHA, Author, FileStr, HtmlStr, Row
 from gigui.utils import get_relative_fstr, log
 
 MAX_LENGTH_TAB_NAME = 160
@@ -60,7 +59,7 @@ BG_ROW_COLORS: list[str] = ["bg-row-light-green", "bg-white"]
 blame_exclusions_hide: bool  # noqa: F821
 blame_history: str
 
-logger = logging.getLogger(__name__)
+logger = getLogger(__name__)
 
 
 class RepoColor(RepoBlameRows):
@@ -75,8 +74,8 @@ class RepoColor(RepoBlameRows):
 
 
 class TableSoup(RepoColor):
-    def __init__(self, name: str, location: Path, args: Args) -> None:
-        super().__init__(name, location, args)
+    def __init__(self, mini_repo: MiniRepo) -> None:
+        super().__init__(mini_repo)
 
         self.soup = BeautifulSoup("<div></div>", "html.parser")
 
@@ -298,8 +297,8 @@ class RepoBlameTableSoup(RepoStatTableSoup):
 
 
 class RepoBlameTablesSoup(RepoBlameTableSoup):
-    def __init__(self, name: str, location: Path, args: Args) -> None:
-        super().__init__(name, location, args)
+    def __init__(self, mini_repo: MiniRepo) -> None:
+        super().__init__(mini_repo)
 
         # Is set when get_html() from superclass RepoHTML is called.
         self.global_soup: BeautifulSoup
@@ -450,7 +449,7 @@ class RepoHTML(RepoBlameTablesSoup):
 
     blame_skip: bool
 
-    def get_html(self) -> Html:
+    def get_html(self) -> HtmlStr:
 
         # Load the template file.
         module_dir = Path(__file__).resolve().parent
@@ -459,8 +458,8 @@ class RepoHTML(RepoBlameTablesSoup):
             html_template = f.read()
 
         if self.args.blame_history in {NONE, STATIC}:
-            # If blame_history == DYNAMIC, create_html_document is called in server_main.py
-            html_template = create_html_document(html_template, load_css())
+            # If blame_history == DYNAMIC, create_html_document is called in repo_html_server.py
+            html_template = self.create_html_document(html_template, self.load_css())
 
         self.global_soup = BeautifulSoup(html_template, "html.parser")
         soup = self.global_soup
@@ -484,7 +483,7 @@ class RepoHTML(RepoBlameTablesSoup):
         if not self.args.blame_skip:
             self.add_blame_tables_soup()
 
-        html: Html = str(soup)
+        html: HtmlStr = str(soup)
         html = html.replace("&amp;nbsp;", "&nbsp;")
         html = html.replace("&amp;lt;", "&lt;")
         html = html.replace("&amp;gt;", "&gt;")
@@ -498,8 +497,8 @@ class RepoHTML(RepoBlameTablesSoup):
             return f.read()
 
     def create_html_document(
-        self, html_code: Html, css_code: str, browser_id: str | None = None
-    ) -> Html:
+        self, html_code: HtmlStr, css_code: str, browser_id: str | None = None
+    ) -> HtmlStr:
 
         # Insert CSS code
         html_code = html_code.replace(
@@ -510,9 +509,7 @@ class RepoHTML(RepoBlameTablesSoup):
         # Read and insert JavaScript files
         if browser_id:  # dynamic blame history
             js_files = [
-                # "adjust-header-row-pos.js",
                 "browser-id.js",
-                "generate-random-query.js",
                 "globals.js",
                 "tab-radio-button-activation.js",
                 "shutdown.js",
@@ -527,7 +524,7 @@ class RepoHTML(RepoBlameTablesSoup):
                 "truncate-tab-names.js",
                 "update-table-on-button-click.js",
             ]
-        html_js_code: Html = ""
+        html_js_code: HtmlStr = ""
         js_code: str
         for js_file in js_files:
             js_path = Path(__file__).parent / "static" / "js" / js_file

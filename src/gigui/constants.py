@@ -29,6 +29,7 @@ SUBDIR_NESTING_DEPTH = 5
 AVAILABLE_FORMATS = ["html", "excel"]
 DEFAULT_N_FILES = 5
 DEFAULT_COPY_MOVE = 1
+DEFAULT_VERBOSITY = 0
 DEFAULT_EXTENSIONS = [
     "c",
     "cc",
@@ -45,12 +46,9 @@ DEFAULT_EXTENSIONS = [
     "sql",
 ]
 
-# Output settings webview viewer
-WEBVIEW_WIDTH = 1400
-WEBVIEW_HEIGHT = 800
-
 # Output settings web browser
 MAX_BROWSER_TABS = 20
+FIRST_PORT = 8080
 
 # Output settings Excel
 ABBREV_CNT = 30

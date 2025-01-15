@@ -1,7 +1,7 @@
-import logging
 import time
 from dataclasses import dataclass, field
 from fnmatch import fnmatchcase
+from logging import getLogger
 from math import floor
 
 from gigui.typedefs import SHA, Author, Email, FileStr, Row
@@ -11,7 +11,7 @@ SECONDS_IN_DAY = 60 * 60 * 24
 DAYS_IN_MONTH = 30.44
 DAYS_IN_YEAR = 365.25
 
-logger = logging.getLogger(__name__)
+logger = getLogger(__name__)
 
 NOW = int(time.time())  # current time as Unix timestamp in seconds since epoch
 

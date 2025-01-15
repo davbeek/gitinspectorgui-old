@@ -1,8 +1,8 @@
 import json
-import logging
 import shlex
 from argparse import Namespace
 from dataclasses import asdict, dataclass, field, fields
+from logging import getLogger
 from pathlib import Path
 from typing import Any
 
@@ -36,7 +36,7 @@ from gigui.utils import (
     to_system_fstrs,
 )
 
-logger = logging.getLogger(__name__)
+logger = getLogger(__name__)
 
 
 @dataclass
@@ -82,6 +82,13 @@ class Args:
             f"Args - KeysArgs: {fld_names_args - fld_names_keys}\n"
             f"KeysArgs - Args: {fld_names_keys - fld_names_args}"
         )
+
+
+@dataclass
+class MiniRepo:
+    name: str
+    location: Path
+    args: Args
 
 
 @dataclass
@@ -226,7 +233,7 @@ class CLIArgs(Args):
     run: bool = False
 
     def create_settings(self) -> Settings:
-        logger.verbose(f"CLI self = {self}")  # type: ignore
+        logger.debug(f"CLI self = {self}")  # type: ignore
 
         settings = Settings()
         sets_dict = asdict(settings)
@@ -234,7 +241,7 @@ class CLIArgs(Args):
         for fld in fields(Args):
             sets_dict[fld.name] = args_dict[fld.name]
         settings = Settings.create_from_settings_dict(sets_dict)
-        logger.verbose(f"GUISettings from CLIArgs: {settings}")  # type: ignore
+        logger.debug(f"GUISettings from CLIArgs: {settings}")  # type: ignore
         return settings
 
     def create_args(self) -> Args:
@@ -266,8 +273,8 @@ class CLIArgs(Args):
             if nmsp_dict[key] is not None:
                 setattr(self, key, nmsp_dict[key])
         set_logging_level_from_verbosity(self.verbosity)
-        logger.verbose(f"CLI args - Namespace: {args_vars - nmsp_vars}")  # type: ignore
-        logger.verbose(f"Namespace - CLI args:  {nmsp_vars - args_vars}")  # type: ignore
+        logger.debug(f"CLI args - Namespace: {args_vars - nmsp_vars}")  # type: ignore
+        logger.debug(f"Namespace - CLI args:  {nmsp_vars - args_vars}")  # type: ignore
 
 
 class SettingsFile:
@@ -384,7 +391,7 @@ class SettingsFile:
     def load_safe(cls) -> Settings:
         settings, error = cls.load()
         if error:
-            cls.show_error(error)
+            cls.show_error()
             return cls.reset()
         return settings
 
@@ -412,12 +419,12 @@ class SettingsFile:
     def load_safe_from(cls, file: PathLike) -> Settings:
         settings, error = cls.load_from(file)
         if error:
-            cls.show_error(error)
+            cls.show_error()
             return cls.reset()
         return settings
 
     @classmethod
-    def show_error(cls, error: str) -> None:
+    def show_error(cls) -> None:
         logger.warning("Cannot load settings file, loading default settings.")
         if shared.gui:
             log("Save settings to avoid this message.")

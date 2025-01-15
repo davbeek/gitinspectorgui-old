@@ -1,105 +1,174 @@
+import logging
 import re
 import threading
 import time
 import webbrowser
-from multiprocessing import Process, Queue
-from queue import Empty  # Add this import
+from logging import getLogger
+from queue import Queue
+from threading import Thread
+from typing import Callable
 from uuid import uuid4
 
+from werkzeug.routing import Map, Rule
+from werkzeug.serving import make_server
+from werkzeug.wrappers import Request, Response
+
+from gigui.args_settings import MiniRepo
 from gigui.constants import DYNAMIC
-from gigui.output import html_server
-from gigui.output.repo_html import RepoHTML, logger
-from gigui.typedefs import SHA, FileStr, Html
+from gigui.output.repo_html import RepoHTML
+from gigui.typedefs import SHA, FileStr, HtmlStr
 
-FIRST_PORT = 8080
-port_global: int = FIRST_PORT
+PORT = 8080
+
+logger = getLogger(__name__)
+getLogger("werkzeug").setLevel(logging.ERROR)
+
+url_map = Map(
+    [
+        Rule("/load-table/<table_id>", endpoint="load_table"),
+        Rule("/shutdown", endpoint="shutdown", methods=["POST"]),
+        Rule("/", endpoint="serve_initial_html"),
+    ]
+)
 
 
-def get_port() -> int:
-    global port_global
-    port = port_global
-    port_global += 1
-    return port
+shutdown_func: Callable
 
 
 class RepoHTMLServer(RepoHTML):
-    # This the main function that is called from the main process to start the server.
-    # It starts the server in a separate process and communicates with it via a queue.
-    # It also opens the web browser to serve the initial contents.
-    # The server process is terminated when the main process receives a shutdown request via
-    # the queue.
-    def start_werkzeug_server_in_process_with_html(
+    def __init__(
         self,
-        html_code: Html,
-        stop_event: threading.Event,
+        mini_repo: MiniRepo,
+        server_started_event: threading.Event,
+        server_done_event: threading.Event,
+        stop_all_event: threading.Event,
+        host_port_queue: Queue,
     ) -> None:
-        server_process: Process
-        process_queue: Queue
+        super().__init__(mini_repo)
 
-        process_queue = Queue()
-        browser_id = str(uuid4())[-12:]
+        self.server_started_event: threading.Event = server_started_event
+        self.server_done_event: threading.Event = server_done_event
+        self.stop_all_event: threading.Event = stop_all_event
+        self.host_port_queue: Queue = host_port_queue
 
-        port = get_port()
-        html_code = self.create_html_document(html_code, self.load_css(), browser_id)
-
+    def start_werkzeug_server_with_html(
+        self,
+        html_code: HtmlStr,
+    ) -> None:
+        browser_id = f"{self.name}-{str(uuid4())[-12:]}"
+        html_doc_code = self.create_html_document(
+            html_code, self.load_css(), browser_id
+        )
+        server_shutting_down_event: threading.Event = threading.Event()
         try:
-            # Start the server in a separate process and communicate with it via the queue and
-            # shared data dictionary.
+            port_value = self.host_port_queue.get()
+            self.host_port_queue.put(port_value + 1)
 
-            server_process = Process(
-                target=html_server.run,
-                args=(process_queue, html_code, browser_id, port),
+            server = make_server(
+                "localhost",
+                port_value,
+                lambda environ, start_response: self.server_app(
+                    environ,
+                    start_response,
+                    browser_id,
+                    html_doc_code,
+                    server.shutdown,
+                    server_shutting_down_event,
+                ),  # type: ignore
             )
-            server_process.start()
 
-            # Add a small delay to ensure the server is fully started
-            time.sleep(0.2)
+            self.server_started_event.set()
+            server_thread = Thread(target=server.serve_forever)
+            server_thread.start()
+            logger.debug(f"    {self.name}: server started on {port_value=}")
 
             # Open the web browser to serve the initial contents
             browser = webbrowser.get()
-            browser.open_new_tab(f"http://localhost:{port}")
+            browser.open_new_tab(f"http://localhost:{port_value}?v={browser_id}")
 
-            while server_process.is_alive():  # Check if server_process is still alive
-                if stop_event.is_set():
-                    process_queue.put(
-                        ("shutdown", browser_id)
-                    )  # Send shutdown request to server_process
-                    break
-                try:
-                    request = process_queue.get(timeout=0.2)
-                    if request[0] == "shutdown" and request[1] == browser_id:
-                        break
-                    if request[0] == "load_table" and request[2] == browser_id:
-                        table_id = request[1]
-                        table_html = self.handle_load_table(
-                            table_id, self.args.blame_history
-                        )
-                        process_queue.put(table_html)
-                    else:
-                        logger.error(f"Unknown request: {request}")
-                except Empty:
-                    pass  # Handle the queue.Empty exception
-
-        except KeyboardInterrupt:
-            logger.info("server_main: keyboard interrupt received")
-            process_queue.put(
-                ("shutdown", browser_id)
-            )  # Send shutdown request to server
+            if self.args.multicore:
+                while (
+                    not self.stop_all_event.is_set()
+                    and not server_shutting_down_event.is_set()
+                ):
+                    # stop event or shutdown event must be set
+                    time.sleep(0.1)
+                if not server_shutting_down_event.is_set():  # stop_all_event is set
+                    server.shutdown()
+                    server_thread.join()
+                self.server_done_event.set()
+            else:  # Single core
+                Thread(
+                    target=self.monitor_events,
+                    args=(
+                        server.shutdown,
+                        self.stop_all_event,
+                        server_shutting_down_event,
+                        self.server_done_event,
+                        server_thread,
+                    ),
+                ).start()
         except Exception as e:
-            logger.error("server_main: exception received in module server_main")
+            logger.error(
+                "repo_html_server: exception occurred while starting the localhost "
+                "server process."
+            )
             raise e
-        finally:
-            time.sleep(
-                0.1
-            )  # Wait for the server_process to handle the shutdown request
-            if server_process.is_alive():  # type: ignore
-                server_process.terminate()  # type: ignore
-                server_process.join()  # type: ignore # Ensure the process is fully terminated
-            logger.info("server_main: terminated")
 
-    def handle_load_table(self, table_id: str, blame_history: str) -> Html:
+    def server_app(
+        self,
+        environ,
+        start_response,
+        browser_id: str,
+        html_doc_code: HtmlStr,
+        shutdown_func: Callable,
+        shutting_down_event: threading.Event,
+    ) -> Response:
+        request = Request(environ)
+        logger.info(f"{self.name}: browser request = {request.path} {request.args.get('id')}")  # type: ignore
+        if request.path == "/":
+            response = Response(html_doc_code, content_type="text/html; charset=utf-8")
+        elif request.path.startswith("/shutdown"):
+            shutdown_id = request.args.get("id")
+            if shutdown_id == browser_id:
+                Thread(
+                    target=shutdown_func
+                ).start()  # calling shutdown_directly leads to deadlock
+                shutting_down_event.set()  # Set shutting_down_event
+                response = Response(content_type="text/plain")
+            else:
+                print(f"Invalid shutdown: {shutdown_id=}  {browser_id=}")
+                response = Response("Invalid shutdown ID", status=403)
+        elif request.path.startswith("/load-table/"):
+            table_id = request.path.split("/")[-1]
+            load_table_id = request.args.get("id")
+            if load_table_id == browser_id:
+                table_html = self.handle_load_table(table_id, self.args.blame_history)
+                response = Response(table_html, content_type="text/html")
+            else:
+                response = Response("Invalid browser ID", status=403)
+        else:
+            response = Response("Not found", status=404)
+        return response(environ, start_response)  # type: ignore
+
+    def monitor_events(
+        self,
+        shutdown_func: Callable,
+        stop_all_event: threading.Event,
+        shutting_down_event: threading.Event,
+        server_done_event: threading.Event,
+        server_thread: Thread,
+    ) -> None:
+        while not stop_all_event.is_set() and not shutting_down_event.is_set():
+            time.sleep(0.1)
+        if not shutting_down_event.is_set():
+            shutdown_func()
+        server_thread.join()
+        server_done_event.set()
+
+    def handle_load_table(self, table_id: str, blame_history: str) -> HtmlStr:
         # Extract file_nr and commit_nr from table_id
-        table_html: Html = ""
+        table_html: HtmlStr = ""
         match = re.match(r"file-(\d+)-sha-(\d+)", table_id)
         if match:
             file_nr = int(match.group(1))
@@ -115,7 +184,7 @@ class RepoHTMLServer(RepoHTML):
         return table_html
 
     # For DYNAMIC blame history
-    def generate_fstr_commit_table(self, file_nr: int, commit_nr: int) -> Html:
+    def generate_fstr_commit_table(self, file_nr: int, commit_nr: int) -> HtmlStr:
         root_fstr: FileStr = self.fstrs[file_nr]
         sha: SHA = self.nr2sha[commit_nr]
         rows, iscomments = self.generate_fr_sha_blame_rows(root_fstr, sha)

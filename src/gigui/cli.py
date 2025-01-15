@@ -1,17 +1,18 @@
-import logging
 import multiprocessing
 import os
 import sys
 import time
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
+from logging import getLogger
 from pathlib import Path
 
-from gigui._logging import add_cli_handler, set_logging_level_from_verbosity
+from gigui import _logging
+from gigui._logging import set_logging_level_from_verbosity
 from gigui.args_settings import Args, CLIArgs, Settings, SettingsFile
 from gigui.cli_arguments import define_arguments
 from gigui.constants import AVAILABLE_FORMATS, DEFAULT_EXTENSIONS
+from gigui.gigui_runner import run_repos
 from gigui.gui.psg import run_gui
-from gigui.repos import run_repos
 from gigui.tiphelp import Help
 from gigui.typedefs import FileStr
 from gigui.utils import get_dir_matches, log
@@ -19,8 +20,7 @@ from gigui.utils import get_dir_matches, log
 # Limit the width of the help text to 80 characters.
 os.environ["COLUMNS"] = "90"
 
-logger = logging.getLogger(__name__)
-add_cli_handler()
+logger = getLogger(__name__)
 
 
 def main() -> None:
@@ -32,7 +32,6 @@ def main() -> None:
         description="".join(Help.help_doc),
         formatter_class=RawDescriptionHelpFormatter,
     )
-
     define_arguments(parser)
 
     # For zero arguments, print help and exit.
@@ -41,6 +40,8 @@ def main() -> None:
         return
 
     namespace = parser.parse_args()
+
+    _logging.ini_for_cli(namespace.verbosity)
 
     if namespace.input_fstrs:
         input_fstrs = [
@@ -107,7 +108,7 @@ def main() -> None:
     if not cli_args.extensions:
         cli_args.extensions = DEFAULT_EXTENSIONS
 
-    logger.verbose(f"{cli_args = }")  # type: ignore
+    logger.debug(f"{cli_args = }")  # type: ignore
 
     args: Args = cli_args.create_args()
     args.input_fstrs = [Path(p).resolve().as_posix() for p in args.input_fstrs]

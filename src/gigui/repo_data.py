@@ -1,23 +1,22 @@
-import logging
-from concurrent.futures import ThreadPoolExecutor
+from logging import getLogger
 from pathlib import Path
 from typing import TypeVar
 
-from gigui.args_settings import Args
+from gigui.args_settings import MiniRepo
 from gigui.constants import STATIC
 from gigui.data import CommitGroup, FileStat, Person, PersonsDB, PersonStat
 from gigui.repo_blame import RepoBlameHistory
 from gigui.typedefs import SHA, Author, FileStr
 from gigui.utils import divide_to_percentage
 
-logger = logging.getLogger(__name__)
+logger = getLogger(__name__)
 
 
 class RepoData(RepoBlameHistory):
-    def __init__(self, name: str, location: Path, args: Args) -> None:
-        super().__init__(name, location, args)
+    def __init__(self, mini_repo: MiniRepo) -> None:
+        super().__init__(mini_repo)
 
-        self.path = Path(location).resolve()
+        self.path = Path(mini_repo.location).resolve()
         self.pathstr = str(self.path)
 
         self.stat_tables = StatTables()
@@ -44,7 +43,7 @@ class RepoData(RepoBlameHistory):
 
         self.sha2author_nr: dict[SHA, int] = {}
 
-    def run_analysis(self, thread_executor: ThreadPoolExecutor) -> bool:
+    def run_analysis(self) -> bool:
         """
         Generate tables encoded as dictionaries in self.stats.
 
@@ -56,8 +55,8 @@ class RepoData(RepoBlameHistory):
             if self.args.dry_run == 2:
                 return True
             self.init_git_repo()
-            self.run_base(thread_executor)
-            self.run_blame(thread_executor)
+            self.run_base()
+            self.run_blame()
             success = self._run_no_history()
             if not success:
                 return False

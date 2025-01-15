@@ -1,21 +1,21 @@
-import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime
+from logging import getLogger
 from pathlib import Path
 
 from git import Commit as GitCommit
 from git import GitCommandError, Repo
 
-from gigui.args_settings import Args
+from gigui.args_settings import MiniRepo
 from gigui.comment import get_is_comment_lines
-from gigui.constants import BLAME_CHUNK_SIZE
+from gigui.constants import BLAME_CHUNK_SIZE, MAX_THREAD_WORKERS
 from gigui.data import FileStat
 from gigui.repo_base import RepoBase
 from gigui.typedefs import SHA, Author, BlameLines, Email, FileStr, GitBlames
 from gigui.utils import log_dots
 
-logger = logging.getLogger(__name__)
+logger = getLogger(__name__)
 
 
 @dataclass
@@ -31,8 +31,8 @@ class Blame:
 
 
 class RepoBlameBase(RepoBase):
-    def __init__(self, name: str, location: Path, args: Args) -> None:
-        super().__init__(name, location, args)
+    def __init__(self, mini_repo: MiniRepo) -> None:
+        super().__init__(mini_repo)
 
         # List of blame authors, so no filtering, ordered by highest blame line count.
         self.blame_authors: list[Author] = []
@@ -128,45 +128,50 @@ class RepoBlame(RepoBlameBase):
     # Set the fstr2blames dictionary, but also add the author and email of each
     # blame to the persons list. This is necessary, because the blame functionality
     # can have another way to set/get the author and email of a commit.
-    def run_blame(self, thread_executor: ThreadPoolExecutor) -> None:
+    def run_blame(self) -> None:
         git_blames: GitBlames
         blames: list[Blame]
 
-        logger = logging.getLogger(__name__)
+        logger = getLogger(__name__)
         i_max: int = len(self.all_fstrs)
         i: int = 0
         chunk_size: int = BLAME_CHUNK_SIZE
         prefix: str = " " * 8
         logger.info(prefix + f"Blame: {self.name}: {i_max} files")
         if self.args.multithread:
-            for chunk_start in range(0, i_max, chunk_size):
-                chunk_end = min(chunk_start + chunk_size, i_max)
-                chunk_fstrs = self.all_fstrs[chunk_start:chunk_end]
-                futures = [
-                    thread_executor.submit(
-                        self._get_git_blames_for, fstr, self.head_sha
-                    )
-                    for fstr in chunk_fstrs
-                ]
-                for future in as_completed(futures):
-                    git_blames, fstr = future.result()
-                    i += 1
-                    if self.args.verbosity == 0:
-                        log_dots(i, i_max, "", "\n", self.args.multicore)
-                    logger.info(
-                        prefix
-                        + f"blame {i} of {i_max}: "
-                        + (f"{self.name}: {fstr}" if self.args.multicore else f"{fstr}")
-                    )
-                    blames = self._process_git_blames(fstr, git_blames)
-                    self.fstr2blames[fstr] = blames
+            with ThreadPoolExecutor(max_workers=MAX_THREAD_WORKERS) as thread_executor:
+                for chunk_start in range(0, i_max, chunk_size):
+                    chunk_end = min(chunk_start + chunk_size, i_max)
+                    chunk_fstrs = self.all_fstrs[chunk_start:chunk_end]
+                    futures = [
+                        thread_executor.submit(
+                            self._get_git_blames_for, fstr, self.head_sha
+                        )
+                        for fstr in chunk_fstrs
+                    ]
+                    for future in as_completed(futures):
+                        git_blames, fstr = future.result()
+                        i += 1
+                        if self.args.verbosity == 0:
+                            log_dots(i, i_max, "", "\n", self.args.multicore)
+                        logger.info(
+                            prefix
+                            + f"blame {i} of {i_max}: "
+                            + (
+                                f"{self.name}: {fstr}"
+                                if self.args.multicore
+                                else f"{fstr}"
+                            )
+                        )
+                        blames = self._process_git_blames(fstr, git_blames)
+                        self.fstr2blames[fstr] = blames
         else:  # single thread
             for fstr in self.all_fstrs:
                 git_blames, fstr = self._get_git_blames_for(fstr, self.head_sha)
                 i += 1
                 if self.args.verbosity == 0 and not self.args.multicore:
                     log_dots(i, i_max, "", "\n")
-                logger.info(prefix + f"{i} of {i_max}: {fstr}")
+                logger.info(prefix + f"{i} of {i_max}: {self.name} {fstr}")
                 blames = self._process_git_blames(fstr, git_blames)
                 self.fstr2blames[fstr] = blames  # type: ignore
 
@@ -221,8 +226,8 @@ class RepoBlame(RepoBlameBase):
 
 
 class RepoBlameHistory(RepoBlame):
-    def __init__(self, name: str, location: Path, args: Args) -> None:
-        super().__init__(name, location, args)
+    def __init__(self, mini_repo: MiniRepo) -> None:
+        super().__init__(mini_repo)
 
         self.fr2f2shas: dict[FileStr, dict[FileStr, list[SHA]]] = {}
         self.fstr2sha2blames: dict[FileStr, dict[SHA, list[Blame]]] = {}

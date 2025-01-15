@@ -48,8 +48,6 @@ class Keys(KeysArgs):
     # Logging
     log: str = "log"
     debug: str = "debug"
-    # Opening webview
-    open_webview: str = "open_webview"
     # Complete settings column
     config_column: str = "config_column"
     # Top row

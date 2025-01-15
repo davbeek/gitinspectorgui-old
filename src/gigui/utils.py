@@ -1,26 +1,22 @@
 import argparse
-import logging
 import platform
 import subprocess
 import time
 from cProfile import Profile
 from io import StringIO
-from multiprocessing import Process
+from logging import getLogger
 from pathlib import Path
 from pstats import Stats
 from typing import Any
 
-import webview
-
 from gigui import shared
-from gigui.constants import WEBVIEW_HEIGHT, WEBVIEW_WIDTH
 from gigui.keys import Keys
 from gigui.typedefs import FileStr
 
 STDOUT = True
 DEFAULT_WRAP_WIDTH = 88
 
-logger = logging.getLogger(__name__)
+logger = getLogger(__name__)
 
 
 def log(arg: Any, text_color: str | None = None, end: str = "\n", flush: bool = False):
@@ -71,31 +67,17 @@ def open_file(fstr: FileStr):
                 raise RuntimeError(f"Unknown platform {platform.system()}")
 
 
-def open_webview(html_code: str, repo_name: str, gui: bool = False):
-    if gui:
-        webview_process = Process(target=_open_webview, args=(html_code, repo_name))
-        webview_process.daemon = True
-        webview_process.start()
-    else:
-        _open_webview(html_code, repo_name)
-
-
-def _open_webview(html_code: str, repo_name: str):
-    webview.create_window(
-        f"{repo_name} viewer",
-        html=html_code,
-        width=WEBVIEW_WIDTH,
-        height=WEBVIEW_HEIGHT,
-    )
-    webview.start()
-
-
 def log_end_time(start_time: float):
     """
-    Output a log entry to the log of the currently amount of passed time since 'start_time'.
+    Output the amount of passed time since 'start_time'.
     """
     end_time = time.time()
     log(f"Done in {end_time - start_time:.1f} s")
+
+
+def log_analysis_end_time(start_time: float):
+    end_time = time.time()
+    log(f"Analysis done in {end_time - start_time:.1f} s")
 
 
 def get_outfile_name(fix: str, outfile_base: str, repo_name: str) -> FileStr:
@@ -234,10 +216,6 @@ def get_dir_matches(input_fstrs: list[FileStr]) -> list[FileStr]:
     matching_fstrs: list[FileStr] = []
     for pattern in input_fstrs:
         matches: list[FileStr] = get_posix_dir_matches_for(pattern)
-        if not matches:
-            logger.warning(
-                f'No repositories found for input folder pattern "{pattern}"'
-            )
         for match in matches:
             if match not in matching_fstrs:
                 matching_fstrs.append(match)
