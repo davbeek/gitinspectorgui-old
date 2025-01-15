@@ -112,6 +112,7 @@ class TableSheet(Sheet):
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
+
         self.header_items: list[str] = header_items
 
         self.head2col: dict[str, int] = {}

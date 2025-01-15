@@ -10,8 +10,8 @@ from gigui._logging import add_cli_handler, set_logging_level_from_verbosity
 from gigui.args_settings import Args, CLIArgs, Settings, SettingsFile
 from gigui.cli_arguments import define_arguments
 from gigui.constants import AVAILABLE_FORMATS, DEFAULT_EXTENSIONS
-from gigui.gitinspector import run as run_gitinspector
 from gigui.gui.psg import run_gui
+from gigui.repos import run_repos
 from gigui.tiphelp import Help
 from gigui.typedefs import FileStr
 from gigui.utils import get_dir_matches, log
@@ -141,7 +141,7 @@ def main() -> None:
     if namespace.gui:
         run_gui(Settings.from_args(args, gui_settings_full_path))
     elif namespace.run:
-        run_gitinspector(args, start_time)
+        run_repos(args, start_time)
     elif not namespace.save and not namespace.save_as and not namespace.show:
         log(
             "This command has no effect. Use --run/-r or --gui/-g to run the program, or "

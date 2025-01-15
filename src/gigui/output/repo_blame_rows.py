@@ -3,15 +3,10 @@ from typing import Counter
 from gigui.constants import REMOVE
 from gigui.output.repo_stat_rows import RepoStatRows
 from gigui.repo_blame import Blame
-from gigui.typedefs import SHA, Author, FileStr, Row
+from gigui.typedefs import SHA, FileStr, Row
 
 
 class RepoBlameRows(RepoStatRows):
-    comments: bool
-    empty_lines: bool
-    ex_authors: list[Author]
-    blame_exclusions: str
-
     def get_fstr_blame_rows(self, fstr: FileStr) -> tuple[list[Row], list[bool]]:
         blames: list[Blame] = self.fstr2blames[fstr]
         return self._get_blame_rows(blames)
@@ -43,10 +38,10 @@ class RepoBlameRows(RepoStatRows):
         for b in blames:
             author = self.persons_db[b.author].author
             for line, is_comment in zip(b.lines, b.is_comment_lines):
-                exclude_comment = is_comment and not self.comments
-                exclude_empty = line.strip() == "" and not self.empty_lines
-                exclude_author = author in self.ex_authors
-                if self.blame_exclusions == REMOVE and (
+                exclude_comment = is_comment and not self.args.comments
+                exclude_empty = line.strip() == "" and not self.args.empty_lines
+                exclude_author = author in self.args.ex_authors
+                if self.args.blame_exclusions == REMOVE and (
                     exclude_comment or exclude_empty or exclude_author
                 ):
                     line_nr += 1

@@ -21,7 +21,6 @@ from gigui.constants import (
     WINDOW_HEIGHT_CORR,
 )
 from gigui.keys import Keys
-from gigui.repo import is_git_repo
 from gigui.tiphelp import Help
 from gigui.typedefs import FilePattern, FileStr
 from gigui.utils import get_posix_dir_matches_for, to_posix_fstrs
@@ -243,6 +242,27 @@ def log(*args: str, color=None) -> None:
 
 def use_single_repo(input_paths: list[Path]) -> bool:
     return len(input_paths) == 1 and is_git_repo(input_paths[0])
+
+
+def is_git_repo(path: Path) -> bool:
+    try:
+        git_path = path / ".git"
+        if git_path.is_symlink():
+            git_path = git_path.resolve()
+            if not git_path.is_dir():
+                return False
+        elif not git_path.is_dir():
+            return False
+    except (PermissionError, TimeoutError):  # git_path.is_symlink() may time out
+        return False
+
+    try:
+        # The default True value of expand_vars leads to confusing warnings from
+        # GitPython for many paths from system folders.
+        repo = git.Repo(path, expand_vars=False)
+        return not repo.bare
+    except (git.InvalidGitRepositoryError, git.NoSuchPathError):
+        return False
 
 
 def update_outfile_str(

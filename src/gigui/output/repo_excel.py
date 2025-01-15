@@ -45,10 +45,6 @@ ZOOM_LEVEL = 120 if sys.platform == "darwin" else 100
 
 
 class Book(RepoBlameRows):
-    blame_skip: bool
-    blame_history: str
-    subfolder: str
-
     def run_excel(self, outfile: FileStr) -> None:
         self.outfile: str = outfile + ".xlsx"
         self.workbook = Workbook(self.outfile)
@@ -129,7 +125,7 @@ class Book(RepoBlameRows):
         self.add_authors_files_sheet()
         self.add_files_authors_sheet()
         self.add_files_sheet()
-        if not self.blame_skip:
+        if not self.args.blame_skip:
             self.add_blame_sheets()
         self.close()
 
@@ -204,7 +200,9 @@ class Book(RepoBlameRows):
                 fstr2rows[fstr] = rows
                 fstr2iscomments[fstr] = iscomments
 
-        relative_fstrs = [get_relative_fstr(fstr, self.subfolder) for fstr in fstrs]
+        relative_fstrs = [
+            get_relative_fstr(fstr, self.args.subfolder) for fstr in fstrs
+        ]
         relative_fstr2truncated = self.string2truncated(
             relative_fstrs, MAX_LENGTH_SHEET_NAME
         )

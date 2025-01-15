@@ -9,6 +9,7 @@ from pathlib import Path
 
 from git import Commit, Repo
 
+from gigui.args_settings import Args
 from gigui.constants import GIT_LOG_CHUNK_SIZE
 from gigui.data import CommitGroup, PersonsDB, RepoStats
 from gigui.typedefs import OID, SHA, Author, FileStr, Rev
@@ -26,25 +27,14 @@ class SHADate:
 
 
 class RepoBase:
-    since: str
-    until: str
-    include_files: list[FileStr]
-    n_files: int
-    subfolder: str
-    extensions: list[str]
-    whitespace: bool
-    multithread: bool
-    multicore: bool
-    verbosity: int
-    ex_files: list[FileStr]
-    ex_messages: list[str]
-
-    # Here the values of the --ex-revision parameter are stored as a set.
-    ex_revisions: set[Rev] = set()
-
-    def __init__(self, name: str, location: Path):
+    def __init__(self, name: str, location: Path, args: Args):
         self.name: str = name
         self.location: Path = location
+        self.args: Args = args
+
+        # Here the values of the --ex-revision option are stored as a set.
+        self.ex_revisions: set[Rev] = set(self.args.ex_revisions)
+
         self.persons_db: PersonsDB = PersonsDB()
         self.git_repo: Repo
 
@@ -121,9 +111,9 @@ class RepoBase:
             self.nr2sha[nr] = sha
             nr -= 1
 
-        # Set head_commit to the top-level commit at the date given by self.until
-        if self.until:
-            commits = list(self.git_repo.iter_commits(until=self.until))
+        # Set head_commit to the top-level commit at the date given by self.args.until
+        if self.args.until:
+            commits = list(self.git_repo.iter_commits(until=self.args.until))
             if commits:
                 self.head_commit = commits[0]
             else:
@@ -164,13 +154,13 @@ class RepoBase:
 
         matches: list[FileStr]
         files: list[FileStr]
-        if not self.include_files and not self.n_files == 0:
-            return sorted_files[0 : self.n_files]
+        if not self.args.include_files and not self.args.n_files == 0:
+            return sorted_files[0 : self.args.n_files]
         else:
             # Return the n_files filtered files matching file pattern, sorted on file
             # size
             include_file_paths: list[Path] = [
-                Path(self.subfolder) / fstr for fstr in self.include_files
+                Path(self.args.subfolder) / fstr for fstr in self.args.include_files
             ]
             include_files: list[FileStr] = [str(path) for path in include_file_paths]
             matches = [
@@ -186,10 +176,10 @@ class RepoBase:
                 )
             ]
             files = sorted(matches, key=lambda match: file2nr[match])
-            if self.n_files == 0:
+            if self.args.n_files == 0:
                 return files
             else:
-                return files[0 : self.n_files]
+                return files[0 : self.args.n_files]
 
     # Get the files in the worktree, reverse sorted on file size that:
     # - match the required file extensions
@@ -207,13 +197,13 @@ class RepoBase:
                     for blob in self.head_commit.tree.traverse()
                     if (
                         (blob.type == "blob")  # type: ignore
-                        and fnmatchcase(blob.path.lower(), f"{self.subfolder}*".lower())  # type: ignore
+                        and fnmatchcase(blob.path.lower(), f"{self.args.subfolder}*".lower())  # type: ignore
                     )
                 ]
 
             blobs: list = _get_subfolder_blobs()
             if not blobs:
-                log(" " * 8 + f"no files found in subfolder {self.subfolder}")
+                log(" " * 8 + f"no files found in subfolder {self.args.subfolder}")
                 return []
             return [
                 (blob.path, blob.size)  # type: ignore
@@ -221,8 +211,8 @@ class RepoBase:
                 if (
                     # exclude files with incorrect extensions and those in ex_file
                     (
-                        "*" in self.extensions
-                        or (blob.path.split(".")[-1] in self.extensions)
+                        "*" in self.args.extensions
+                        or (blob.path.split(".")[-1] in self.args.extensions)
                     )
                     and not self._matches_ex_file(blob.path)
                 )
@@ -237,7 +227,7 @@ class RepoBase:
     # Returns True if file should be excluded
     def _matches_ex_file(self, fstr: FileStr) -> bool:
         return any(
-            fnmatchcase(fstr.lower(), pattern.lower()) for pattern in self.ex_files
+            fnmatchcase(fstr.lower(), pattern.lower()) for pattern in self.args.ex_files
         )
 
     def _get_biggest_files_from(self, matches: list[FileStr]) -> list[FileStr]:
@@ -298,7 +288,7 @@ class RepoBase:
             message = lines[i := i + 1]
             if any(
                 fnmatchcase(message.lower(), pattern.lower())
-                for pattern in self.ex_messages
+                for pattern in self.args.ex_messages
             ):
                 ex_shas.add(sha)
                 i += 3
@@ -316,8 +306,8 @@ class RepoBase:
         self.ex_shas = ex_shas
 
     def _get_since_until_args(self) -> list[str]:
-        since = self.since
-        until = self.until
+        since = self.args.since
+        until = self.args.until
         if since and until:
             return [f"--since={since}", f"--until={until}"]
         elif since:
@@ -355,7 +345,7 @@ class RepoBase:
         logger.info(
             prefix + f"Git log: {self.name}: {i_max} files"
         )  # Log message sent to QueueHandler
-        if self.multithread:
+        if self.args.multithread:
             for chunk_start in range(0, i_max, chunk_size):
                 chunk_end = min(chunk_start + chunk_size, i_max)
                 chunk_fstrs = self.fstrs[chunk_start:chunk_end]
@@ -366,13 +356,17 @@ class RepoBase:
                 for future in as_completed(futures):
                     lines_str, fstr = future.result()
                     i += 1
-                    if self.verbosity == 0:
-                        log_dots(i, i_max, prefix, " " * 4, self.multicore)
+                    if self.args.verbosity == 0:
+                        log_dots(i, i_max, prefix, " " * 4, self.args.multicore)
                     else:
                         logger.info(
                             prefix
                             + f"log {i} of {i_max}: "
-                            + (f"{self.name}: {fstr}" if self.multicore else f"{fstr}")
+                            + (
+                                f"{self.name}: {fstr}"
+                                if self.args.multicore
+                                else f"{fstr}"
+                            )
                         )
                     self.fstr2commit_groups[fstr] = self._process_commit_lines_for(
                         lines_str, fstr
@@ -381,7 +375,7 @@ class RepoBase:
             for fstr in self.fstrs:
                 lines_str, fstr = self._get_commit_lines_for(fstr)
                 i += 1
-                if self.verbosity == 0 and not self.multicore:
+                if self.args.verbosity == 0 and not self.args.multicore:
                     log_dots(i, i_max, prefix, " " * 4)
                 else:
                     logger.info(prefix + f"{i} of {i_max}: {fstr}")
@@ -393,7 +387,7 @@ class RepoBase:
     def _get_commit_lines_for(self, fstr: FileStr) -> tuple[str, FileStr]:
         def git_log_args() -> list[str]:
             args = self._get_since_until_args()
-            if not self.whitespace:
+            if not self.args.whitespace:
                 args.append("-w")
             args += [
                 # %h: short commit hash
@@ -412,7 +406,7 @@ class RepoBase:
             return args
 
         lines_str: str
-        if self.multithread:
+        if self.args.multithread:
             repo = Repo(self.location)
             lines_str = repo.git.log(git_log_args())
             repo.close()

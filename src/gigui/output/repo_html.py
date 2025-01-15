@@ -5,9 +5,9 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup, Tag
 
+from gigui.args_settings import Args
 from gigui.constants import DYNAMIC, HIDE, NONE, SHOW, STATIC
 from gigui.output.repo_blame_rows import RepoBlameRows
-from gigui.repo_data import RepoData
 from gigui.typedefs import SHA, Author, FileStr, Html, Row
 from gigui.utils import get_relative_fstr, log
 
@@ -75,10 +75,8 @@ class RepoColor(RepoBlameRows):
 
 
 class TableSoup(RepoColor):
-    blame_exclusions: str
-
-    def __init__(self, name: str, location: Path) -> None:
-        super().__init__(name, location)
+    def __init__(self, name: str, location: Path, args: Args) -> None:
+        super().__init__(name, location, args)
 
         self.soup = BeautifulSoup("<div></div>", "html.parser")
 
@@ -95,7 +93,7 @@ class TableSoup(RepoColor):
             th["class"] = header_class
             th.string = header_string
             if column_header == "Code":
-                if self.blame_exclusions in {HIDE, SHOW}:
+                if self.args.blame_exclusions in {HIDE, SHOW}:
                     exclusions_button = self.soup.new_tag("button")
                     empty_lines_button = self.soup.new_tag("button")
                     exclusions_button["class"] = "blame-exclusions-button"
@@ -219,8 +217,6 @@ class RepoStatTableSoup(TableSoup):
 
 
 class RepoBlameTableSoup(RepoStatTableSoup):
-    blame_history: str
-
     def get_blame_table_soup(self, fstr: FileStr) -> Tag | None:
         rows: list[Row]
         iscomments: list[bool]
@@ -264,7 +260,7 @@ class RepoBlameTableSoup(RepoStatTableSoup):
         tbody: Tag = self.soup.new_tag("tbody")
         table.append(tbody)
 
-        if self.blame_history == DYNAMIC:
+        if self.args.blame_history == DYNAMIC:
             table["id"] = f"file-{fstr_nr}-sha-{sha_nr}"
 
         header_row = self.header_blames()
@@ -302,11 +298,8 @@ class RepoBlameTableSoup(RepoStatTableSoup):
 
 
 class RepoBlameTablesSoup(RepoBlameTableSoup):
-    subfolder: FileStr
-    blame_history: str
-
-    def __init__(self, name: str, location: Path) -> None:
-        super().__init__(name, location)
+    def __init__(self, name: str, location: Path, args: Args) -> None:
+        super().__init__(name, location, args)
 
         # Is set when get_html() from superclass RepoHTML is called.
         self.global_soup: BeautifulSoup
@@ -323,24 +316,26 @@ class RepoBlameTablesSoup(RepoBlameTableSoup):
 
         blame_tab_index = 0
         for fstr in self.fstrs:
-            if self.blame_history == STATIC:
+            if self.args.blame_history == STATIC:
                 tables = self.get_blame_history_static_tables_soup(
                     fstr, sha2nr, blame_tab_index
                 )
                 if tables:
                     fstr2tables[fstr] = tables
                     fstrs.append(fstr)
-            elif self.blame_history == DYNAMIC:
+            elif self.args.blame_history == DYNAMIC:
                 fstr2tables[fstr] = []
                 fstrs.append(fstr)
-            elif self.blame_history == NONE:
+            elif self.args.blame_history == NONE:
                 table = self.get_blame_table_soup(fstr)
                 if table:
                     fstr2table[fstr] = table
                     fstrs.append(fstr)
             blame_tab_index += 1
 
-        relative_fstrs = [get_relative_fstr(fstr, self.subfolder) for fstr in fstrs]
+        relative_fstrs = [
+            get_relative_fstr(fstr, self.args.subfolder) for fstr in fstrs
+        ]
         relative_fstr2truncated = self.string2truncated(
             relative_fstrs,
             MAX_LENGTH_TAB_NAME,
@@ -362,7 +357,7 @@ class RepoBlameTablesSoup(RepoBlameTableSoup):
                 "div", attrs={"class": "table-container"}
             )
 
-            if self.blame_history in {STATIC, DYNAMIC}:
+            if self.args.blame_history in {STATIC, DYNAMIC}:
                 self._add_radio_buttons(
                     self.fstr2shas[fstr],
                     sha2nr,
@@ -371,7 +366,7 @@ class RepoBlameTablesSoup(RepoBlameTableSoup):
                 )
                 for table in fstr2tables[fstr]:
                     table_container.append(table)
-            else:  # self.blame_history == NONE
+            else:  # self.args.blame_history == NONE
                 table_container.append(fstr2table[fstr])
 
             blame_container.append(table_container)
@@ -463,7 +458,7 @@ class RepoHTML(RepoBlameTablesSoup):
         with open(html_path, "r", encoding="utf-8") as f:
             html_template = f.read()
 
-        if self.blame_history in {NONE, STATIC}:
+        if self.args.blame_history in {NONE, STATIC}:
             # If blame_history == DYNAMIC, create_html_document is called in server_main.py
             html_template = create_html_document(html_template, load_css())
 
@@ -486,7 +481,7 @@ class RepoHTML(RepoBlameTablesSoup):
         files_tag.append(self.get_files_soup())
 
         # Add blame output if not skipped.
-        if not self.blame_skip:
+        if not self.args.blame_skip:
             self.add_blame_tables_soup()
 
         html: Html = str(soup)
@@ -496,63 +491,63 @@ class RepoHTML(RepoBlameTablesSoup):
         html = html.replace("&amp;quot;", "&quot;")
         return html
 
+    # Is called by gitinspector module
+    def load_css(self) -> str:
+        css_file = Path(__file__).parent / "static" / "styles.css"
+        with open(css_file, "r", encoding="utf-8") as f:
+            return f.read()
 
-# Is called by gitinspector module
-def load_css() -> str:
-    css_file = Path(__file__).parent / "static" / "styles.css"
-    with open(css_file, "r", encoding="utf-8") as f:
-        return f.read()
+    def create_html_document(
+        self, html_code: Html, css_code: str, browser_id: str | None = None
+    ) -> Html:
 
+        # Insert CSS code
+        html_code = html_code.replace(
+            "</head>",
+            f"<style>{css_code}</style></head>",
+        )
 
-def create_html_document(
-    html_code: Html, css_code: str, browser_id: str | None = None
-) -> Html:
+        # Read and insert JavaScript files
+        if browser_id:  # dynamic blame history
+            js_files = [
+                # "adjust-header-row-pos.js",
+                "browser-id.js",
+                "generate-random-query.js",
+                "globals.js",
+                "tab-radio-button-activation.js",
+                "shutdown.js",
+                "truncate-tab-names.js",
+                "update-table-on-button-click.js",
+            ]
+        else:  # static blame history
+            js_files = [
+                # "adjust-header-row-pos.js",
+                "globals.js",
+                "tab-radio-button-activation.js",
+                "truncate-tab-names.js",
+                "update-table-on-button-click.js",
+            ]
+        html_js_code: Html = ""
+        js_code: str
+        for js_file in js_files:
+            js_path = Path(__file__).parent / "static" / "js" / js_file
+            with open(js_path, "r", encoding="utf-8") as f:
+                js_code = f.read()
 
-    # Insert CSS code
-    html_code = html_code.replace(
-        "</head>",
-        f"<style>{css_code}</style></head>",
-    )
+            match js_file:
+                case "globals.js":
+                    # Insert the value of --blame-exclusions=hide in the js code
+                    js_code = js_code.replace(
+                        '"<%= blame_exclusions_hide %>"',
+                        (
+                            "true" if self.args.blame_exclusions == HIDE else "false"
+                        ),  # noqa: F821
+                    )
+                case "browser-id.js":
+                    # Insert the browser ID option in the js code
+                    js_code = js_code.replace("<%= browser_id %>", browser_id)  # type: ignore
 
-    # Read and insert JavaScript files
-    if browser_id:  # dynamic blame history
-        js_files = [
-            # "adjust-header-row-pos.js",
-            "browser-id.js",
-            "generate-random-query.js",
-            "globals.js",
-            "tab-radio-button-activation.js",
-            "shutdown.js",
-            "truncate-tab-names.js",
-            "update-table-on-button-click.js",
-        ]
-    else:  # static blame history
-        js_files = [
-            # "adjust-header-row-pos.js",
-            "globals.js",
-            "tab-radio-button-activation.js",
-            "truncate-tab-names.js",
-            "update-table-on-button-click.js",
-        ]
-    html_js_code: Html = ""
-    js_code: str
-    for js_file in js_files:
-        js_path = Path(__file__).parent / "static" / "js" / js_file
-        with open(js_path, "r", encoding="utf-8") as f:
-            js_code = f.read()
+            html_js_code += f"\n<script>\n{js_code}</script>\n"
 
-        match js_file:
-            case "globals.js":
-                # Insert the value of --blame-exclusions=hide in the js code
-                js_code = js_code.replace(
-                    '"<%= blame_exclusions_hide %>"',
-                    "true" if blame_exclusions_hide else "false",  # noqa: F821
-                )
-            case "browser-id.js":
-                # Insert the browser ID option in the js code
-                js_code = js_code.replace("<%= browser_id %>", browser_id)  # type: ignore
-
-        html_js_code += f"\n<script>\n{js_code}</script>\n"
-
-    html_code = html_code.replace("</body>", f"{html_js_code}</body>")
-    return html_code
+        html_code = html_code.replace("</body>", f"{html_js_code}</body>")
+        return html_code

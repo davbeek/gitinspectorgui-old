@@ -7,10 +7,6 @@ from gigui.typedefs import Author, FileStr, Row
 
 
 class RepoStatRows(RepoRows):
-    subfolder: str = ""
-    deletions: bool = False
-    scaled_percentages: bool = False
-
     def get_author_rows(self, html: bool = True) -> list[Row]:
         a2p: dict[Author, PersonStat] = self.author2pstat
         row: Row
@@ -42,7 +38,7 @@ class RepoStatRows(RepoRows):
             )
             for fstr in fstrs:
                 row = []
-                rel_fstr = a2f2f[author][fstr].relative_names_str(self.subfolder)
+                rel_fstr = a2f2f[author][fstr].relative_names_str(self.args.subfolder)
                 row.extend(
                     [id_val, person.authors_str]
                     + (["", rel_fstr] if html else [rel_fstr])  # type: ignore
@@ -76,7 +72,10 @@ class RepoStatRows(RepoRows):
             for author in authors:
                 row = []
                 row.extend(
-                    [id_val, f2a2f[fstr][author].relative_names_str(self.subfolder)]
+                    [
+                        id_val,
+                        f2a2f[fstr][author].relative_names_str(self.args.subfolder),
+                    ]
                     + (["", author] if html else [author])  # type: ignore
                 )
                 stat = f2a2f[fstr][author].stat
@@ -91,7 +90,7 @@ class RepoStatRows(RepoRows):
         row: Row
         id_val: int = 0
         for fstr in self.star_fstrs:
-            row = [id_val, f2f[fstr].relative_names_str(self.subfolder)]
+            row = [id_val, f2f[fstr].relative_names_str(self.args.subfolder)]
             row.extend(self._get_stat_values(f2f[fstr].stat))
             rows.append(row)
             id_val += 1
@@ -101,7 +100,7 @@ class RepoStatRows(RepoRows):
         return (
             [stat.line_count]
             + [stat.insertions]
-            + ([stat.deletions] if self.deletions else [])  # noqa: F821
+            + ([stat.deletions] if self.args.deletions else [])  # noqa: F821
             + [_percentage_to_out(stat.percent_lines)]
             + [_percentage_to_out(stat.percent_insertions)]
             + (
@@ -109,7 +108,7 @@ class RepoStatRows(RepoRows):
                     _percentage_to_out(stat.percent_lines * nr_authors),
                     _percentage_to_out(stat.percent_insertions * nr_authors),
                 ]
-                if self.scaled_percentages and not nr_authors == -1  # noqa: F821
+                if self.args.scaled_percentages and not nr_authors == -1  # noqa: F821
                 else []
             )
             + [

@@ -7,6 +7,7 @@ from pathlib import Path
 from git import Commit as GitCommit
 from git import GitCommandError, Repo
 
+from gigui.args_settings import Args
 from gigui.comment import get_is_comment_lines
 from gigui.constants import BLAME_CHUNK_SIZE
 from gigui.data import FileStat
@@ -30,13 +31,8 @@ class Blame:
 
 
 class RepoBlameBase(RepoBase):
-    blame_skip: bool
-    copy_move: int
-    since: str
-    whitespace: bool
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, name: str, location: Path, args: Args) -> None:
+        super().__init__(name, location, args)
 
         # List of blame authors, so no filtering, ordered by highest blame line count.
         self.blame_authors: list[Author] = []
@@ -53,10 +49,10 @@ class RepoBlameBase(RepoBase):
             3: ["-C", "-C"],
             4: ["-C", "-C", "-C"],
         }
-        blame_opts: list[str] = copy_move_int2opts[self.copy_move]
-        if self.since:
-            blame_opts.append(f"--since={self.since}")
-        if not self.whitespace:
+        blame_opts: list[str] = copy_move_int2opts[self.args.copy_move]
+        if self.args.since:
+            blame_opts.append(f"--since={self.args.since}")
+        if not self.args.whitespace:
             blame_opts.append("-w")
         for rev in self.ex_shas:
             blame_opts.append(f"--ignore-rev={rev}")
@@ -77,7 +73,7 @@ class RepoBlameBase(RepoBase):
         start_oid = self.sha2oid[start_sha]
         git_blames: GitBlames
         try:
-            if self.multithread:
+            if self.args.multithread:
                 repo = Repo(self.location)
                 git_blames = repo.blame(
                     start_oid, fstr, rev_opts=blame_opts
@@ -128,9 +124,6 @@ class RepoBlameBase(RepoBase):
 
 
 class RepoBlame(RepoBlameBase):
-    multithread: bool
-    comments: bool
-    empty_lines: bool
 
     # Set the fstr2blames dictionary, but also add the author and email of each
     # blame to the persons list. This is necessary, because the blame functionality
@@ -145,7 +138,7 @@ class RepoBlame(RepoBlameBase):
         chunk_size: int = BLAME_CHUNK_SIZE
         prefix: str = " " * 8
         logger.info(prefix + f"Blame: {self.name}: {i_max} files")
-        if self.multithread:
+        if self.args.multithread:
             for chunk_start in range(0, i_max, chunk_size):
                 chunk_end = min(chunk_start + chunk_size, i_max)
                 chunk_fstrs = self.all_fstrs[chunk_start:chunk_end]
@@ -158,12 +151,12 @@ class RepoBlame(RepoBlameBase):
                 for future in as_completed(futures):
                     git_blames, fstr = future.result()
                     i += 1
-                    if self.verbosity == 0:
-                        log_dots(i, i_max, "", "\n", self.multicore)
+                    if self.args.verbosity == 0:
+                        log_dots(i, i_max, "", "\n", self.args.multicore)
                     logger.info(
                         prefix
                         + f"blame {i} of {i_max}: "
-                        + (f"{self.name}: {fstr}" if self.multicore else f"{fstr}")
+                        + (f"{self.name}: {fstr}" if self.args.multicore else f"{fstr}")
                     )
                     blames = self._process_git_blames(fstr, git_blames)
                     self.fstr2blames[fstr] = blames
@@ -171,7 +164,7 @@ class RepoBlame(RepoBlameBase):
             for fstr in self.all_fstrs:
                 git_blames, fstr = self._get_git_blames_for(fstr, self.head_sha)
                 i += 1
-                if self.verbosity == 0 and not self.multicore:
+                if self.args.verbosity == 0 and not self.args.multicore:
                     log_dots(i, i_max, "", "\n")
                 logger.info(prefix + f"{i} of {i_max}: {fstr}")
                 blames = self._process_git_blames(fstr, git_blames)
@@ -207,11 +200,11 @@ class RepoBlame(RepoBlameBase):
                     author2line_count[author] = 0
                 total_line_count = len(b.lines)  # type: ignore
                 comment_lines_subtract = (
-                    0 if self.comments else b.is_comment_lines.count(True)
+                    0 if self.args.comments else b.is_comment_lines.count(True)
                 )
                 empty_lines_subtract = (
                     0
-                    if self.empty_lines
+                    if self.args.empty_lines
                     else len([line for line in b.lines if not line.strip()])
                 )
                 line_count = (
@@ -228,10 +221,9 @@ class RepoBlame(RepoBlameBase):
 
 
 class RepoBlameHistory(RepoBlame):
-    blame_history: str
+    def __init__(self, name: str, location: Path, args: Args) -> None:
+        super().__init__(name, location, args)
 
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
         self.fr2f2shas: dict[FileStr, dict[FileStr, list[SHA]]] = {}
         self.fstr2sha2blames: dict[FileStr, dict[SHA, list[Blame]]] = {}
 

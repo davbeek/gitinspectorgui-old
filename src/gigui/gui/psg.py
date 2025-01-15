@@ -14,7 +14,6 @@ from gigui import shared
 from gigui._logging import set_logging_level_from_verbosity
 from gigui.args_settings import Args, Settings, SettingsFile
 from gigui.constants import AVAILABLE_FORMATS, DEBUG_SHOW_MAIN_EVENT_LOOP, DYNAMIC
-from gigui.gitinspector import run as gitinspector_run
 from gigui.gui.psg_support import (
     GUIState,
     WindowButtons,
@@ -34,6 +33,7 @@ from gigui.gui.psg_support import (
 )
 from gigui.gui.psg_window import make_window
 from gigui.keys import Keys
+from gigui.repos import run_repos
 from gigui.tiphelp import Help, Tip
 from gigui.utils import open_webview, to_posix_fstr
 
@@ -328,9 +328,7 @@ def run(  # pylint: disable=too-many-branches
 
     logger.verbose(f"{args = }")  # type: ignore
     buttons.disable_all()
-    window.perform_long_operation(
-        lambda: gitinspector_run(args, start_time, window), keys.end
-    )
+    window.perform_long_operation(lambda: run_repos(args, start_time, window), keys.end)
 
 
 if __name__ == "__main__":

@@ -7,8 +7,8 @@ from queue import Empty  # Add this import
 from uuid import uuid4
 
 from gigui.constants import DYNAMIC
-from gigui.output import html_server, repo_html
-from gigui.output.repo_html import RepoHTML, create_html_document, load_css, logger
+from gigui.output import html_server
+from gigui.output.repo_html import RepoHTML, logger
 from gigui.typedefs import SHA, FileStr, Html
 
 FIRST_PORT = 8080
@@ -40,7 +40,7 @@ class RepoHTMLServer(RepoHTML):
         browser_id = str(uuid4())[-12:]
 
         port = get_port()
-        html_code = create_html_document(html_code, load_css(), browser_id)
+        html_code = self.create_html_document(html_code, self.load_css(), browser_id)
 
         try:
             # Start the server in a separate process and communicate with it via the queue and
@@ -72,7 +72,7 @@ class RepoHTMLServer(RepoHTML):
                     if request[0] == "load_table" and request[2] == browser_id:
                         table_id = request[1]
                         table_html = self.handle_load_table(
-                            table_id, self.blame_history
+                            table_id, self.args.blame_history
                         )
                         process_queue.put(table_html)
                     else:

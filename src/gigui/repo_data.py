@@ -3,6 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import TypeVar
 
+from gigui.args_settings import Args
 from gigui.constants import STATIC
 from gigui.data import CommitGroup, FileStat, Person, PersonsDB, PersonStat
 from gigui.repo_blame import RepoBlameHistory
@@ -13,11 +14,8 @@ logger = logging.getLogger(__name__)
 
 
 class RepoData(RepoBlameHistory):
-    blame_history: str
-    dry_run: int
-
-    def __init__(self, name: str, location: Path):
-        super().__init__(name, location)
+    def __init__(self, name: str, location: Path, args: Args) -> None:
+        super().__init__(name, location, args)
 
         self.path = Path(location).resolve()
         self.pathstr = str(self.path)
@@ -55,7 +53,7 @@ class RepoData(RepoBlameHistory):
         """
 
         try:
-            if self.dry_run == 2:
+            if self.args.dry_run == 2:
                 return True
             self.init_git_repo()
             self.run_base(thread_executor)
@@ -65,15 +63,15 @@ class RepoData(RepoBlameHistory):
                 return False
 
             self._set_final_data()
-            if self.blame_history == STATIC and not self.blame_skip:
+            if self.args.blame_history == STATIC and not self.args.blame_skip:
                 super().run_blame_history_static()
             return True
         finally:
-            if self.dry_run <= 1:
+            if self.args.dry_run <= 1:
                 self.git_repo.close()
 
     def _run_no_history(self) -> bool:
-        if self.dry_run == 2:
+        if self.args.dry_run == 2:
             return True
 
         # Set stats.author2fstr2fstat, the basis of all other stat tables
