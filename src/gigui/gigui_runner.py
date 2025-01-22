@@ -408,7 +408,7 @@ class GIGUIRunner:
                 # Flush the reading buffer by reading and discarding any existing input
                 while select.select([sys.stdin], [], [], 0.1)[0]:
                     sys.stdin.read(1)
-                    log("Close all browser tabs or press Enter to quit.")
+                log("Close all browser tabs or press Enter to quit.")
                 nr_done: int = 0
                 nr_done_prev: int = -1
                 while True:
@@ -431,34 +431,6 @@ class GIGUIRunner:
                     time.sleep(0.1)
             except KeyboardInterrupt:
                 logger.info("Main: keyboard interrupt received")
-
-    def await_server_done_events(self) -> None:
-        try:
-            print("Awaiting server started events")
-            show_stop_message = self.args.blame_history == DYNAMIC
-            nr_done: int = 0
-            nr_done_prev: int = -1
-            while True:
-                nr_done = sum(event.is_set() for event in self.server_done_events)
-                if nr_done == len(self.server_done_events):
-                    break
-                if show_stop_message:
-                    log("Close all browser tabs or press Enter to quit.")
-                    show_stop_message = False
-                if nr_done != nr_done_prev:
-                    nr_done_prev = nr_done
-                    logger.info(
-                        f"{nr_done} of {len(self.server_done_events)} done events set",
-                    )
-                if (
-                    not self.stop_all_event.is_set()
-                    and select.select([sys.stdin], [], [], 0.1)[0]
-                ):
-                    if input().lower() == "q":
-                        self.stop_all_event.set()  # type: ignore
-                time.sleep(0.1)
-        except KeyboardInterrupt:
-            logger.info("GI: keyboard interrupt received")
 
     @staticmethod
     def total_len(repo_lists: list[list[MiniRepo]]) -> int:

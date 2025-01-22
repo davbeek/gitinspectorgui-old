@@ -84,7 +84,6 @@ class RepoRunner(RepoHTMLServer, Book):
 
         if self.args.formats:
             # Write the excel file if requested.
-
             if "excel" in self.args.formats:
                 logfile(f"{outfile_name}.xlsx")
                 if self.args.multithread:
