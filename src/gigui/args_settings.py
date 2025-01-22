@@ -11,7 +11,7 @@ import platformdirs
 from git import PathLike
 
 from gigui import shared
-from gigui._logging import set_logging_level_from_verbosity
+from gigui._logging import log, set_logging_level_from_verbosity
 from gigui.constants import (
     AVAILABLE_FORMATS,
     BLAME_EXCLUSION_CHOICES,
@@ -28,13 +28,7 @@ from gigui.constants import (
 )
 from gigui.keys import Keys, KeysArgs
 from gigui.typedefs import FileStr
-from gigui.utils import (
-    log,
-    to_posix_fstr,
-    to_posix_fstrs,
-    to_system_fstr,
-    to_system_fstrs,
-)
+from gigui.utils import to_posix_fstr, to_posix_fstrs, to_system_fstr, to_system_fstrs
 
 logger = getLogger(__name__)
 

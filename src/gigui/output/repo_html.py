@@ -4,11 +4,12 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup, Tag
 
+from gigui._logging import log
 from gigui.args_settings import MiniRepo
 from gigui.constants import DYNAMIC, HIDE, NONE, SHOW, STATIC
 from gigui.output.repo_blame_rows import RepoBlameRows
 from gigui.typedefs import SHA, Author, FileStr, HtmlStr, Row
-from gigui.utils import get_relative_fstr, log
+from gigui.utils import get_relative_fstr
 
 MAX_LENGTH_TAB_NAME = 160
 

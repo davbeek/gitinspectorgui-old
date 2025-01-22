@@ -6,16 +6,15 @@ from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from logging import getLogger
 from pathlib import Path
 
-from gigui import _logging
-from gigui._logging import set_logging_level_from_verbosity
+from gigui import _logging, gigui_runner
+from gigui._logging import log, set_logging_level_from_verbosity
 from gigui.args_settings import Args, CLIArgs, Settings, SettingsFile
 from gigui.cli_arguments import define_arguments
 from gigui.constants import AVAILABLE_FORMATS, DEFAULT_EXTENSIONS
-from gigui.gigui_runner import run_repos
-from gigui.gui.psg import run_gui
+from gigui.gui import psg
 from gigui.tiphelp import Help
 from gigui.typedefs import FileStr
-from gigui.utils import get_dir_matches, log
+from gigui.utils import get_dir_matches
 
 # Limit the width of the help text to 80 characters.
 os.environ["COLUMNS"] = "90"
@@ -140,9 +139,9 @@ def main() -> None:
         log("")
 
     if namespace.gui:
-        run_gui(Settings.from_args(args, gui_settings_full_path))
+        psg.run_gui(Settings.from_args(args, gui_settings_full_path))
     elif namespace.run:
-        run_repos(args, start_time)
+        gigui_runner.run_repos(args, start_time)
     elif not namespace.save and not namespace.save_as and not namespace.show:
         log(
             "This command has no effect. Use --run/-r or --gui/-g to run the program, or "

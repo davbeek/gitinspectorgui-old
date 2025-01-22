@@ -1,43 +1,19 @@
 import argparse
 import platform
 import subprocess
+import threading
 import time
 from cProfile import Profile
 from io import StringIO
-from logging import getLogger
 from pathlib import Path
 from pstats import Stats
-from typing import Any
 
-from gigui import shared
+from gigui._logging import log
 from gigui.keys import Keys
 from gigui.typedefs import FileStr
 
 STDOUT = True
 DEFAULT_WRAP_WIDTH = 88
-
-logger = getLogger(__name__)
-
-
-def log(arg: Any, text_color: str | None = None, end: str = "\n", flush: bool = False):
-    if shared.gui:
-        shared.gui_window.write_event_value(  # type: ignore
-            "log", (str(arg) + end, (text_color if text_color else "black"))
-        )
-    else:
-        print(arg, end=end, flush=flush)
-
-
-def log_dots(
-    i: int, i_max: int, prefix: str = "", postfix: str = "\n", multicore: bool = False
-):
-    # i from 1 to and including i_max
-    if multicore:
-        log(".", end="", flush=True)
-    else:
-        if i == 1:
-            log(prefix, end="")
-        log("." if i < i_max else "." + postfix, end="", flush=True)
 
 
 def open_files(fstrs: list[str]):
@@ -242,3 +218,13 @@ def get_posix_dir_matches_for(pattern: FileStr) -> list[FileStr]:
         if path.is_dir() and not path.name.startswith(".")
     ]
     return matches
+
+
+def print_threads(message: str):
+    time.sleep(0.05)
+    print(f"\n{message}:")
+    for thread in threading.enumerate():
+        print(
+            f"  Thread Name: {thread.name}, Thread State: {'Alive' if thread.is_alive() else 'Dead'}"
+        )
+    print()

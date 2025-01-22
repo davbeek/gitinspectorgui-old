@@ -1,4 +1,5 @@
 """
+
 Multiple calls to logging.getLogger("name") with the same "name" string will always
 return the same logger instance. If no name is provided, as in logging.getLogger(),
 the root logger is returned. This ensures that loggers are singletons and can be
@@ -15,42 +16,66 @@ so that the functions can be used in a multiprocessing environment and always th
 logger of each multiprocessing process is used.
 """
 
-# Avoid having to use quotes for forward references in type hints
-# This feature is available in Python 3.13
-
 import logging
+import multiprocessing.util as multiprocessing_util
 import queue
+from collections.abc import Mapping
 from logging import Formatter, Handler, LogRecord, StreamHandler, getLogger
 from logging.handlers import QueueHandler, QueueListener
+from typing import Any
 
 import colorlog
 
 from gigui import shared
-from gigui.constants import DEFAULT_VERBOSITY
+from gigui.constants import (
+    ALLOW_GITPYTHON_DEBUG,
+    DEBUG_MULTIPROCESSING,
+    DEFAULT_VERBOSITY,
+)
 
-FORMAT = "%(levelname)s %(name)s %(funcName)s %(lineno)s\n%(message)s\n"
-FORMAT_INFO = "%(message)s"
+# For CRITICAL, ERROR, WARNING and DEBUG
+CUSTOM_FORMAT = "%(levelname)s/%(name)s/%(funcName)s %(lineno)s\n%(message)s\n"
 
-DEBUG_KEY = "debug"
+# For INFO and ALWAYS_LOG_LEVEL: normal formatting as used in print()
+PRINT_FORMAT = "%(message)s"
+
+ALWAYS_LOG_LEVEL = (logging.CRITICAL + logging.ERROR) // 2  # 45
+ALWAYS_LOG_LEVEL_NAME = "always_log"
+
+CLI_LEVEL_COLOR_DICT: Mapping[str, str] = {
+    "DEBUG": "cyan",  # Changed from blue to cyan for better readability on black
+    "INFO": "white",
+    "WARNING": "yellow",  # Changed from orange to yellow for better readability on black
+    "ERROR": "red",
+    ALWAYS_LOG_LEVEL_NAME: "white",
+    "CRITICAL": "red,bg_white",
+}
+
+# used for communication with GUI
+LOGGING_KEY = "logging"
 LOG_KEY = "log"
 
+logging.addLevelName(ALWAYS_LOG_LEVEL, ALWAYS_LOG_LEVEL_NAME)
 
-def ini_for_cli(verbosity: int = DEFAULT_VERBOSITY) -> StreamHandler:
+gui_multicore = False
+logger = getLogger(__name__)
+# logging.getLogger("git").setLevel(logging.WARNING)
+
+if DEBUG_MULTIPROCESSING:
+    multiprocessing_util.log_to_stderr()
+if not ALLOW_GITPYTHON_DEBUG:
+    logging.getLogger("git").setLevel(max(logging.WARNING, logging.getLogger().level))
+
+
+def ini_for_cli(verbosity: int = DEFAULT_VERBOSITY) -> None:
     set_logging_level_from_verbosity(verbosity)
-    handler = add_cli_handler()
-    return handler
+    add_cli_handler()
 
 
 # Cannot add GUI handler here because the GUI is not yet running.
 # The GUI handler is added in module psg_window in make_window().
 def ini_for_gui_base(verbosity: int = DEFAULT_VERBOSITY) -> None:
     set_logging_level_from_verbosity(verbosity)
-
-
-def ini_for_multiprocessing_cli(
-    logging_queue: queue.Queue, verbosity: int = DEFAULT_VERBOSITY
-) -> None:
-    getLogger().addHandler(QueueHandler(logging_queue))
 
 
 def set_logging_level_from_verbosity(verbosity: int | None) -> None:
@@ -68,66 +93,78 @@ def set_logging_level_from_verbosity(verbosity: int | None) -> None:
             raise ValueError(f"Unknown verbosity level: {verbosity}")
 
 
-def add_cli_handler() -> StreamHandler:
-    cli_handler = StreamHandler()
-    cli_handler.setFormatter(get_custom_cli_color_formatter())
-    getLogger().addHandler(cli_handler)
-    return cli_handler
+def add_cli_handler() -> None:
+    getLogger().addHandler(get_cli_handler())
 
 
 def add_gui_handler() -> None:
+    getLogger().addHandler(get_gui_handler())
+
+
+def get_cli_handler() -> StreamHandler:
+    cli_handler = StreamHandler()
+    cli_handler.setFormatter(get_custom_cli_formatter())
+    return cli_handler
+
+
+def get_gui_handler() -> "GUIOutputHandler":
     gui_handler = GUIOutputHandler()
     gui_handler.setFormatter(get_custom_gui_formatter())
-    getLogger().addHandler(gui_handler)
+    return gui_handler
+
+
+# Executed by a new python interpreter in a worker process, which does not share memory
+# with the main process. The worker process is created by the multiprocessing module.
+def ini_worker_for_multiprocessing(
+    logging_queue: queue.Queue, verbosity: int = DEFAULT_VERBOSITY, gui: bool = False
+) -> None:
+    global gui_multicore
+    getLogger().addHandler(QueueHandler(logging_queue))
+    gui_multicore = gui
 
 
 def start_logging_listener(logging_queue: queue.Queue, verbosity: int) -> QueueListener:
-    cli_handler = StreamHandler()
-    cli_handler.setFormatter(get_custom_cli_color_formatter())
-    queue_listener = QueueListener(logging_queue, cli_handler)
+    if shared.gui:
+        queue_listener = QueueListener(
+            logging_queue, get_cli_handler(), get_gui_handler()
+        )
+    else:
+        queue_listener = QueueListener(logging_queue, get_cli_handler())
     queue_listener.start()
     return queue_listener
 
 
-def get_custom_cli_color_formatter() -> "CustomColoredFormatter":
-    return CustomColoredFormatter(
-        "%(log_color)s" + FORMAT,
-        info_fmt="%(log_color)s" + FORMAT_INFO,  # Different format for INFO level
-        reset=True,
-        log_colors={
-            "DEBUG": "cyan",  # Changed from blue to cyan for better readability on black
-            "VERBOSE": "green",
-            "INFO": "white",
-            "WARNING": "yellow",  # Changed from orange to yellow for better readability on black
-            "ERROR": "red",
-            "CRITICAL": "red,bg_white",
-        },
-        style="%",
-    )
+def get_custom_cli_formatter() -> colorlog.ColoredFormatter:  # subclass of Formatter
+    class CustomCLIFormatter(colorlog.ColoredFormatter):
+        def __init__(
+            self,
+            log_colors: Mapping[str, str],  # similar to read-only dict
+        ):
+            super().__init__(log_colors=log_colors)
 
-
-class CustomFormatter(Formatter):
-    def __init__(self, fmt, info_fmt, *args, **kwargs):
-        super().__init__(fmt, *args, **kwargs)
-        self.default_fmt = fmt
-        self.info_fmt = info_fmt
-
-    def format(self, record):
-        if record.levelno == logging.INFO:
-            original_fmt = self._style._fmt
-            self._style._fmt = self.info_fmt
-            result = super().format(record)
-            self._style._fmt = original_fmt
-            return result
-        else:
+        def format(self, record: LogRecord) -> str:
+            self._style._fmt = "%(log_color)s" + (
+                PRINT_FORMAT
+                if record.levelno in {logging.INFO, ALWAYS_LOG_LEVEL}
+                else CUSTOM_FORMAT
+            )
             return super().format(record)
 
+    return CustomCLIFormatter(CLI_LEVEL_COLOR_DICT)
 
-def get_custom_gui_formatter() -> "CustomFormatter":
-    return CustomFormatter(
-        FORMAT,
-        info_fmt=FORMAT_INFO,  # Different format for INFO level
-    )
+
+# Custom GUI colors are not defined here, but in the class GUIOutputHandler below
+def get_custom_gui_formatter() -> Formatter:
+    class CustomGUIFormatter(Formatter):
+        def format(self, record: LogRecord) -> str:
+            self._style._fmt = (
+                PRINT_FORMAT
+                if record.levelno in {logging.INFO, ALWAYS_LOG_LEVEL}
+                else CUSTOM_FORMAT
+            )
+            return super().format(record)
+
+    return CustomGUIFormatter()
 
 
 # For GUI logger
@@ -136,33 +173,42 @@ class GUIOutputHandler(Handler):
         log_entry = self.format(record)
         match record.levelno:
             case logging.DEBUG:
-                shared.gui_window.write_event_value(DEBUG_KEY, (log_entry, "blue"))  # type: ignore
-            case 15:  # VERBOSE
-                shared.gui_window.write_event_value(DEBUG_KEY, (log_entry, "green"))  # type: ignore
+                shared.gui_window.write_event_value(LOGGING_KEY, (log_entry, "blue"))  # type: ignore
             case logging.INFO:
-                shared.gui_window.write_event_value(LOG_KEY, (log_entry + "\n", "black"))  # type: ignore
+                shared.gui_window.write_event_value(LOGGING_KEY, (log_entry, "black"))  # type: ignore
             case logging.WARNING:
-                shared.gui_window.write_event_value(DEBUG_KEY, (log_entry, "orange"))  # type: ignore
+                shared.gui_window.write_event_value(LOGGING_KEY, (log_entry, "orange"))  # type: ignore
             case logging.ERROR:
-                shared.gui_window.write_event_value(DEBUG_KEY, (log_entry, "red"))  # type: ignore
+                shared.gui_window.write_event_value(LOGGING_KEY, (log_entry, "red"))  # type: ignore
+            case 45:  # ALWAYS_LOG_LEVEL
+                shared.gui_window.write_event_value(LOGGING_KEY, (log_entry, "black"))  # type: ignore
             case logging.CRITICAL:
-                shared.gui_window.write_event_value(DEBUG_KEY, (log_entry, "red"))  # type: ignore
+                shared.gui_window.write_event_value(LOGGING_KEY, (log_entry, "red"))  # type: ignore
             case _:
                 raise ValueError(f"Unknown log level: {record.levelno}")
 
 
-class CustomColoredFormatter(colorlog.ColoredFormatter):
-    def __init__(self, fmt, info_fmt, *args, **kwargs):
-        super().__init__(fmt, *args, **kwargs)
-        self.default_fmt = fmt
-        self.info_fmt = info_fmt
+def log(arg: Any, text_color: str | None = None, end: str = "\n", flush: bool = False):
+    if gui_multicore:
+        logger.log(ALWAYS_LOG_LEVEL, arg)
+    elif shared.gui:
+        shared.gui_window.write_event_value(  # type: ignore
+            "log", (str(arg) + end, (text_color if text_color else "black"))
+        )
+    else:
+        print(arg, end=end, flush=flush)
 
-    def format(self, record):
-        if record.levelno == logging.INFO:
-            original_fmt = self._style._fmt
-            self._style._fmt = self.info_fmt
-            result = super().format(record)
-            self._style._fmt = original_fmt
-            return result
-        else:
-            return super().format(record)
+
+def log_dots(
+    i: int, i_max: int, prefix: str = "", postfix: str = "\n", multicore: bool = False
+):
+    if gui_multicore:
+        return
+
+    # i from 1 to and including i_max
+    if multicore:
+        log(".", end="", flush=True)
+    else:
+        if i == 1:
+            log(prefix, end="")
+        log("." if i < i_max else "." + postfix, end="", flush=True)

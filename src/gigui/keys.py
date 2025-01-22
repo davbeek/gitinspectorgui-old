@@ -47,7 +47,7 @@ class Keys(KeysArgs):
     end: str = "end"
     # Logging
     log: str = "log"
-    debug: str = "debug"
+    logging: str = "logging"
     # Complete settings column
     config_column: str = "config_column"
     # Top row

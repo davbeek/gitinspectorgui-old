@@ -9,11 +9,11 @@ from pathlib import Path
 
 from git import Commit, Repo
 
+from gigui._logging import log, log_dots
 from gigui.args_settings import Args, MiniRepo
 from gigui.constants import GIT_LOG_CHUNK_SIZE, MAX_THREAD_WORKERS
 from gigui.data import CommitGroup, PersonsDB, RepoStats
 from gigui.typedefs import OID, SHA, Author, FileStr, Rev
-from gigui.utils import log, log_dots
 
 logger = getLogger(__name__)
 

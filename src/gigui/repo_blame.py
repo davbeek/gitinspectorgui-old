@@ -7,13 +7,13 @@ from pathlib import Path
 from git import Commit as GitCommit
 from git import GitCommandError, Repo
 
+from gigui._logging import log_dots
 from gigui.args_settings import MiniRepo
 from gigui.comment import get_is_comment_lines
 from gigui.constants import BLAME_CHUNK_SIZE, MAX_THREAD_WORKERS
 from gigui.data import FileStat
 from gigui.repo_base import RepoBase
 from gigui.typedefs import SHA, Author, BlameLines, Email, FileStr, GitBlames
-from gigui.utils import log_dots
 
 logger = getLogger(__name__)
 

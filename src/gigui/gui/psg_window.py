@@ -374,8 +374,8 @@ def output_formats_frame() -> sg.Frame:
                     keys.whitespace,
                 ),
                 checkbox(
-                    "Multithread",
-                    keys.multithread,
+                    "Multicore",
+                    keys.multicore,
                 ),
                 name_input(
                     "Since",

@@ -42,19 +42,20 @@ class RepoHTMLServer(RepoHTML):
         server_started_event: threading.Event,
         server_done_event: threading.Event,
         stop_all_event: threading.Event,
-        host_port_queue: Queue,
+        host_port_queue: Queue | None,
     ) -> None:
         super().__init__(mini_repo)
 
         self.server_started_event: threading.Event = server_started_event
         self.server_done_event: threading.Event = server_done_event
         self.stop_all_event: threading.Event = stop_all_event
-        self.host_port_queue: Queue = host_port_queue
+        self.host_port_queue: Queue | None = host_port_queue
 
     def start_werkzeug_server_with_html(
         self,
         html_code: HtmlStr,
     ) -> None:
+        assert self.host_port_queue is not None
         browser_id = f"{self.name}-{str(uuid4())[-12:]}"
         html_doc_code = self.create_html_document(
             html_code, self.load_css(), browser_id
@@ -78,9 +79,11 @@ class RepoHTMLServer(RepoHTML):
             )
 
             self.server_started_event.set()
-            server_thread = Thread(target=server.serve_forever)
+            server_thread = Thread(
+                target=server.serve_forever, name=f"Werkzeug server for {self.name}"
+            )
             server_thread.start()
-            logger.debug(f"    {self.name}: server started on {port_value=}")
+            logger.debug(f"{self.name}: server started on {port_value=}")
 
             # Open the web browser to serve the initial contents
             browser = webbrowser.get()
@@ -107,6 +110,7 @@ class RepoHTMLServer(RepoHTML):
                         self.server_done_event,
                         server_thread,
                     ),
+                    name=f"Event monitor for {self.name}",
                 ).start()
         except Exception as e:
             logger.error(
@@ -132,7 +136,7 @@ class RepoHTMLServer(RepoHTML):
             shutdown_id = request.args.get("id")
             if shutdown_id == browser_id:
                 Thread(
-                    target=shutdown_func
+                    target=shutdown_func, name=f"Shutdown thread for {self.name}"
                 ).start()  # calling shutdown_directly leads to deadlock
                 shutting_down_event.set()  # Set shutting_down_event
                 response = Response(content_type="text/plain")

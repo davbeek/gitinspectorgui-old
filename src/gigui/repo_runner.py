@@ -3,13 +3,14 @@ from logging import getLogger
 from queue import Queue
 
 from gigui import _logging
+from gigui._logging import log
 from gigui.args_settings import Args, MiniRepo
 from gigui.constants import DYNAMIC
 from gigui.data import FileStat, Person
 from gigui.output.repo_excel import Book
 from gigui.output.repo_html_server import RepoHTMLServer
 from gigui.typedefs import FileStr
-from gigui.utils import get_outfile_name, log, log_analysis_end_time, open_file
+from gigui.utils import get_outfile_name, log_analysis_end_time, open_file
 
 # For multicore, logger is set in process_repo_multicore().
 logger = getLogger(__name__)
@@ -22,7 +23,7 @@ class RepoRunner(RepoHTMLServer, Book):
         server_started_event: threading.Event,
         server_done_event: threading.Event,
         stop_all_event: threading.Event,
-        host_port_queue: Queue,
+        host_port_queue: Queue | None,
     ) -> None:
         super().__init__(
             mini_repo,
@@ -81,42 +82,40 @@ class RepoRunner(RepoHTMLServer, Book):
             self.args.fix, self.args.outfile_base, self.name
         )
         outfilestr = str(self.path.parent / outfile_name)
-
         if self.args.formats:
             # Write the excel file if requested.
             if "excel" in self.args.formats:
                 logfile(f"{outfile_name}.xlsx")
                 if self.args.multithread:
-                    threading.Thread(target=self.run_excel, args=(outfilestr,)).start()
+                    threading.Thread(
+                        target=self.run_excel, args=(outfilestr,), name="Excel printer"
+                    ).start()
                 else:
                     self.run_excel(outfilestr)
-
             # Write the HTML file if requested.
             if "html" in self.args.formats:
                 logfile(f"{outfile_name}.html")
                 if self.args.multithread:
                     threading.Thread(
-                        target=self._write_excel, args=(outfilestr,)
+                        target=self._write_html, args=(outfilestr,), name="HTML printer"
                     ).start()
                 else:
-                    self._write_excel(outfilestr)
-
+                    self._write_html(outfilestr)
             logger.info(" " * 4 + f"Close {self.name}")
 
             if self.args.view:
                 if "excel" in self.args.formats:
                     open_file(outfilestr + ".xlsx")
-
                 if "html" in self.args.formats and self.args.blame_history != DYNAMIC:
                     open_file(outfilestr + ".html")
-                    return
 
         elif self.args.view:
             html_code = self.get_html()
             log(" " * 4 + f"View {self.name}")
+            print("Starting web server")
             self.start_werkzeug_server_with_html(html_code)
 
-    def _write_excel(self, outfilestr: FileStr) -> None:
+    def _write_html(self, outfilestr: FileStr) -> None:
         html_code = self.get_html()
         with open(outfilestr + ".html", "w", encoding="utf-8") as f:
             f.write(html_code)
@@ -127,31 +126,28 @@ def process_repo_multicore(
     server_started_event: threading.Event,
     server_done_event: threading.Event,
     stop_all_event: threading.Event,
-    host_port_queue: Queue,
-) -> bool:
+    host_port_queue: Queue | None,
+) -> None:
     global logger
     _logging.set_logging_level_from_verbosity(mini_repo.args.verbosity)
     logger = getLogger(__name__)
-    try:
-        repo = RepoRunner(
-            mini_repo,
-            server_started_event,
-            server_done_event,
-            stop_all_event,
-            host_port_queue,
+    repo = RepoRunner(
+        mini_repo,
+        server_started_event,
+        server_done_event,
+        stop_all_event,
+        host_port_queue,
+    )
+    log(" " * 4 + f"Start {mini_repo.name}")
+    stats_found: bool = repo.run_analysis()
+    if stats_found:
+        repo._generate_output()
+    elif mini_repo.args.dry_run <= 1:
+        log(
+            " " * 8 + "No statistics matching filters found for "
+            f"repository {mini_repo.name}"
         )
-        log(" " * 4 + f"Start {mini_repo.name}")
-        stats_found: bool = repo.run_analysis()
-        if stats_found:
-            repo._generate_output()
-        elif mini_repo.args.dry_run <= 1:
+        if server_started_event is not None:
             server_started_event.set()
+        if server_done_event is not None:
             server_done_event.set()
-            log(
-                " " * 8 + "No statistics matching filters found for "
-                f"repository {mini_repo.name}"
-            )
-    except Exception as e:
-        logger.error(f"Error in {mini_repo.name}: {e}")
-        return False
-    return stats_found

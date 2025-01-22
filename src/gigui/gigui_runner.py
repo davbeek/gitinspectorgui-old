@@ -4,19 +4,17 @@ import select
 import sys
 import threading
 import time
-from concurrent.futures import Future, ProcessPoolExecutor
+from concurrent.futures import Future, ProcessPoolExecutor, as_completed
 from cProfile import Profile
 from logging import getLogger
 from logging.handlers import QueueListener
-
-# import multiprocessing.util as util
 from multiprocessing.managers import SyncManager
 from pathlib import Path
 from queue import Queue
 
 import gigui.repo_runner as repo_runner
-from gigui import _logging
-from gigui._logging import set_logging_level_from_verbosity, start_logging_listener
+from gigui import _logging, shared
+from gigui._logging import log, set_logging_level_from_verbosity, start_logging_listener
 from gigui.args_settings import Args, MiniRepo
 from gigui.constants import (
     DEFAULT_FILE_BASE,
@@ -32,7 +30,6 @@ from gigui.repo_runner import RepoRunner
 from gigui.typedefs import FileStr
 from gigui.utils import (
     get_dir_matches,
-    log,
     log_analysis_end_time,
     non_hex_chars_in_list,
     out_profile,
@@ -45,10 +42,6 @@ from gigui.utils import (
 logger = getLogger(__name__)
 
 
-# util.log_to_stderr(logging.DEBUG)
-# util.log_to_stderr(logging.WARNING)
-
-
 class GIGUIRunner:
     args: Args
 
@@ -59,7 +52,24 @@ class GIGUIRunner:
         self.server_started_events: list[threading.Event] = []
         self.server_done_events: list[threading.Event] = []
         self.stop_all_event: threading.Event
-        self.host_port_queue: Queue
+        self.host_port_queue: Queue | None
+        self.logging_queue: Queue
+        self.queue_listener: QueueListener | None = None
+
+        if self.args.multicore:
+            self.manager = multiprocessing.Manager()
+            self.stop_all_event = self.manager.Event()
+            if self.args.formats:
+                self.host_port_queue = None
+            else:
+                self.host_port_queue = self.manager.Queue()
+            self.logging_queue = self.manager.Queue()  # type: ignore
+        else:
+            self.stop_all_event = threading.Event()
+            self.host_port_queue = None if self.args.formats else Queue()
+            self.logging_queue = Queue()
+        if self.host_port_queue:
+            self.host_port_queue.put(FIRST_PORT)
 
     def run_repos(self, start_time: float) -> None:
         profiler: Profile | None = None
@@ -86,20 +96,19 @@ class GIGUIRunner:
         if len_repos == 1:
             # Set multicore to false, because multicore is not useful for a single repo.
             self.args.multicore = False
-            self.stop_all_event = threading.Event()
-            self.host_port_queue = Queue()
-        else:
-            self.manager = multiprocessing.Manager()
-            self.stop_all_event = self.manager.Event()
-            self.host_port_queue = self.manager.Queue()
-        self.host_port_queue.put(FIRST_PORT)
 
         if self.args.multicore:
+            self.queue_listener = start_logging_listener(
+                self.logging_queue, self.args.verbosity
+            )
             self.process_repos_multicore(
                 repo_lists,
                 len_repos,
                 start_time,
             )
+            if self.queue_listener:
+                self.queue_listener.stop()
+
         else:  # single core
             self.process_repos_singlecore(
                 repo_lists,
@@ -108,9 +117,13 @@ class GIGUIRunner:
             )
 
         # Cleanup resources
-        self.host_port_queue.get()  # Need to remove the last port value to avoid a deadlock
+        if self.host_port_queue:
+            # Need to remove the last port value to avoid a deadlock
+            self.host_port_queue.get()
+
         if self.manager:
             self.manager.shutdown()
+
         out_profile(profiler, self.args.profile)
         log("Done")
 
@@ -277,8 +290,6 @@ class GIGUIRunner:
         len_repos: int,
         start_time: float,
     ) -> None:
-        logging_queue: Queue = self.manager.Queue()  # type: ignore
-        listener = start_logging_listener(logging_queue, self.args.verbosity)
         max_workers = (
             multiprocessing.cpu_count()
             if not self.args.blame_history == DYNAMIC
@@ -286,8 +297,8 @@ class GIGUIRunner:
         )
         with ProcessPoolExecutor(
             max_workers=max_workers,
-            initializer=_logging.ini_for_multiprocessing_cli,
-            initargs=(logging_queue, self.args.verbosity),
+            initializer=_logging.ini_worker_for_multiprocessing,
+            initargs=(self.logging_queue, self.args.verbosity, shared.gui),
         ) as process_executor:
             future_to_mini_repo: dict[Future, MiniRepo] = {}
             for repos in repo_lists:
@@ -295,10 +306,7 @@ class GIGUIRunner:
                 repo_parent_str = str(repos[0].location.resolve().parent)
                 log("Output in folder " + repo_parent_str)
                 for mini_repo in repos:
-                    server_started_event = self.manager.Event()  # type: ignore
-                    self.server_started_events.append(server_started_event)
-                    server_done_event = self.manager.Event()  # type: ignore
-                    self.server_done_events.append(server_done_event)
+                    server_started_event, server_done_event = self.create_events()
                     future_to_mini_repo |= {
                         process_executor.submit(
                             repo_runner.process_repo_multicore,
@@ -309,56 +317,66 @@ class GIGUIRunner:
                             self.host_port_queue,
                         ): mini_repo
                     }
-            if not self.args.formats and self.args.view:
-                self.await_events_multicore(listener, start_time)
 
-    def await_events_multicore(
-        self, listener: QueueListener, start_time: float
-    ) -> None:
-        try:
-            servers_started: bool = False
-            nr_started: int = 0
-            nr_started_prev: int = -1
-            nr_done: int = 0
-            nr_done_prev: int = -1
-            while not servers_started:
-                nr_started = sum(event.is_set() for event in self.server_started_events)
-                if nr_started != nr_started_prev:
-                    nr_started_prev = nr_started
-                    logger.debug(
-                        f"Main: {nr_started} of {len(self.server_started_events)} "
-                        "server started events are set"
-                    )
-                if nr_started == len(self.server_started_events):
-                    # Flush the reading buffer by reading and discarding any existing input
-                    while select.select([sys.stdin], [], [], 0.1)[0]:
-                        sys.stdin.read(1)
-                    log_analysis_end_time(start_time)
-                    log("Close all browser tabs or press Enter to quit.")
-                    servers_started = True
-                time.sleep(0.05)
-            while True:
-                nr_done = sum(event.is_set() for event in self.server_done_events)
-                if nr_done != nr_done_prev:
-                    nr_done_prev = nr_done
-                    logger.debug(
-                        f"Main: {nr_done} of {len(self.server_done_events)} "
-                        "server done events set"
-                    )
-                if nr_done == len(self.server_done_events):
-                    break
-                if (
-                    not self.stop_all_event.is_set()
-                    and select.select([sys.stdin], [], [], 0.1)[0]
-                ):
-                    if input() == "":
-                        logger.debug("Main: set stop event")
-                        self.stop_all_event.set()  # type: ignore
-                time.sleep(0.1)
-        except KeyboardInterrupt:
-            logger.debug("Main: keyboard interrupt received")
-        finally:
-            listener.stop()
+            if not self.args.formats and self.args.view:
+                self.await_events_multicore(start_time)
+
+            for future in as_completed(future_to_mini_repo):
+                # Show the full exception trace if an exception occurred in
+                # repo_runner.process_repo_multicore
+                future.result()  # only purpose is to raise an exception if one occurred
+
+    def create_events(self) -> tuple[threading.Event, threading.Event]:
+        if self.args.multicore:
+            server_started_event = self.manager.Event()  # type: ignore
+            self.server_started_events.append(server_started_event)
+            server_done_event = self.manager.Event()  # type: ignore
+            self.server_done_events.append(server_done_event)
+        else:
+            server_started_event = threading.Event()
+            server_done_event = threading.Event()
+        return server_started_event, server_done_event
+
+    def await_events_multicore(self, start_time: float) -> None:
+        servers_started: bool = False
+        nr_started: int = 0
+        nr_started_prev: int = -1
+        nr_done: int = 0
+        nr_done_prev: int = -1
+        while not servers_started:
+            nr_started = sum(event.is_set() for event in self.server_started_events)
+            if nr_started != nr_started_prev:
+                nr_started_prev = nr_started
+                logger.debug(
+                    f"Main: {nr_started} of {len(self.server_started_events)} "
+                    "server started events are set"
+                )
+            if nr_started == len(self.server_started_events):
+                # Flush the reading buffer by reading and discarding any existing input
+                while select.select([sys.stdin], [], [], 0.1)[0]:
+                    sys.stdin.read(1)
+                log_analysis_end_time(start_time)
+                log("Close all browser tabs or press Enter to quit.")
+                servers_started = True
+            time.sleep(0.05)
+        while True:
+            nr_done = sum(event.is_set() for event in self.server_done_events)
+            if nr_done != nr_done_prev:
+                nr_done_prev = nr_done
+                logger.debug(
+                    f"Main: {nr_done} of {len(self.server_done_events)} "
+                    "server done events set"
+                )
+            if nr_done == len(self.server_done_events):
+                break
+            if (
+                not self.stop_all_event.is_set()
+                and select.select([sys.stdin], [], [], 0.1)[0]
+            ):
+                if input() == "":
+                    logger.debug("Main: set stop event")
+                    self.stop_all_event.set()  # type: ignore
+            time.sleep(0.1)
 
     def process_repos_singlecore(
         self,
@@ -400,7 +418,7 @@ class GIGUIRunner:
                     self.stop_all_event,
                     self.host_port_queue,
                 )
-                repo_runner.run_repo(
+                repo_runner.process_repo_single_core(
                     len_repos,
                     start_time,
                 )
