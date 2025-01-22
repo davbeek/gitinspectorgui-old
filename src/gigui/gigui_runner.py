@@ -7,6 +7,7 @@ import time
 from concurrent.futures import Future, ProcessPoolExecutor
 from cProfile import Profile
 from logging import getLogger
+from logging.handlers import QueueListener
 
 # import multiprocessing.util as util
 from multiprocessing.managers import SyncManager
@@ -308,53 +309,56 @@ class GIGUIRunner:
                             self.host_port_queue,
                         ): mini_repo
                     }
-            try:
-                servers_started: bool = False
-                nr_started: int = 0
-                nr_started_prev: int = -1
-                nr_done: int = 0
-                nr_done_prev: int = -1
-                while not servers_started:
-                    nr_started = sum(
-                        event.is_set() for event in self.server_started_events
+            if not self.args.formats and self.args.view:
+                self.await_events_multicore(listener, start_time)
+
+    def await_events_multicore(
+        self, listener: QueueListener, start_time: float
+    ) -> None:
+        try:
+            servers_started: bool = False
+            nr_started: int = 0
+            nr_started_prev: int = -1
+            nr_done: int = 0
+            nr_done_prev: int = -1
+            while not servers_started:
+                nr_started = sum(event.is_set() for event in self.server_started_events)
+                if nr_started != nr_started_prev:
+                    nr_started_prev = nr_started
+                    logger.debug(
+                        f"Main: {nr_started} of {len(self.server_started_events)} "
+                        "server started events are set"
                     )
-                    if nr_started != nr_started_prev:
-                        nr_started_prev = nr_started
-                        logger.debug(
-                            f"Main: {nr_started} of {len(self.server_started_events)} "
-                            "server started events are set"
-                        )
-                    if nr_started == len(self.server_started_events):
-                        # Flush the reading buffer by reading and discarding any existing input
-                        while select.select([sys.stdin], [], [], 0.1)[0]:
-                            sys.stdin.read(1)
-                        log_analysis_end_time(start_time)
-                        if self.args.blame_history == DYNAMIC:
-                            log("Close all browser tabs or press Enter to quit.")
-                        servers_started = True
-                    time.sleep(0.05)
-                while True:
-                    nr_done = sum(event.is_set() for event in self.server_done_events)
-                    if nr_done != nr_done_prev:
-                        nr_done_prev = nr_done
-                        logger.debug(
-                            f"Main: {nr_done} of {len(self.server_done_events)} "
-                            "server done events set"
-                        )
-                    if nr_done == len(self.server_done_events):
-                        break
-                    if (
-                        not self.stop_all_event.is_set()
-                        and select.select([sys.stdin], [], [], 0.1)[0]
-                    ):
-                        if input() == "":
-                            logger.debug("Main: set stop event")
-                            self.stop_all_event.set()  # type: ignore
-                    time.sleep(0.1)
-            except KeyboardInterrupt:
-                logger.debug("Main: keyboard interrupt received")
-            finally:
-                listener.stop()
+                if nr_started == len(self.server_started_events):
+                    # Flush the reading buffer by reading and discarding any existing input
+                    while select.select([sys.stdin], [], [], 0.1)[0]:
+                        sys.stdin.read(1)
+                    log_analysis_end_time(start_time)
+                    log("Close all browser tabs or press Enter to quit.")
+                    servers_started = True
+                time.sleep(0.05)
+            while True:
+                nr_done = sum(event.is_set() for event in self.server_done_events)
+                if nr_done != nr_done_prev:
+                    nr_done_prev = nr_done
+                    logger.debug(
+                        f"Main: {nr_done} of {len(self.server_done_events)} "
+                        "server done events set"
+                    )
+                if nr_done == len(self.server_done_events):
+                    break
+                if (
+                    not self.stop_all_event.is_set()
+                    and select.select([sys.stdin], [], [], 0.1)[0]
+                ):
+                    if input() == "":
+                        logger.debug("Main: set stop event")
+                        self.stop_all_event.set()  # type: ignore
+                time.sleep(0.1)
+        except KeyboardInterrupt:
+            logger.debug("Main: keyboard interrupt received")
+        finally:
+            listener.stop()
 
     def process_repos_singlecore(
         self,
@@ -404,33 +408,36 @@ class GIGUIRunner:
             runs += 1
         log_analysis_end_time(start_time)
         if not self.args.formats and self.args.view:
-            try:
-                # Flush the reading buffer by reading and discarding any existing input
-                while select.select([sys.stdin], [], [], 0.1)[0]:
-                    sys.stdin.read(1)
-                log("Close all browser tabs or press Enter to quit.")
-                nr_done: int = 0
-                nr_done_prev: int = -1
-                while True:
-                    nr_done = sum(event.is_set() for event in self.server_done_events)
-                    if nr_done != nr_done_prev:
-                        nr_done_prev = nr_done
-                        logger.info(
-                            f"Main: {nr_done} of {len(self.server_done_events)} "
-                            "server done events set"
-                        )
-                    if nr_done == len(self.server_done_events):
-                        break
-                    if (
-                        not self.stop_all_event.is_set()
-                        and select.select([sys.stdin], [], [], 0.1)[0]
-                    ):
-                        if input() == "":
-                            logger.info("Main: set stop event")
-                            self.stop_all_event.set()  # type: ignore
-                    time.sleep(0.1)
-            except KeyboardInterrupt:
-                logger.info("Main: keyboard interrupt received")
+            self.await_events_singlecore()
+
+    def await_events_singlecore(self) -> None:
+        try:
+            # Flush the reading buffer by reading and discarding any existing input
+            while select.select([sys.stdin], [], [], 0.1)[0]:
+                sys.stdin.read(1)
+            log("Close all browser tabs or press Enter to quit.")
+            nr_done: int = 0
+            nr_done_prev: int = -1
+            while True:
+                nr_done = sum(event.is_set() for event in self.server_done_events)
+                if nr_done != nr_done_prev:
+                    nr_done_prev = nr_done
+                    logger.info(
+                        f"Main: {nr_done} of {len(self.server_done_events)} "
+                        "server done events set"
+                    )
+                if nr_done == len(self.server_done_events):
+                    break
+                if (
+                    not self.stop_all_event.is_set()
+                    and select.select([sys.stdin], [], [], 0.1)[0]
+                ):
+                    if input() == "":
+                        logger.info("Main: set stop event")
+                        self.stop_all_event.set()  # type: ignore
+                time.sleep(0.1)
+        except KeyboardInterrupt:
+            logger.info("Main: keyboard interrupt received")
 
     @staticmethod
     def total_len(repo_lists: list[list[MiniRepo]]) -> int:

@@ -39,7 +39,7 @@ class RepoRunner(RepoHTMLServer, Book):
         Person.ex_email_patterns = args.ex_emails
         FileStat.show_renames = args.show_renames
 
-    def run_repo(
+    def process_repo_single_core(
         self,
         len_repos: int,  # Total number of repositories being analyzed
         start_time: float | None = None,
