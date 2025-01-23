@@ -52,6 +52,7 @@ class Keys(KeysArgs):
     config_column: str = "config_column"
     # Top row
     run: str = "run"
+    stop: str = "stop"
     clear: str = "clear"
     show: str = "show"
     help: str = "help"

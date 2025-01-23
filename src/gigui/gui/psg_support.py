@@ -1,7 +1,9 @@
 import shlex
+import threading
 import webbrowser
 from copy import copy
 from dataclasses import asdict, dataclass, field
+from multiprocessing.managers import SyncManager
 from pathlib import Path
 
 import git  # Add this import for gitpython
@@ -51,6 +53,8 @@ class GUIState:
     )
     subfolder: FileStr = ""
     subfolder_valid: bool = True
+    manager: SyncManager | None = None
+    stop_all_event: threading.Event | None = None
 
 
 class WindowButtons:
@@ -69,15 +73,18 @@ class WindowButtons:
             keys.browse_input_fstr,
         ]
 
-    def disable_all(self) -> None:
+    def configure_for_running(self, formats: list[str]) -> None:
         for button in self.buttons:
-            self._update_button_state(button, True)
+            self.update_button_state(button, disabled=True)
+        if not formats:
+            self.update_button_state(keys.stop, disabled=False)
 
-    def enable_all(self) -> None:
+    def configure_for_idle(self) -> None:
         for button in self.buttons:
-            self._update_button_state(button, False)
+            self.update_button_state(button, disabled=False)
+        self.update_button_state(keys.stop, disabled=True)
 
-    def _update_button_state(self, button: str, disabled: bool) -> None:
+    def update_button_state(self, button: str, disabled: bool) -> None:
         if disabled:
             color = DISABLED_COLOR
         else:

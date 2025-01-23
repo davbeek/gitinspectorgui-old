@@ -1,9 +1,11 @@
 import multiprocessing
 import os
 import sys
+import threading
 import time
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from logging import getLogger
+from multiprocessing.managers import SyncManager
 from pathlib import Path
 
 from gigui import _logging, gigui_runner
@@ -24,7 +26,9 @@ logger = getLogger(__name__)
 
 def main() -> None:
     settings: Settings = Settings()
-    start_time = time.time()
+    start_time: float = time.time()
+    manager: SyncManager | None = None
+    stop_all_event: threading.Event = threading.Event()
 
     parser = ArgumentParser(
         prog="gitinspectorgui",
@@ -141,7 +145,10 @@ def main() -> None:
     if namespace.gui:
         psg.run_gui(Settings.from_args(args, gui_settings_full_path))
     elif namespace.run:
-        gigui_runner.run_repos(args, start_time)
+        if args.multicore:
+            manager = multiprocessing.Manager()
+            stop_all_event = manager.Event()
+        gigui_runner.run_repos(args, start_time, manager, stop_all_event)
     elif not namespace.save and not namespace.save_as and not namespace.show:
         log(
             "This command has no effect. Use --run/-r or --gui/-g to run the program, or "

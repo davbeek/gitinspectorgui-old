@@ -2,6 +2,7 @@
 import multiprocessing
 import shlex  # Use shlex.split to handle quoted strings
 import sys
+import threading
 import time
 from datetime import datetime
 from logging import getLogger
@@ -13,7 +14,7 @@ import PySimpleGUI as sg  # type: ignore[import-untyped]
 from gigui import _logging, shared
 from gigui._logging import set_logging_level_from_verbosity
 from gigui.args_settings import Args, Settings, SettingsFile
-from gigui.constants import AVAILABLE_FORMATS, DEBUG_SHOW_MAIN_EVENT_LOOP, DYNAMIC
+from gigui.constants import AVAILABLE_FORMATS, DEBUG_SHOW_MAIN_EVENT_LOOP
 from gigui.gigui_runner import run_repos
 from gigui.gui.psg_support import (
     GUIState,
@@ -49,7 +50,9 @@ def run_gui(settings: Settings) -> None:
     # Create variable state, which is properly initialized via a call of
     # window_state_from_settings(...)
     state: GUIState = GUIState(
-        settings.col_percent, settings.gui_settings_full_path, settings.multithread
+        settings.col_percent,
+        settings.gui_settings_full_path,
+        settings.multithread,
     )
 
     while recreate_window:
@@ -74,6 +77,7 @@ def run_inner(settings: Settings, state: GUIState) -> bool:
     shared.gui_window = window
 
     buttons = WindowButtons(window)
+    buttons.configure_for_idle()
 
     window_state_from_settings(window, settings)  # type: ignore
     last_window_height: int = window.Size[1]  # type: ignore
@@ -122,7 +126,20 @@ def run_inner(settings: Settings, state: GUIState) -> bool:
             case keys.run:
                 # Update processing of input patterns because dir state may have changed
                 process_inputs(state, window)  # type: ignore
-                run(window, values, state)
+
+                if settings.multicore:
+                    manager = multiprocessing.Manager()
+                    stop_all_event = manager.Event()
+                else:
+                    manager = None
+                    stop_all_event = threading.Event()
+                state.manager = manager
+                state.stop_all_event = stop_all_event
+
+                run(window, values, state, buttons)
+
+            case keys.stop:
+                state.stop_all_event.set()
 
             case keys.clear:
                 window[keys.multiline].update(value="")  # type: ignore
@@ -140,7 +157,7 @@ def run_inner(settings: Settings, state: GUIState) -> bool:
             # Run command has finished via window.perform_long_operation in
             # run_gitinspector().
             case keys.end:
-                buttons.enable_all()
+                buttons.configure_for_idle()
 
             # IO configuration
             ##################################
@@ -244,12 +261,11 @@ def run(  # pylint: disable=too-many-branches
     window: sg.Window,
     values: dict,
     state: GUIState,
+    buttons: WindowButtons,
 ) -> None:
 
     start_time = time.time()
     logger.debug(f"{values = }")  # type: ignore
-
-    buttons = WindowButtons(window)
 
     if state.input_patterns and not state.input_fstr_matches:
         popup("Error", "Input folder path invalid")
@@ -269,10 +285,6 @@ def run(  # pylint: disable=too-many-branches
             "Subfolder invalid: should be empty or a folder that exists in the "
             '"Input folder path"',
         )
-        return
-
-    if values[keys.blame_history] == DYNAMIC:
-        popup("Error", "Dynamic blame history not supported in GUI")
         return
 
     args = Args()
@@ -310,6 +322,8 @@ def run(  # pylint: disable=too-many-branches
             formats.append(key)
     args.formats = formats
 
+    buttons.configure_for_running(args.formats)
+
     for key in keys.since, keys.until:
         val = values[key]
         if not val or val == "":
@@ -325,8 +339,10 @@ def run(  # pylint: disable=too-many-branches
         setattr(args, key, str(val))
 
     logger.debug(f"{args = }")  # type: ignore
-    buttons.disable_all()
-    window.perform_long_operation(lambda: run_repos(args, start_time), keys.end)
+    window.perform_long_operation(
+        lambda: run_repos(args, start_time, state.manager, state.stop_all_event),
+        keys.end,
+    )
 
 
 if __name__ == "__main__":
