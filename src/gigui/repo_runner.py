@@ -21,14 +21,14 @@ class RepoRunner(RepoHTMLServer, Book):
         self,
         mini_repo: MiniRepo,
         server_started_event: threading.Event,
-        server_done_event: threading.Event,
+        worker_done_event: threading.Event,
         stop_all_event: threading.Event,
         host_port_queue: Queue | None,
     ) -> None:
         super().__init__(
             mini_repo,
             server_started_event,
-            server_done_event,
+            worker_done_event,
             stop_all_event,
             host_port_queue,
         )
@@ -54,7 +54,7 @@ class RepoRunner(RepoHTMLServer, Book):
             else:  # args.dry_run == 0
                 self._generate_output()
         else:
-            self.server_done_event.set()
+            self.worker_done_event.set()
             log(" " * 8 + "No statistics matching filters found")
 
     def _generate_output(self) -> None:  # pylint: disable=too-many-locals
@@ -104,14 +104,13 @@ class RepoRunner(RepoHTMLServer, Book):
         elif self.args.view:
             html_code = self.get_html()
             log(" " * 4 + f"View {self.name}")
-            print("Starting web server")
             self.start_werkzeug_server_with_html(html_code)
 
 
 def process_repo_multicore(
     mini_repo: MiniRepo,
     server_started_event: threading.Event,
-    server_done_event: threading.Event,
+    worker_done_event: threading.Event,
     stop_all_event: threading.Event,
     host_port_queue: Queue | None,
 ) -> None:
@@ -121,7 +120,7 @@ def process_repo_multicore(
     repo = RepoRunner(
         mini_repo,
         server_started_event,
-        server_done_event,
+        worker_done_event,
         stop_all_event,
         host_port_queue,
     )
@@ -134,7 +133,7 @@ def process_repo_multicore(
             " " * 8 + "No statistics matching filters found for "
             f"repository {mini_repo.name}"
         )
-        if server_started_event is not None:
-            server_started_event.set()
-        if server_done_event is not None:
-            server_done_event.set()
+    if server_started_event is not None:
+        server_started_event.set()
+        if worker_done_event is not None:
+            worker_done_event.set()

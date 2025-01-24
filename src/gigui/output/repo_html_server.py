@@ -40,14 +40,14 @@ class RepoHTMLServer(RepoHTML):
         self,
         mini_repo: MiniRepo,
         server_started_event: threading.Event,
-        server_done_event: threading.Event,
+        worker_done_event: threading.Event,
         stop_all_event: threading.Event,
         host_port_queue: Queue | None,
     ) -> None:
         super().__init__(mini_repo)
 
         self.server_started_event: threading.Event = server_started_event
-        self.server_done_event: threading.Event = server_done_event
+        self.worker_done_event: threading.Event = worker_done_event
         self.stop_all_event: threading.Event = stop_all_event
         self.host_port_queue: Queue | None = host_port_queue
 
@@ -83,7 +83,7 @@ class RepoHTMLServer(RepoHTML):
                 target=server.serve_forever, name=f"Werkzeug server for {self.name}"
             )
             server_thread.start()
-            logger.debug(f"{self.name}: server started on {port_value=}")
+            logger.info(f"{self.name}: server started on {port_value=}")
 
             # Open the web browser to serve the initial contents
             browser = webbrowser.get()
@@ -99,7 +99,7 @@ class RepoHTMLServer(RepoHTML):
                 if not server_shutting_down_event.is_set():  # stop_all_event is set
                     server.shutdown()
                     server_thread.join()
-                self.server_done_event.set()
+                self.worker_done_event.set()
             else:  # Single core
                 Thread(
                     target=self.monitor_events,
@@ -107,7 +107,7 @@ class RepoHTMLServer(RepoHTML):
                         server.shutdown,
                         self.stop_all_event,
                         server_shutting_down_event,
-                        self.server_done_event,
+                        self.worker_done_event,
                         server_thread,
                     ),
                     name=f"Event monitor for {self.name}",
@@ -141,7 +141,7 @@ class RepoHTMLServer(RepoHTML):
                 shutting_down_event.set()  # Set shutting_down_event
                 response = Response(content_type="text/plain")
             else:
-                print(f"Invalid shutdown: {shutdown_id=}  {browser_id=}")
+                logger.warning(f"Invalid shutdown: {shutdown_id=}  {browser_id=}")
                 response = Response("Invalid shutdown ID", status=403)
         elif request.path.startswith("/load-table/"):
             table_id = request.path.split("/")[-1]
@@ -160,7 +160,7 @@ class RepoHTMLServer(RepoHTML):
         shutdown_func: Callable,
         stop_all_event: threading.Event,
         shutting_down_event: threading.Event,
-        server_done_event: threading.Event,
+        worker_done_event: threading.Event,
         server_thread: Thread,
     ) -> None:
         while not stop_all_event.is_set() and not shutting_down_event.is_set():
@@ -168,7 +168,7 @@ class RepoHTMLServer(RepoHTML):
         if not shutting_down_event.is_set():
             shutdown_func()
         server_thread.join()
-        server_done_event.set()
+        worker_done_event.set()
 
     def handle_load_table(self, table_id: str, blame_history: str) -> HtmlStr:
         # Extract file_nr and commit_nr from table_id

@@ -43,21 +43,27 @@ class KeysArgs:
 @dataclass
 class Keys(KeysArgs):
     help_doc: str = "help_doc"
+
     # key to end the GUI when window is closed
     end: str = "end"
+
     # Logging
     log: str = "log"
     logging: str = "logging"
+
     # Complete settings column
     config_column: str = "config_column"
+
     # Top row
     run: str = "run"
     stop: str = "stop"
+    enable_stop_button: str = "enable_stop_button"
     clear: str = "clear"
     show: str = "show"
     help: str = "help"
     about: str = "about"
     exit: str = "exit"
+
     # Settings
     settings_file: str = "settings_file"
     save: str = "save"
@@ -67,18 +73,22 @@ class Keys(KeysArgs):
     reset_file: str = "reset_file"
     toggle_settings_file: str = "toggle_settings_file"
     gui_settings_full_path: str = "gui_settings_full_path"
+
     # IO configuration
     browse_input_fstr: str = "browse_input_fstr"
     outfile_path: str = "outfile_path"
     prefix: str = "prefix"
     postfix: str = "postfix"
     nofix: str = "nofix"
+
     # Output formats in table form
     view: str = "view"
     html: str = "html"
     excel: str = "excel"
+
     # General configuration
     since_box: str = "since_box"
     until_box: str = "until_box"
+
     # Console
     multiline: str = "multiline"

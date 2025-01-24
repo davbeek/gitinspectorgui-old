@@ -115,9 +115,7 @@ class Tip:
     multithread: str = (
         "Analyse multiple files for changes and blames per repository using multiple threads"
     )
-    multicore: str = (
-        "Execute multiple repositories using multiple cores, disabled for GUI"
-    )
+    multicore: str = "Execute multiple repositories using multiple cores"
 
     # Exclusion patterns
     ex_files: str = (

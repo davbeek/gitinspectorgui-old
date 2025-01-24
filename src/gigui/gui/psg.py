@@ -2,7 +2,6 @@
 import multiprocessing
 import shlex  # Use shlex.split to handle quoted strings
 import sys
-import threading
 import time
 from datetime import datetime
 from logging import getLogger
@@ -126,17 +125,14 @@ def run_inner(settings: Settings, state: GUIState) -> bool:
             case keys.run:
                 # Update processing of input patterns because dir state may have changed
                 process_inputs(state, window)  # type: ignore
-
+                print(f"GUI keys.run {settings.multicore = }")
                 if settings.multicore:
-                    manager = multiprocessing.Manager()
-                    stop_all_event = manager.Event()
-                else:
-                    manager = None
-                    stop_all_event = threading.Event()
-                state.manager = manager
-                state.stop_all_event = stop_all_event
-
+                    state.manager = multiprocessing.Manager()
+                    state.stop_all_event = state.manager.Event()
                 run(window, values, state, buttons)
+
+            case keys.enable_stop_button:
+                buttons.enable_stop_button()
 
             case keys.stop:
                 state.stop_all_event.set()
@@ -322,7 +318,7 @@ def run(  # pylint: disable=too-many-branches
             formats.append(key)
     args.formats = formats
 
-    buttons.configure_for_running(args.formats)
+    buttons.disable_buttons(args.formats)
 
     for key in keys.since, keys.until:
         val = values[key]

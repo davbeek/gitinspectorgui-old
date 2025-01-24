@@ -55,7 +55,7 @@ class GUIState:
     subfolder: FileStr = ""
     subfolder_valid: bool = True
     manager: SyncManager | None = None
-    stop_all_event: threading.Event | None = None
+    stop_all_event: threading.Event = field(default_factory=threading.Event)
 
 
 class WindowButtons:
@@ -74,16 +74,18 @@ class WindowButtons:
             keys.browse_input_fstr,
         ]
 
-    def configure_for_running(self, formats: list[str]) -> None:
+    def disable_buttons(self, formats: list[str]) -> None:
         for button in self.buttons:
             self.update_button_state(button, disabled=True)
-        if not formats:
-            self.update_button_state(keys.stop, disabled=False)
+            self.update_button_state(keys.stop, disabled=True)
 
     def configure_for_idle(self) -> None:
         for button in self.buttons:
             self.update_button_state(button, disabled=False)
         self.update_button_state(keys.stop, disabled=True)
+
+    def enable_stop_button(self) -> None:
+        self.update_button_state(keys.stop, disabled=False)
 
     def update_button_state(self, button: str, disabled: bool) -> None:
         if disabled:
