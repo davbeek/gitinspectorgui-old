@@ -6,8 +6,9 @@ from dataclasses import asdict, dataclass, field
 from multiprocessing.managers import SyncManager
 from pathlib import Path
 
-import git  # Add this import for gitpython
 import PySimpleGUI as sg  # type: ignore
+from git import InvalidGitRepositoryError, NoSuchPathError
+from git import Repo as GitRepo
 
 from gigui.args_settings import Settings, SettingsFile
 from gigui.constants import (
@@ -267,9 +268,9 @@ def is_git_repo(path: Path) -> bool:
     try:
         # The default True value of expand_vars leads to confusing warnings from
         # GitPython for many paths from system folders.
-        repo = git.Repo(path, expand_vars=False)
+        repo = GitRepo(path, expand_vars=False)
         return not repo.bare
-    except (git.InvalidGitRepositoryError, git.NoSuchPathError):
+    except (InvalidGitRepositoryError, NoSuchPathError):
         return False
 
 
@@ -385,7 +386,7 @@ def check_subfolder(state: GUIState, window: sg.Window) -> None:
         return
 
     subfolder_exists: bool
-    repo = git.Repo(state.input_repo_path)  # type: ignore
+    repo = GitRepo(state.input_repo_path)  # type: ignore
     tree = repo.head.commit.tree
 
     subfolder_path = state.subfolder.split("/")

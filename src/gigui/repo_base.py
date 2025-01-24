@@ -7,7 +7,8 @@ from fnmatch import fnmatchcase
 from logging import getLogger
 from pathlib import Path
 
-from git import Commit, Repo
+from git import Commit as GitCommit
+from git import Repo as GitRepo
 
 from gigui._logging import log, log_dots
 from gigui.args_settings import Args, MiniRepo
@@ -36,7 +37,7 @@ class RepoBase:
         self.ex_revisions: set[Rev] = set(self.args.ex_revisions)
 
         self.persons_db: PersonsDB = PersonsDB()
-        self.git_repo: Repo
+        self.git_repo: GitRepo
 
         # self.fstrs is a list of files from the top commit of the repo.
 
@@ -80,7 +81,7 @@ class RepoBase:
         self.sha2nr: dict[SHA, int] = {}
         self.nr2sha: dict[int, SHA] = {}
 
-        self.head_commit: Commit
+        self.head_commit: GitCommit
         self.head_oid: OID
         self.head_sha: SHA
 
@@ -90,7 +91,7 @@ class RepoBase:
         # processing is finished to immediately when processing is finished to avoid
         # having too many files open.
 
-        self.git_repo = Repo(self.location)
+        self.git_repo = GitRepo(self.location)
 
         # Use git log to get both long and short SHAs
         # First line represents the last commit
@@ -406,9 +407,9 @@ class RepoBase:
 
         lines_str: str
         if self.args.multithread:
-            repo = Repo(self.location)
-            lines_str = repo.git.log(git_log_args())
-            repo.close()
+            git_repo = GitRepo(self.location)
+            lines_str = git_repo.git.log(git_log_args())
+            git_repo.close()
         else:
             lines_str = self.git_repo.git.log(git_log_args())
         return lines_str, fstr

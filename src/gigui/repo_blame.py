@@ -5,7 +5,8 @@ from logging import getLogger
 from pathlib import Path
 
 from git import Commit as GitCommit
-from git import GitCommandError, Repo
+from git import GitCommandError
+from git import Repo as GitRepo
 
 from gigui._logging import log_dots
 from gigui.args_settings import MiniRepo
@@ -74,11 +75,11 @@ class RepoBlameBase(RepoBase):
         git_blames: GitBlames
         try:
             if self.args.multithread:
-                repo = Repo(self.location)
-                git_blames = repo.blame(
+                git_repo = GitRepo(self.location)
+                git_blames = git_repo.blame(
                     start_oid, fstr, rev_opts=blame_opts
                 )  # type: ignore
-                repo.close()
+                git_repo.close()
             else:
                 git_blames = self.git_repo.blame(
                     start_oid, fstr, rev_opts=blame_opts
