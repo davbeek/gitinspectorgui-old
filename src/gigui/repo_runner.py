@@ -86,21 +86,13 @@ class RepoRunner(RepoHTMLServer, Book):
             # Write the excel file if requested.
             if "excel" in self.args.formats:
                 logfile(f"{outfile_name}.xlsx")
-                if self.args.multithread:
-                    threading.Thread(
-                        target=self.run_excel, args=(outfilestr,), name="Excel printer"
-                    ).start()
-                else:
-                    self.run_excel(outfilestr)
+                self.run_excel(outfilestr)
             # Write the HTML file if requested.
             if "html" in self.args.formats:
                 logfile(f"{outfile_name}.html")
-                if self.args.multithread:
-                    threading.Thread(
-                        target=self._write_html, args=(outfilestr,), name="HTML printer"
-                    ).start()
-                else:
-                    self._write_html(outfilestr)
+                html_code = self.get_html()
+                with open(outfilestr + ".html", "w", encoding="utf-8") as f:
+                    f.write(html_code)
             logger.info(" " * 4 + f"Close {self.name}")
 
             if self.args.view:
@@ -114,11 +106,6 @@ class RepoRunner(RepoHTMLServer, Book):
             log(" " * 4 + f"View {self.name}")
             print("Starting web server")
             self.start_werkzeug_server_with_html(html_code)
-
-    def _write_html(self, outfilestr: FileStr) -> None:
-        html_code = self.get_html()
-        with open(outfilestr + ".html", "w", encoding="utf-8") as f:
-            f.write(html_code)
 
 
 def process_repo_multicore(

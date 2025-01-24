@@ -13,7 +13,6 @@ from gigui.output.excel_sheet import (
     FilesSheet,
 )
 from gigui.output.repo_blame_rows import RepoBlameRows
-from gigui.output.repo_rows import RepoRows
 from gigui.typedefs import FileStr, Row
 from gigui.utils import get_relative_fstr
 
@@ -138,7 +137,7 @@ class Book(RepoBlameRows):
         AuthorsSheet(
             rows,
             self.workbook.add_chart({"type": "pie"}),  # type: ignore
-            RepoRows.header_authors(html=False),
+            self.header_authors(html=False),
             self.workbook.add_worksheet("Authors"),
             self,
         )
@@ -147,7 +146,7 @@ class Book(RepoBlameRows):
         rows: list[Row] = self.get_authors_files_rows(html=False)
         AuthorsFilesSheet(
             rows,
-            RepoRows.header_authors_files(html=False),
+            self.header_authors_files(html=False),
             self.workbook.add_worksheet("Authors-Files"),
             self,
         )
@@ -156,7 +155,7 @@ class Book(RepoBlameRows):
         rows: list[Row] = self.get_files_authors_rows(html=False)
         FilesAuthorsSheet(
             rows,
-            RepoRows.header_files_authors(html=False),
+            self.header_files_authors(html=False),
             self.workbook.add_worksheet("Files-Authors"),
             self,
         )
@@ -165,7 +164,7 @@ class Book(RepoBlameRows):
         rows: list[Row] = self.get_files_rows()
         FilesSheet(
             rows,
-            RepoRows.header_files(),
+            self.header_files(),
             self.workbook.add_worksheet("Files"),
             self,
         )

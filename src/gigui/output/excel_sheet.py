@@ -1,16 +1,16 @@
 import sys
+from typing import TYPE_CHECKING
 
-from git import TYPE_CHECKING
 from xlsxwriter.chart import Chart  # type: ignore[import-untyped]
 from xlsxwriter.workbook import Format as ExcelFormat  # type: ignore[import-untyped]
 from xlsxwriter.worksheet import Worksheet  # type: ignore[import-untyped]
 
 from gigui.typedefs import Row
 
-type FormatSpec = dict[str, str | int | float]  # type: ignore
-
 if TYPE_CHECKING:
     from gigui.output.repo_excel import Book
+
+type FormatSpec = dict[str, str | int | float]  # type: ignore
 
 MAX_LENGTH_SHEET_NAME = 31  # hard coded in Excel
 
@@ -105,13 +105,8 @@ class Sheet:
 
 
 class TableSheet(Sheet):
-    def __init__(
-        self,
-        header_items: list[str],
-        *args,
-        **kwargs,
-    ):
-        super().__init__(*args, **kwargs)
+    def __init__(self, header_items: list[str], worksheet: Worksheet, book: "Book"):
+        super().__init__(worksheet, book)
 
         self.header_items: list[str] = header_items
 
@@ -187,8 +182,8 @@ class TableSheet(Sheet):
 
 
 class StatsSheet(TableSheet):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, header_files: list[str], worksheet: Worksheet, book: "Book"):
+        super().__init__(header_files, worksheet, book)
 
         self.head2width |= {
             "Author": 20,
@@ -291,8 +286,14 @@ class FilesAuthorsSheet(StatsSheet):
 
 
 class FilesSheet(StatsSheet):
-    def __init__(self, rows: list[Row], *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(
+        self,
+        rows: list[Row],
+        header_files: list[str],
+        worksheet: Worksheet,
+        book: "Book",
+    ):
+        super().__init__(header_files, worksheet, book)
 
         header = self.create_header()
         self.next_row()
