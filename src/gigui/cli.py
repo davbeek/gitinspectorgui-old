@@ -13,7 +13,7 @@ from gigui._logging import log, set_logging_level_from_verbosity
 from gigui.args_settings import Args, CLIArgs, Settings, SettingsFile
 from gigui.cli_arguments import define_arguments
 from gigui.constants import AVAILABLE_FORMATS, DEFAULT_EXTENSIONS
-from gigui.gui import psg
+from gigui.gui.psg import PSG
 from gigui.tiphelp import Help
 from gigui.typedefs import FileStr
 from gigui.utils import get_dir_matches
@@ -143,7 +143,7 @@ def main() -> None:
         log("")
 
     if namespace.gui:
-        psg.run_gui(Settings.from_args(args, gui_settings_full_path))
+        PSG(Settings.from_args(args, gui_settings_full_path))
     elif namespace.run:
         if args.multicore:
             manager = multiprocessing.Manager()

@@ -154,6 +154,7 @@
         "pysimplegui",
         "rlib",
         "scrollregion",
+        "SGGUI",
         "singlecore",
         "subfolders",
         "thead",
