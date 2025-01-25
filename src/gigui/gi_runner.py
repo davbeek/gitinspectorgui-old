@@ -42,7 +42,7 @@ from gigui.utils import (
 logger = getLogger(__name__)
 
 
-class GIGUIRunner:
+class GIRunner:
     args: Args
 
     def __init__(
@@ -455,4 +455,4 @@ def run_repos(
     manager: SyncManager | None,
     stop_all_event: threading.Event,
 ) -> None:
-    GIGUIRunner(args, manager, stop_all_event).run_repos(start_time)
+    GIRunner(args, manager, stop_all_event).run_repos(start_time)

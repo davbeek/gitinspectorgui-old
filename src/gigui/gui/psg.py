@@ -14,7 +14,7 @@ from gigui import _logging, shared
 from gigui._logging import set_logging_level_from_verbosity
 from gigui.args_settings import Args, Settings, SettingsFile
 from gigui.constants import AVAILABLE_FORMATS, DEBUG_SHOW_MAIN_EVENT_LOOP
-from gigui.gigui_runner import run_repos
+from gigui.gi_runner import run_repos
 from gigui.gui.psg_support import (
     GUIState,
     WindowButtons,

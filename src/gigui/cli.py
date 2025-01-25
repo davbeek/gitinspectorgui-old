@@ -8,7 +8,7 @@ from logging import getLogger
 from multiprocessing.managers import SyncManager
 from pathlib import Path
 
-from gigui import _logging, gigui_runner
+from gigui import _logging, gi_runner
 from gigui._logging import log, set_logging_level_from_verbosity
 from gigui.args_settings import Args, CLIArgs, Settings, SettingsFile
 from gigui.cli_arguments import define_arguments
@@ -148,7 +148,7 @@ def main() -> None:
         if args.multicore:
             manager = multiprocessing.Manager()
             stop_all_event = manager.Event()
-        gigui_runner.run_repos(args, start_time, manager, stop_all_event)
+        gi_runner.run_repos(args, start_time, manager, stop_all_event)
     elif not namespace.save and not namespace.save_as and not namespace.show:
         log(
             "This command has no effect. Use --run/-r or --gui/-g to run the program, or "
