@@ -386,6 +386,7 @@ class GIGUIRunner:
                 log(" " * 4 + f"{mini_repo.name} repository ({count} of {len_repos})")
                 server_started_event = threading.Event()  # type: ignore
                 worker_done_event = threading.Event()  # type: ignore
+                self.worker_done_events.append(worker_done_event)
                 repo_runner = RepoRunner(
                     mini_repo,
                     server_started_event,

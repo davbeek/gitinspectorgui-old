@@ -125,7 +125,6 @@ def run_inner(settings: Settings, state: GUIState) -> bool:
             case keys.run:
                 # Update processing of input patterns because dir state may have changed
                 process_inputs(state, window)  # type: ignore
-                print(f"GUI keys.run {settings.multicore = }")
                 if settings.multicore:
                     state.manager = multiprocessing.Manager()
                     state.stop_all_event = state.manager.Event()
