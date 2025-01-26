@@ -20,7 +20,6 @@ from gigui.constants import (
     DEFAULT_FILE_BASE,
     DEFAULT_VERBOSITY,
     DYNAMIC,
-    FIRST_PORT,
     MAX_BROWSER_TABS,
     STATIC,
 )
@@ -49,10 +48,14 @@ class GIRunner:
         self,
         args: Args,
         manager: SyncManager | None,
+        host_port_queue: Queue | None,
+        logging_queue: Queue,
         stop_all_event: threading.Event,
     ) -> None:
         self.args = args
         self.manager: SyncManager | None = manager
+        self.host_port_queue: Queue | None = host_port_queue
+        self.logging_queue: Queue = logging_queue
         self.stop_all_event: threading.Event = stop_all_event
 
         self.server_started_events: list[threading.Event] = []
@@ -60,19 +63,6 @@ class GIRunner:
         self.host_port_queue: Queue | None
         self.logging_queue: Queue
         self.queue_listener: QueueListener | None = None
-
-        if self.args.multicore:
-            assert self.manager is not None
-            if self.args.formats:
-                self.host_port_queue = None
-            else:
-                self.host_port_queue = self.manager.Queue()
-            self.logging_queue = self.manager.Queue()  # type: ignore
-        else:
-            self.host_port_queue = None if self.args.formats else Queue()
-            self.logging_queue = Queue()
-        if self.host_port_queue:
-            self.host_port_queue.put(FIRST_PORT)
 
     def run_repos(self, start_time: float) -> None:
         profiler: Profile | None = None
@@ -115,16 +105,8 @@ class GIRunner:
                 start_time,
             )
 
-        # Cleanup resources
-        if self.host_port_queue:
-            # Need to remove the last port value to avoid a deadlock
-            self.host_port_queue.get()
-
-        if self.manager:
-            self.manager.shutdown()
-
-        out_profile(profiler, self.args.profile)
         log("Done")
+        out_profile(profiler, self.args.profile)
 
     def _check_options(self, len_repos: int) -> bool:
         if (
@@ -453,6 +435,10 @@ def run_repos(
     args: Args,
     start_time: float,
     manager: SyncManager | None,
+    host_port_queue: Queue | None,
+    logging_queue: Queue,
     stop_all_event: threading.Event,
 ) -> None:
-    GIRunner(args, manager, stop_all_event).run_repos(start_time)
+    GIRunner(args, manager, host_port_queue, logging_queue, stop_all_event).run_repos(
+        start_time
+    )

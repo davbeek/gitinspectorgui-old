@@ -7,13 +7,14 @@ from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from logging import getLogger
 from multiprocessing.managers import SyncManager
 from pathlib import Path
+from queue import Queue
 
 from gigui import _logging, gi_runner
 from gigui._logging import log, set_logging_level_from_verbosity
 from gigui.args_settings import Args, CLIArgs, Settings, SettingsFile
 from gigui.cli_arguments import define_arguments
-from gigui.constants import AVAILABLE_FORMATS, DEFAULT_EXTENSIONS
-from gigui.gui.psg import PSG
+from gigui.constants import AVAILABLE_FORMATS, DEFAULT_EXTENSIONS, FIRST_PORT
+from gigui.gui.psg import PSGUI
 from gigui.tiphelp import Help
 from gigui.typedefs import FileStr
 from gigui.utils import get_dir_matches
@@ -25,7 +26,7 @@ logger = getLogger(__name__)
 
 
 def main() -> None:
-    settings: Settings = Settings()
+    settings: Settings
     start_time: float = time.time()
     manager: SyncManager | None = None
     stop_all_event: threading.Event = threading.Event()
@@ -45,6 +46,8 @@ def main() -> None:
     namespace = parser.parse_args()
 
     _logging.ini_for_cli(namespace.verbosity)
+
+    settings = load_settings(namespace.save, namespace.save_as)
 
     if namespace.input_fstrs:
         input_fstrs = [
@@ -114,6 +117,7 @@ def main() -> None:
     logger.debug(f"{cli_args = }")  # type: ignore
 
     args: Args = cli_args.create_args()
+
     args.input_fstrs = [Path(p).resolve().as_posix() for p in args.input_fstrs]
 
     if namespace.save:
@@ -142,13 +146,45 @@ def main() -> None:
         SettingsFile.show()
         log("")
 
-    if namespace.gui:
-        PSG(Settings.from_args(args, gui_settings_full_path))
-    elif namespace.run:
-        if args.multicore:
+    if cli_args.gui or cli_args.run:
+        if cli_args.multicore:
             manager = multiprocessing.Manager()
+            host_port_queue = None if namespace.formats else manager.Queue()
+            logging_queue = manager.Queue()  # type: ignore
             stop_all_event = manager.Event()
-        gi_runner.run_repos(args, start_time, manager, stop_all_event)
+        else:
+            manager = None
+            host_port_queue = None if namespace.formats else Queue()
+            logging_queue = Queue()
+            stop_all_event = threading.Event()
+        if host_port_queue:
+            host_port_queue.put(FIRST_PORT)
+        if cli_args.gui:
+            settings = Settings.from_args(args, gui_settings_full_path)
+            PSGUI(
+                settings,
+                manager,
+                host_port_queue,
+                logging_queue,
+                stop_all_event,
+            )
+        elif namespace.run:
+            gi_runner.run_repos(
+                args,
+                start_time,
+                manager,
+                host_port_queue,
+                logging_queue,
+                stop_all_event,
+            )
+
+        # Cleanup resources
+        if host_port_queue:
+            # Need to remove the last port value to avoid a deadlock
+            host_port_queue.get()
+
+        if manager:
+            manager.shutdown()
     elif not namespace.save and not namespace.save_as and not namespace.show:
         log(
             "This command has no effect. Use --run/-r or --gui/-g to run the program, or "

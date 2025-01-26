@@ -3,10 +3,13 @@
 import multiprocessing
 import shlex  # Use shlex.split to handle quoted strings
 import sys
+import threading
 import time
 from datetime import datetime
 from logging import getLogger
+from multiprocessing.managers import SyncManager
 from pathlib import Path
+from queue import Queue
 from typing import Any
 
 import PySimpleGUI as sg  # type: ignore; type: ignore[import-untyped]
@@ -17,6 +20,7 @@ from gigui.args_settings import Args, Settings, SettingsFile
 from gigui.constants import (
     AVAILABLE_FORMATS,
     DEBUG_SHOW_MAIN_EVENT_LOOP,
+    FIRST_PORT,
     MAX_COL_HEIGHT,
     WINDOW_HEIGHT_CORR,
 )
@@ -40,9 +44,20 @@ tip = Tip()
 keys = Keys()
 
 
-class PSG(PSGBase):
-    def __init__(self, settings: Settings):
+class PSGUI(PSGBase):
+    def __init__(
+        self,
+        settings: Settings,
+        manager: SyncManager | None,
+        host_port_queue: Queue | None,
+        logging_queue: Queue,
+        stop_all_event: threading.Event,
+    ):
         super().__init__(settings)
+        self.manager: SyncManager | None = manager
+        self.host_port_queue: Queue | None = host_port_queue
+        self.logging_queue: Queue = logging_queue
+        self.stop_all_event: threading.Event = stop_all_event
 
         self.recreate_window: bool = True
 
@@ -65,7 +80,7 @@ class PSG(PSGBase):
         self.window = make_window()
         shared.gui_window = self.window
 
-        self.configure_for_idle()
+        self.configure_buttons_for_idle()
 
         self.window_state_from_settings()  # type: ignore
         last_window_height: int = self.window.Size[1]  # type: ignore
@@ -117,9 +132,6 @@ class PSG(PSGBase):
                 case keys.run:
                     # Update processing of input patterns because dir state may have changed
                     self.process_inputs()  # type: ignore
-                    if self.settings.multicore:
-                        self.manager = multiprocessing.Manager()
-                        self.stop_all_event = self.manager.Event()
                     self.run(values)
 
                 case keys.enable_stop_button:
@@ -144,7 +156,7 @@ class PSG(PSGBase):
                 # Run command has finished via self.window.perform_long_operation in
                 # run_gitinspector().
                 case keys.end:
-                    self.configure_for_idle()
+                    self.configure_buttons_for_idle()
 
                 # IO configuration
                 ##################################
@@ -324,7 +336,14 @@ class PSG(PSGBase):
 
         logger.debug(f"{args = }")  # type: ignore
         self.window.perform_long_operation(
-            lambda: run_repos(args, start_time, self.manager, self.stop_all_event),
+            lambda: run_repos(
+                args,
+                start_time,
+                self.manager,
+                self.host_port_queue,
+                self.logging_queue,
+                self.stop_all_event,
+            ),
             keys.end,
         )
 
@@ -353,9 +372,37 @@ class PSG(PSGBase):
 
 
 if __name__ == "__main__":
-    current_settings: Settings
+    settings: Settings
     error: str
-    current_settings, error = SettingsFile.load()
+
+    settings, error = SettingsFile.load()
     multiprocessing.freeze_support()
     _logging.ini_for_gui_base()
-    PSG(current_settings)
+
+    if settings.multicore:
+        manager = multiprocessing.Manager()
+        host_port_queue = None if settings.formats else manager.Queue()
+        logging_queue = manager.Queue()  # type: ignore
+        stop_all_event = manager.Event()
+    else:
+        manager = None
+        host_port_queue = None if settings.formats else Queue()
+        logging_queue = Queue()
+        stop_all_event = threading.Event()
+    if host_port_queue:
+        host_port_queue.put(FIRST_PORT)
+    PSGUI(
+        settings,
+        manager,
+        host_port_queue,
+        logging_queue,
+        stop_all_event,
+    )
+
+    # Cleanup resources
+    if host_port_queue:
+        # Need to remove the last port value to avoid a deadlock
+        host_port_queue.get()
+
+    if manager:
+        manager.shutdown()

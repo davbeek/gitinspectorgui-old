@@ -1,9 +1,7 @@
 import shlex
-import threading
 import webbrowser
 from copy import copy
 from dataclasses import asdict
-from multiprocessing.managers import SyncManager
 from pathlib import Path
 
 import PySimpleGUI as sg  # type: ignore
@@ -48,8 +46,6 @@ class PSGBase:
         self.subfolder: FileStr = ""
         self.subfolder_valid: bool = True
         self.buttons: list[str] = []
-        self.manager: SyncManager | None = None
-        self.stop_all_event: threading.Event = threading.Event()
 
         self.buttons: list[str] = [
             keys.run,
@@ -263,7 +259,7 @@ class PSGBase:
             self.update_button_state(button, disabled=True)
             self.update_button_state(keys.stop, disabled=True)
 
-    def configure_for_idle(self) -> None:
+    def configure_buttons_for_idle(self) -> None:
         for button in self.buttons:
             self.update_button_state(button, disabled=False)
         self.update_button_state(keys.stop, disabled=True)

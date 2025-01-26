@@ -150,6 +150,7 @@
         "pathstr",
         "platformdirs",
         "prepostfix",
+        "PSGUI",
         "pstat",
         "pysimplegui",
         "rlib",

@@ -133,6 +133,7 @@ def process_repo_multicore(
             " " * 8 + "No statistics matching filters found for "
             f"repository {mini_repo.name}"
         )
+    # Do not use log or logger here, as the syncmanager may have been shut down here
     if server_started_event is not None:
         server_started_event.set()
         if worker_done_event is not None:
