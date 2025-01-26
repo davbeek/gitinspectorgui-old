@@ -29,6 +29,11 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
         help=hlp.gui,
     )
     mutex_group.add_argument(
+        "--dpggui",
+        action="store_true",
+        help=hlp.gui,
+    )
+    mutex_group.add_argument(
         "-V",
         "--version",
         action="version",

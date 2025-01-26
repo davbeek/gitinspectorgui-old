@@ -224,6 +224,7 @@ class CLIArgs(Args):
     save_as: str = ""
     show: bool = False
     gui: bool = False
+    dpggui: bool = False
     run: bool = False
 
     def create_settings(self) -> Settings:
