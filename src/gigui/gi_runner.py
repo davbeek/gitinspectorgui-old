@@ -9,13 +9,12 @@ from multiprocessing.managers import SyncManager
 from pathlib import Path
 from queue import Queue
 
-import gigui.repo_runner as repo_runner
 from gigui import _logging, shared
 from gigui._logging import log, start_logging_listener
 from gigui.args_settings import Args, MiniRepo
 from gigui.constants import DYNAMIC, MAX_BROWSER_TABS
 from gigui.gi_runner_base import GiRunnerBase
-from gigui.repo_runner import RepoRunner
+from gigui.repo_runner import RepoRunner, process_repo_multicore
 from gigui.typedefs import FileStr
 from gigui.utils import get_dir_matches, log_analysis_end_time, out_profile
 
@@ -41,8 +40,6 @@ class GIRunner(GiRunnerBase):
 
         self.server_started_events: list[threading.Event] = []
         self.worker_done_events: list[threading.Event] = []
-        self.host_port_queue: Queue | None
-        self.logging_queue: Queue
         self.queue_listener: QueueListener | None = None
 
     def run_repos(self, start_time: float) -> None:
@@ -115,7 +112,7 @@ class GIRunner(GiRunnerBase):
                     server_started_event, worker_done_event = self.create_events()
                     future_to_mini_repo |= {
                         process_executor.submit(
-                            repo_runner.process_repo_multicore,
+                            process_repo_multicore,
                             mini_repo,
                             server_started_event,
                             worker_done_event,
@@ -129,7 +126,7 @@ class GIRunner(GiRunnerBase):
                 self.stop_and_await_workers_done()
 
             # Show the full exception trace if an exception occurred in
-            # repo_runner.process_repo_multicore
+            # process_repo_multicore
             for future in as_completed(future_to_mini_repo):
                 future.result()  # only purpose is to raise an exception if one occurred
 
@@ -212,7 +209,7 @@ class GIRunner(GiRunnerBase):
         nr_done: int = 0
         nr_done_prev: int = -1
 
-        log("Close browser tabs to continue")
+        log("Close browser tabs (or close browser) to continue")
         while True:
             nr_done = sum(event.is_set() for event in self.worker_done_events)
             if nr_done != nr_done_prev:

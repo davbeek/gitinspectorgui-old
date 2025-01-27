@@ -1,6 +1,7 @@
 # noinspection PyPep8Naming
 
 import multiprocessing
+import os
 import shlex  # Use shlex.split to handle quoted strings
 import sys
 import time
@@ -365,32 +366,34 @@ class PSGUI(PSGBase):
 if __name__ == "__main__":
     settings: Settings
     error: str
+    try:
+        settings, error = SettingsFile.load()
+        multiprocessing.freeze_support()
+        _logging.ini_for_gui_base()
 
-    settings, error = SettingsFile.load()
-    multiprocessing.freeze_support()
-    _logging.ini_for_gui_base()
+        if settings.multicore:
+            manager = multiprocessing.Manager()
+            host_port_queue = None if settings.formats else manager.Queue()
+            logging_queue = manager.Queue()  # type: ignore
+        else:
+            manager = None
+            host_port_queue = None if settings.formats else Queue()
+            logging_queue = Queue()
+        if host_port_queue:
+            host_port_queue.put(FIRST_PORT)
+        PSGUI(
+            settings,
+            manager,
+            host_port_queue,
+            logging_queue,
+        )
 
-    if settings.multicore:
-        manager = multiprocessing.Manager()
-        host_port_queue = None if settings.formats else manager.Queue()
-        logging_queue = manager.Queue()  # type: ignore
-    else:
-        manager = None
-        host_port_queue = None if settings.formats else Queue()
-        logging_queue = Queue()
-    if host_port_queue:
-        host_port_queue.put(FIRST_PORT)
-    PSGUI(
-        settings,
-        manager,
-        host_port_queue,
-        logging_queue,
-    )
+        # Cleanup resources
+        if host_port_queue:
+            # Need to remove the last port value to avoid a deadlock
+            host_port_queue.get()
 
-    # Cleanup resources
-    if host_port_queue:
-        # Need to remove the last port value to avoid a deadlock
-        host_port_queue.get()
-
-    if manager:
-        manager.shutdown()
+        if manager:
+            manager.shutdown()
+    except KeyboardInterrupt:
+        os._exit(0)

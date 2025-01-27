@@ -131,7 +131,7 @@ class RepoHTMLServer(RepoHTML):
                 shutting_down_event.set()  # Set shutting_down_event
                 response = Response(content_type="text/plain")
             else:
-                logger.warning(f"Invalid shutdown: {shutdown_id=}  {browser_id=}")
+                logger.info(f"Invalid shutdown: {shutdown_id=}  {browser_id=}")
                 response = Response("Invalid shutdown ID", status=403)
         elif request.path.startswith("/load-table/"):
             table_id = request.path.split("/")[-1]

@@ -50,12 +50,12 @@ class RepoRunner(RepoHTMLServer, Book):
             if self.args.dry_run == 1:
                 log("")
             else:  # args.dry_run == 0
-                self._generate_output()
+                self.generate_output()
         else:
             self.worker_done_event.set()
             log(" " * 8 + "No statistics matching filters found")
 
-    def _generate_output(self) -> None:  # pylint: disable=too-many-locals
+    def generate_output(self) -> None:  # pylint: disable=too-many-locals
         """
         Generate result file(s) for the analysis of the given repository.
 
@@ -123,7 +123,7 @@ def process_repo_multicore(
     log(" " * 4 + f"Start {mini_repo.name}")
     stats_found: bool = repo.run_analysis()
     if stats_found:
-        repo._generate_output()
+        repo.generate_output()
     elif mini_repo.args.dry_run <= 1:
         log(
             " " * 8 + "No statistics matching filters found for "
