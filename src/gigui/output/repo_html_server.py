@@ -96,7 +96,6 @@ class RepoHTMLServer(RepoHTML):
                 Thread(
                     target=self.monitor_events_single_core,
                     args=(
-                        server.shutdown,
                         server_shutting_down_event,
                         self.worker_done_event,
                         server_thread,
