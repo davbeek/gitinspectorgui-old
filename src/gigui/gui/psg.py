@@ -25,7 +25,7 @@ from gigui.constants import (
     WINDOW_HEIGHT_CORR,
 )
 from gigui.gi_runner import run_repos
-from gigui.gui.psg_support import (
+from gigui.gui.psg_base import (
     PSGBase,
     disable_element,
     enable_element,
