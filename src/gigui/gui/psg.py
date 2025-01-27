@@ -3,7 +3,6 @@
 import multiprocessing
 import shlex  # Use shlex.split to handle quoted strings
 import sys
-import threading
 import time
 from datetime import datetime
 from logging import getLogger
@@ -15,7 +14,7 @@ from typing import Any
 import PySimpleGUI as sg  # type: ignore; type: ignore[import-untyped]
 
 from gigui import _logging, shared
-from gigui._logging import set_logging_level_from_verbosity
+from gigui._logging import add_cli_handler, set_logging_level_from_verbosity
 from gigui.args_settings import Args, Settings, SettingsFile
 from gigui.constants import (
     AVAILABLE_FORMATS,
@@ -51,13 +50,11 @@ class PSGUI(PSGBase):
         manager: SyncManager | None,
         host_port_queue: Queue | None,
         logging_queue: Queue,
-        stop_all_event: threading.Event,
     ):
         super().__init__(settings)
         self.manager: SyncManager | None = manager
         self.host_port_queue: Queue | None = host_port_queue
         self.logging_queue: Queue = logging_queue
-        self.stop_all_event: threading.Event = stop_all_event
 
         self.recreate_window: bool = True
 
@@ -77,10 +74,11 @@ class PSGUI(PSGBase):
         if sys.platform == "darwin":
             sg.set_options(font=("Any", 12))
 
+        add_cli_handler()
         self.window = make_window()
         shared.gui_window = self.window
 
-        self.configure_buttons_for_idle()
+        self.enable_buttons()
 
         self.window_state_from_settings()  # type: ignore
         last_window_height: int = self.window.Size[1]  # type: ignore
@@ -134,11 +132,10 @@ class PSGUI(PSGBase):
                     self.process_inputs()  # type: ignore
                     self.run(values)
 
-                case keys.enable_stop_button:
-                    self.enable_stop_button()
-
-                case keys.stop:
-                    self.stop_all_event.set()
+                # Run command has finished via self.window.perform_long_operation in
+                # run_gitinspector().
+                case keys.end:
+                    self.enable_buttons()
 
                 case keys.clear:
                     self.window[keys.multiline].update(value="")  # type: ignore
@@ -152,11 +149,6 @@ class PSGUI(PSGBase):
                 # Window closed, or Exit button clicked
                 case sg.WIN_CLOSED | keys.exit:
                     break
-
-                # Run command has finished via self.window.perform_long_operation in
-                # run_gitinspector().
-                case keys.end:
-                    self.configure_buttons_for_idle()
 
                 # IO configuration
                 ##################################
@@ -342,7 +334,6 @@ class PSGUI(PSGBase):
                 self.manager,
                 self.host_port_queue,
                 self.logging_queue,
-                self.stop_all_event,
             ),
             keys.end,
         )
@@ -383,12 +374,10 @@ if __name__ == "__main__":
         manager = multiprocessing.Manager()
         host_port_queue = None if settings.formats else manager.Queue()
         logging_queue = manager.Queue()  # type: ignore
-        stop_all_event = manager.Event()
     else:
         manager = None
         host_port_queue = None if settings.formats else Queue()
         logging_queue = Queue()
-        stop_all_event = threading.Event()
     if host_port_queue:
         host_port_queue.put(FIRST_PORT)
     PSGUI(
@@ -396,7 +385,6 @@ if __name__ == "__main__":
         manager,
         host_port_queue,
         logging_queue,
-        stop_all_event,
     )
 
     # Cleanup resources

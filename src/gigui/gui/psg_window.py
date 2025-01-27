@@ -153,7 +153,6 @@ def layout_top_row() -> list[sg.Column]:
             [
                 [
                     button("Run", keys.run),
-                    button("Stop", keys.stop),
                     button("Clear", keys.clear),
                     button("Help", keys.help, pad=((20, 3), 2)),
                     button("About", keys.about),

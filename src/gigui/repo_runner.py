@@ -22,14 +22,12 @@ class RepoRunner(RepoHTMLServer, Book):
         mini_repo: MiniRepo,
         server_started_event: threading.Event,
         worker_done_event: threading.Event,
-        stop_all_event: threading.Event,
         host_port_queue: Queue | None,
     ) -> None:
         super().__init__(
             mini_repo,
             server_started_event,
             worker_done_event,
-            stop_all_event,
             host_port_queue,
         )
         self.init_class_options(mini_repo.args)
@@ -111,7 +109,6 @@ def process_repo_multicore(
     mini_repo: MiniRepo,
     server_started_event: threading.Event,
     worker_done_event: threading.Event,
-    stop_all_event: threading.Event,
     host_port_queue: Queue | None,
 ) -> None:
     global logger
@@ -121,7 +118,6 @@ def process_repo_multicore(
         mini_repo,
         server_started_event,
         worker_done_event,
-        stop_all_event,
         host_port_queue,
     )
     log(" " * 4 + f"Start {mini_repo.name}")

@@ -1,6 +1,4 @@
 import multiprocessing
-import select
-import sys
 import threading
 import time
 from concurrent.futures import Future, ProcessPoolExecutor, as_completed
@@ -17,7 +15,6 @@ from gigui._logging import log, start_logging_listener
 from gigui.args_settings import Args, MiniRepo
 from gigui.constants import DYNAMIC, MAX_BROWSER_TABS
 from gigui.gi_runner_base import GiRunnerBase
-from gigui.keys import Keys
 from gigui.repo_runner import RepoRunner
 from gigui.typedefs import FileStr
 from gigui.utils import get_dir_matches, log_analysis_end_time, out_profile
@@ -36,13 +33,11 @@ class GIRunner(GiRunnerBase):
         manager: SyncManager | None,
         host_port_queue: Queue | None,
         logging_queue: Queue,
-        stop_all_event: threading.Event,
     ) -> None:
         super().__init__(args)
         self.manager: SyncManager | None = manager
         self.host_port_queue: Queue | None = host_port_queue
         self.logging_queue: Queue = logging_queue
-        self.stop_all_event: threading.Event = stop_all_event
 
         self.server_started_events: list[threading.Event] = []
         self.worker_done_events: list[threading.Event] = []
@@ -124,7 +119,6 @@ class GIRunner(GiRunnerBase):
                             mini_repo,
                             server_started_event,
                             worker_done_event,
-                            self.stop_all_event,
                             self.host_port_queue,
                         ): mini_repo
                     }
@@ -203,7 +197,6 @@ class GIRunner(GiRunnerBase):
                     mini_repo,
                     server_started_event,
                     worker_done_event,
-                    self.stop_all_event,
                     self.host_port_queue,
                 )
                 repo_runner.process_repo_single_core(
@@ -218,16 +211,8 @@ class GIRunner(GiRunnerBase):
     def stop_and_await_workers_done(self) -> None:
         nr_done: int = 0
         nr_done_prev: int = -1
-        stop_button_enabled: bool = False
 
-        if shared.gui:
-            log("Close all browser tabs or click Stop button to quit.")
-        else:
-            # Flush the reading buffer by reading and discarding any existing input
-            while select.select([sys.stdin], [], [], 0.1)[0]:
-                # read one character from the standard input (stdin)
-                sys.stdin.read(1)
-            log("Close all browser tabs or press Enter to quit.")
+        log("Close browser tabs to continue")
         while True:
             nr_done = sum(event.is_set() for event in self.worker_done_events)
             if nr_done != nr_done_prev:
@@ -238,22 +223,8 @@ class GIRunner(GiRunnerBase):
                 )
             if nr_done == len(self.worker_done_events):
                 # all servers and their monitor threads are finishing
-                time.sleep(0.2)  # wait for the last servers to finish
                 break
-            if shared.gui:
-                if not stop_button_enabled:
-                    shared.gui_window.write_event_value(Keys.enable_stop_button, True)  # type: ignore
-                    stop_button_enabled = True
-                time.sleep(0.1)
-            elif not self.stop_all_event.is_set():
-                # wait for 0.1s for user input on stdin (CLI), if input is received,
-                #  within 0.1s, continue with "if input() == "":".
-                if select.select([sys.stdin], [], [], 0.1)[0]:
-                    if input() == "":
-                        logger.info("Main: set stop event")
-                        self.stop_all_event.set()  # type: ignore
-            else:
-                time.sleep(0.1)
+            time.sleep(0.1)
 
     @staticmethod
     def total_len(repo_lists: list[list[MiniRepo]]) -> int:
@@ -267,8 +238,5 @@ def run_repos(
     manager: SyncManager | None,
     host_port_queue: Queue | None,
     logging_queue: Queue,
-    stop_all_event: threading.Event,
 ) -> None:
-    GIRunner(args, manager, host_port_queue, logging_queue, stop_all_event).run_repos(
-        start_time
-    )
+    GIRunner(args, manager, host_port_queue, logging_queue).run_repos(start_time)

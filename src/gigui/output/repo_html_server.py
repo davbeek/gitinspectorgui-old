@@ -1,7 +1,6 @@
 import logging
 import re
 import threading
-import time
 import webbrowser
 from logging import getLogger
 from queue import Queue
@@ -41,14 +40,12 @@ class RepoHTMLServer(RepoHTML):
         mini_repo: MiniRepo,
         server_started_event: threading.Event,
         worker_done_event: threading.Event,
-        stop_all_event: threading.Event,
         host_port_queue: Queue | None,
     ) -> None:
         super().__init__(mini_repo)
 
         self.server_started_event: threading.Event = server_started_event
         self.worker_done_event: threading.Event = worker_done_event
-        self.stop_all_event: threading.Event = stop_all_event
         self.host_port_queue: Queue | None = host_port_queue
 
     def start_werkzeug_server_with_html(
@@ -76,6 +73,8 @@ class RepoHTMLServer(RepoHTML):
                     server.shutdown,
                     server_shutting_down_event,
                 ),  # type: ignore
+                threaded=False,
+                processes=0,
             )
 
             self.server_started_event.set()
@@ -90,22 +89,14 @@ class RepoHTMLServer(RepoHTML):
             browser.open_new_tab(f"http://localhost:{port_value}?v={browser_id}")
 
             if self.args.multicore:
-                while (
-                    not self.stop_all_event.is_set()
-                    and not server_shutting_down_event.is_set()
-                ):
-                    # stop event or shutdown event must be set
-                    time.sleep(0.1)
-                if not server_shutting_down_event.is_set():  # stop_all_event is set
-                    server.shutdown()
-                    server_thread.join()
+                server_shutting_down_event.wait()
+                server_thread.join()
                 self.worker_done_event.set()
             else:  # Single core
                 Thread(
-                    target=self.monitor_events,
+                    target=self.monitor_events_single_core,
                     args=(
                         server.shutdown,
-                        self.stop_all_event,
                         server_shutting_down_event,
                         self.worker_done_event,
                         server_thread,
@@ -155,18 +146,13 @@ class RepoHTMLServer(RepoHTML):
             response = Response("Not found", status=404)
         return response(environ, start_response)  # type: ignore
 
-    def monitor_events(
+    def monitor_events_single_core(
         self,
-        shutdown_func: Callable,
-        stop_all_event: threading.Event,
         shutting_down_event: threading.Event,
         worker_done_event: threading.Event,
         server_thread: Thread,
     ) -> None:
-        while not stop_all_event.is_set() and not shutting_down_event.is_set():
-            time.sleep(0.1)
-        if not shutting_down_event.is_set():
-            shutdown_func()
+        shutting_down_event.wait()
         server_thread.join()
         worker_done_event.set()
 

@@ -56,6 +56,7 @@ class PSGBase:
             keys.reset,
             keys.help,
             keys.about,
+            keys.exit,
             keys.browse_input_fstr,
         ]
 
@@ -257,15 +258,10 @@ class PSGBase:
     def disable_buttons(self) -> None:
         for button in self.buttons:
             self.update_button_state(button, disabled=True)
-            self.update_button_state(keys.stop, disabled=True)
 
-    def configure_buttons_for_idle(self) -> None:
+    def enable_buttons(self) -> None:
         for button in self.buttons:
             self.update_button_state(button, disabled=False)
-        self.update_button_state(keys.stop, disabled=True)
-
-    def enable_stop_button(self) -> None:
-        self.update_button_state(keys.stop, disabled=False)
 
     def update_button_state(self, button: str, disabled: bool) -> None:
         if disabled:

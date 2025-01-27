@@ -1,7 +1,6 @@
 import multiprocessing
 import os
 import sys
-import threading
 import time
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from logging import getLogger
@@ -29,7 +28,6 @@ def main() -> None:
     settings: Settings
     start_time: float = time.time()
     manager: SyncManager | None = None
-    stop_all_event: threading.Event = threading.Event()
 
     parser = ArgumentParser(
         prog="gitinspectorgui",
@@ -151,12 +149,10 @@ def main() -> None:
             manager = multiprocessing.Manager()
             host_port_queue = None if namespace.formats else manager.Queue()
             logging_queue = manager.Queue()  # type: ignore
-            stop_all_event = manager.Event()
         else:
             manager = None
             host_port_queue = None if namespace.formats else Queue()
             logging_queue = Queue()
-            stop_all_event = threading.Event()
         if host_port_queue:
             host_port_queue.put(FIRST_PORT)
         if cli_args.gui:
@@ -166,7 +162,6 @@ def main() -> None:
                 manager,
                 host_port_queue,
                 logging_queue,
-                stop_all_event,
             )
         elif namespace.run:
             gi_runner.run_repos(
@@ -175,7 +170,6 @@ def main() -> None:
                 manager,
                 host_port_queue,
                 logging_queue,
-                stop_all_event,
             )
 
         # Cleanup resources
