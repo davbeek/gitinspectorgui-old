@@ -290,7 +290,8 @@ class PSGUI(PSGBase):
                 keys.gui_settings_full_path,
             }:
                 if value["type"] == "array":
-                    setattr(args, key, shlex.split(values[key]))  # type: ignore
+                    posix_mode = os.name != "nt"  # 'nt' indicates Windows
+                    setattr(args, key, shlex.split(values[key], posix=posix_mode))  # type: ignore
                 else:
                     setattr(args, key, values[key])
 
@@ -367,6 +368,10 @@ if __name__ == "__main__":
     settings: Settings
     error: str
     try:
+        manager: SyncManager | None
+        host_port_queue: Queue | None
+        logging_queue: Queue
+
         settings, error = SettingsFile.load()
         multiprocessing.freeze_support()
         _logging.ini_for_gui_base()

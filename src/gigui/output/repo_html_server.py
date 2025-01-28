@@ -141,6 +141,9 @@ class RepoHTMLServer(RepoHTML):
                 response = Response(table_html, content_type="text/html")
             else:
                 response = Response("Invalid browser ID", status=403)
+        elif request.path == "/favicon.ico":
+            response = Response(status=404)  # Ignore favicon requests
+
         else:
             response = Response("Not found", status=404)
         return response(environ, start_response)  # type: ignore

@@ -1,3 +1,4 @@
+import os
 import shlex
 import webbrowser
 from copy import copy
@@ -45,8 +46,6 @@ class PSGBase:
         self.outfile_base: FileStr = DEFAULT_FILE_BASE
         self.subfolder: FileStr = ""
         self.subfolder_valid: bool = True
-        self.buttons: list[str] = []
-
         self.buttons: list[str] = [
             keys.run,
             keys.clear,
@@ -154,7 +153,8 @@ class PSGBase:
 
     def process_input_fstrs(self, input_fstr_patterns: str) -> None:
         try:
-            input_fstrs: list[FileStr] = shlex.split(input_fstr_patterns)  # type: ignore
+            posix_mode = os.name != "nt"  # 'nt' indicates Windows
+            input_fstrs: list[FileStr] = shlex.split(input_fstr_patterns, posix=posix_mode)  # type: ignore
         except ValueError:
             self.window[keys.input_fstrs].update(background_color=INVALID_INPUT_COLOR)  # type: ignore
             return

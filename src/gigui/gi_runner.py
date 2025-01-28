@@ -1,4 +1,6 @@
 import multiprocessing
+import os
+import platform
 import threading
 import time
 from concurrent.futures import Future, ProcessPoolExecutor, as_completed
@@ -123,7 +125,7 @@ class GIRunner(GiRunnerBase):
             if not self.args.formats and self.args.view:
                 self.await_all_servers_started()
                 log_analysis_end_time(start_time)
-                self.stop_and_await_workers_done()
+                self.await_workers_done()
 
             # Show the full exception trace if an exception occurred in
             # process_repo_multicore
@@ -203,13 +205,21 @@ class GIRunner(GiRunnerBase):
                 count += 1
             runs += 1
         if not self.args.formats and self.args.view:
-            self.stop_and_await_workers_done()
+            self.await_workers_done()
 
-    def stop_and_await_workers_done(self) -> None:
+    def await_workers_done(self) -> None:
         nr_done: int = 0
         nr_done_prev: int = -1
 
-        log("Close browser tabs (or close browser) to continue")
+        ctrl = "Command" if platform.system() == "Darwin" else "Ctrl"
+        if shared.gui:
+            log(
+                f"To continue, close the GUI window, or browser tab(s) ({ctrl}+W) once the pages have fully loaded."
+            )
+        else:
+            log(
+                f"To continue, close the browser tab(s) ({ctrl}+W) once the pages have fully loaded. Use {ctrl}+C if necessary."
+            )
         while True:
             nr_done = sum(event.is_set() for event in self.worker_done_events)
             if nr_done != nr_done_prev:

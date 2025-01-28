@@ -1,4 +1,5 @@
 import json
+import os
 import shlex
 from argparse import Namespace
 from dataclasses import asdict, dataclass, field, fields
@@ -185,7 +186,8 @@ class Settings(Args):
         for key, value in settings_schema.items():
             if key in values:
                 if value["type"] == "array":
-                    setattr(settings, key, shlex.split(values[key]))  # type: ignore
+                    posix_mode = os.name != "nt"  # 'nt' indicates Windows
+                    setattr(settings, key, shlex.split(values[key], posix=posix_mode))  # type: ignore
                 else:
                     setattr(settings, key, values[key])
 
