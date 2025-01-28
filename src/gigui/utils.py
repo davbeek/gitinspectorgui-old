@@ -204,15 +204,21 @@ def get_posix_dir_matches_for(pattern: FileStr) -> list[FileStr]:
     # If the pattern is absolute, the search is done in the root directory.
     # If the pattern is relative, the search is done in the current directory.
     # The pattern can be posix or windows style.
-    pattern_path = Path(pattern)
+    pattern_path: Path = Path(pattern)
+    base_path: Path
     if pattern_path.is_absolute():
         if platform.system() == "Windows":
             rel_pattern = pattern_path.as_posix().replace(
                 pattern_path.drive + "/", "", 1
             )
+            base_path = (
+                Path("/")
+                if pattern_path.drive == Path().drive
+                else Path(pattern_path.drive) / "/"
+            )
         else:
             rel_pattern = pattern_path.relative_to(Path("/")).as_posix()
-        base_path = Path("/")
+            base_path = Path("/")
     else:
         rel_pattern = pattern
         base_path = Path()
