@@ -1,9 +1,7 @@
-import multiprocessing
-import os
 import platform
 import threading
 import time
-from concurrent.futures import Future, ProcessPoolExecutor, as_completed
+from concurrent.futures import Future, ProcessPoolExecutor, as_completed, wait
 from cProfile import Profile
 from logging import getLogger
 from logging.handlers import QueueListener
@@ -14,11 +12,16 @@ from queue import Queue
 from gigui import _logging, shared
 from gigui._logging import log, start_logging_listener
 from gigui.args_settings import Args, MiniRepo
-from gigui.constants import DYNAMIC, MAX_BROWSER_TABS
+from gigui.constants import MAX_BROWSER_TABS
 from gigui.gi_runner_base import GiRunnerBase
 from gigui.repo_runner import RepoRunner, process_repo_multicore
 from gigui.typedefs import FileStr
-from gigui.utils import get_dir_matches, log_analysis_end_time, out_profile
+from gigui.utils import (
+    get_dir_matches,
+    log_analysis_end_time,
+    log_end_time,
+    out_profile,
+)
 
 # pylint: disable=too-many-arguments disable=too-many-positional-arguments
 
@@ -43,6 +46,12 @@ class GIRunner(GiRunnerBase):
         self.server_started_events: list[threading.Event] = []
         self.worker_done_events: list[threading.Event] = []
         self.queue_listener: QueueListener | None = None
+
+        self.requires_server: bool = not self.args.formats and self.args.view
+        self.future_to_mini_repo: dict[Future, MiniRepo] = {}
+        self.nr_workers: int = 0
+        self.nr_started_prev: int = -1
+        self.nr_done_prev: int = -1
 
     def run_repos(self, start_time: float) -> None:
         profiler: Profile | None = None
@@ -70,11 +79,14 @@ class GIRunner(GiRunnerBase):
             self.queue_listener = start_logging_listener(
                 self.logging_queue, self.args.verbosity
             )
-            self.process_repos_multicore(
-                repo_lists,
-                len_repos,
-                start_time,
-            )
+            if self.requires_server:
+                self.process_repos_multicore_with_servers(
+                    repo_lists,
+                    len_repos,
+                    start_time,
+                )
+            else:
+                self.process_repos_multicore(repo_lists, start_time)
             if self.queue_listener:
                 self.queue_listener.stop()
 
@@ -85,29 +97,19 @@ class GIRunner(GiRunnerBase):
                 start_time,
             )
 
-        log("Done")
+        if self.requires_server:
+            log("Done")
         out_profile(profiler, self.args.profile)
 
-    # Process multiple repositories in case len(repos) > 1 on multiple cores.
     def process_repos_multicore(
-        self,
-        repo_lists: list[list[MiniRepo]],
-        len_repos: int,
-        start_time: float,
+        self, repo_lists: list[list[MiniRepo]], start_time: float
     ) -> None:
-        max_workers = (
-            multiprocessing.cpu_count()
-            if not self.args.blame_history == DYNAMIC
-            else min(len_repos, MAX_BROWSER_TABS)
-        )
         with ProcessPoolExecutor(
-            max_workers=max_workers,
             initializer=_logging.ini_worker_for_multiprocessing,
             initargs=(self.logging_queue, self.args.verbosity, shared.gui),
         ) as process_executor:
             future_to_mini_repo: dict[Future, MiniRepo] = {}
             for repos in repo_lists:
-                len_repos = len(repos)
                 repo_parent_str = str(repos[0].location.resolve().parent)
                 log("Output in folder " + repo_parent_str)
                 for mini_repo in repos:
@@ -121,16 +123,77 @@ class GIRunner(GiRunnerBase):
                             self.host_port_queue,
                         ): mini_repo
                     }
-
-            if not self.args.formats and self.args.view:
-                self.await_all_servers_started()
-                log_analysis_end_time(start_time)
-                self.await_workers_done()
-
-            # Show the full exception trace if an exception occurred in
-            # process_repo_multicore
             for future in as_completed(future_to_mini_repo):
-                future.result()  # only purpose is to raise an exception if one occurred
+                future.result()  # raise an exception if one occurred
+            log_end_time(start_time)
+
+    def process_repos_multicore_with_servers(
+        self,
+        repo_lists: list[list[MiniRepo]],
+        len_repos: int,
+        start_time: float,
+    ) -> None:
+        max_workers = min(len_repos, MAX_BROWSER_TABS)
+        with ProcessPoolExecutor(
+            max_workers=max_workers,
+            initializer=_logging.ini_worker_for_multiprocessing,
+            initargs=(self.logging_queue, self.args.verbosity, shared.gui),
+        ) as process_executor:
+            for repos in repo_lists:
+                len_repos = len(repos)
+                repo_parent_str = str(repos[0].location.resolve().parent)
+                log("Output in folder " + repo_parent_str)
+                for mini_repo in repos:
+                    server_started_event, worker_done_event = self.create_events()
+                    future = process_executor.submit(
+                        process_repo_multicore,
+                        mini_repo,
+                        server_started_event,
+                        worker_done_event,
+                        self.host_port_queue,
+                    )
+                    self.future_to_mini_repo[future] = mini_repo
+                    self.nr_workers += 1
+                    self.monitor_futures(start_time)
+
+            # Ensure all futures are completed
+            while self.nr_workers > 0:
+                self.monitor_futures(start_time)
+
+    def monitor_futures(self, start_time: float) -> None:
+        done, _ = wait(
+            self.future_to_mini_repo.keys(), timeout=0.1, return_when="FIRST_COMPLETED"
+        )
+        for future in done:
+            future.result()
+            self.nr_workers -= 1
+            del self.future_to_mini_repo[future]
+
+        nr_started = sum(event.is_set() for event in self.server_started_events)
+        if nr_started != self.nr_started_prev:
+            self.nr_started_prev = nr_started
+            logger.info(
+                f"Main: {nr_started} of {len(self.server_started_events)} "
+                "server started events are set"
+            )
+            if nr_started == len(self.server_started_events):
+                log_analysis_end_time(start_time)
+                ctrl = "Command" if platform.system() == "Darwin" else "Ctrl"
+                if shared.gui:
+                    log(
+                        f"To continue, close the GUI window, or browser tab(s) ({ctrl}+W) once the pages have fully loaded."
+                    )
+                else:
+                    log(
+                        f"To continue, close the browser tab(s) ({ctrl}+W) once the pages have fully loaded. Use {ctrl}+C if necessary."
+                    )
+        nr_done = sum(event.is_set() for event in self.worker_done_events)
+        if nr_done != self.nr_done_prev:
+            self.nr_done_prev = nr_done
+            logger.info(
+                f"Main: {nr_done} of {len(self.worker_done_events)} "
+                "server done events set"
+            )
 
     def create_events(self) -> tuple[threading.Event, threading.Event]:
         if self.args.multicore:
@@ -142,22 +205,6 @@ class GIRunner(GiRunnerBase):
             server_started_event = threading.Event()
             worker_done_event = threading.Event()
         return server_started_event, worker_done_event
-
-    def await_all_servers_started(self) -> None:
-        servers_started: bool = False
-        nr_started: int = 0
-        nr_started_prev: int = -1
-        while not servers_started:
-            nr_started = sum(event.is_set() for event in self.server_started_events)
-            if nr_started != nr_started_prev:
-                nr_started_prev = nr_started
-                logger.info(
-                    f"Main: {nr_started} of {len(self.server_started_events)} "
-                    "server started events are set"
-                )
-            if nr_started == len(self.server_started_events):
-                break
-            time.sleep(1)
 
     def process_repos_singlecore(
         self,
@@ -180,8 +227,8 @@ class GIRunner(GiRunnerBase):
             shared_data: Shared data dictionary for inter-process communication.
         """
 
-        count = 1
         runs = 0
+        count = 1
         while repo_lists:
             # output a batch of repos from the same folder in a single run
             repos = repo_lists.pop(0)
@@ -204,8 +251,11 @@ class GIRunner(GiRunnerBase):
                 )
                 count += 1
             runs += 1
-        if not self.args.formats and self.args.view:
+        if self.requires_server:
+            log_analysis_end_time(start_time)
             self.await_workers_done()
+        else:
+            log_end_time(start_time)
 
     def await_workers_done(self) -> None:
         nr_done: int = 0
