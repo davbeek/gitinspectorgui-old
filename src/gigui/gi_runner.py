@@ -134,7 +134,7 @@ class GIRunner(GiRunnerBase):
         len_repos: int,
         start_time: float,
     ) -> None:
-        max_workers = min(len_repos, MAX_BROWSER_TABS)
+        max_workers = min(len_repos + 10, MAX_BROWSER_TABS)
         with ProcessPoolExecutor(
             max_workers=max_workers,
             initializer=_logging.ini_worker_for_multiprocessing,
