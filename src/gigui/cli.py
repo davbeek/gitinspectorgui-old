@@ -153,10 +153,12 @@ def main() -> None:
         if cli_args.multicore:
             manager = multiprocessing.Manager()
             host_port_queue = None if namespace.formats else manager.Queue()
+            task_queue = manager.Queue()
             logging_queue = manager.Queue()  # type: ignore
         else:
             manager = None
             host_port_queue = None if namespace.formats else Queue()
+            task_queue = Queue()
             logging_queue = Queue()
         if host_port_queue:
             host_port_queue.put(FIRST_PORT)
@@ -166,6 +168,7 @@ def main() -> None:
                 settings,
                 manager,
                 host_port_queue,
+                task_queue,
                 logging_queue,
             )
         elif namespace.run:
@@ -174,6 +177,7 @@ def main() -> None:
                 start_time,
                 manager,
                 host_port_queue,
+                task_queue,
                 logging_queue,
             )
 

@@ -3,6 +3,7 @@ import threading
 import time
 from concurrent.futures import Future, ProcessPoolExecutor, as_completed, wait
 from cProfile import Profile
+from dataclasses import dataclass
 from logging import getLogger
 from logging.handlers import QueueListener
 from multiprocessing.managers import SyncManager
@@ -12,7 +13,7 @@ from queue import Queue
 from gigui import _logging, shared
 from gigui._logging import log, start_logging_listener
 from gigui.args_settings import Args, MiniRepo
-from gigui.constants import MAX_BROWSER_TABS
+from gigui.constants import MAX_BROWSER_TABS, MAX_CORE_WORKERS
 from gigui.gi_runner_base import GiRunnerBase
 from gigui.output.messages import CLOSE_OUTPUT_VIEWERS_CLI_MSG, CLOSE_OUTPUT_VIEWERS_MSG
 from gigui.repo_runner import RepoRunner, process_repo_multicore
@@ -29,6 +30,13 @@ from gigui.utils import (
 logger = getLogger(__name__)
 
 
+@dataclass
+class RepoTask:
+    mini_repo: MiniRepo
+    server_started_event: threading.Event
+    worker_done_event: threading.Event
+
+
 class GIRunner(GiRunnerBase):
     args: Args
 
@@ -37,11 +45,13 @@ class GIRunner(GiRunnerBase):
         args: Args,
         manager: SyncManager | None,
         host_port_queue: Queue | None,
+        task_queue: Queue,
         logging_queue: Queue,
     ) -> None:
         super().__init__(args)
         self.manager: SyncManager | None = manager
         self.host_port_queue: Queue | None = host_port_queue
+        self.task_queue: Queue = task_queue
         self.logging_queue: Queue = logging_queue
 
         self.server_started_events: list[threading.Event] = []
@@ -81,7 +91,7 @@ class GIRunner(GiRunnerBase):
                 self.logging_queue, self.args.verbosity
             )
             if self.requires_server:
-                self.process_repos_multicore_with_servers(
+                self.manage_tasks_multicore_with_servers(
                     repo_lists,
                     len_repos,
                     start_time,
@@ -128,13 +138,13 @@ class GIRunner(GiRunnerBase):
                 future.result()  # raise an exception if one occurred
             log_end_time(start_time)
 
-    def process_repos_multicore_with_servers(
+    def manage_tasks_multicore_with_servers(
         self,
         repo_lists: list[list[MiniRepo]],
         len_repos: int,
         start_time: float,
     ) -> None:
-        max_workers = min(len_repos + 10, MAX_BROWSER_TABS)
+        max_workers = min(MAX_CORE_WORKERS, len_repos)
         with ProcessPoolExecutor(
             max_workers=max_workers,
             initializer=_logging.ini_worker_for_multiprocessing,
@@ -290,6 +300,59 @@ def run_repos(
     start_time: float,
     manager: SyncManager | None,
     host_port_queue: Queue | None,
+    task_queue: Queue,
     logging_queue: Queue,
 ) -> None:
-    GIRunner(args, manager, host_port_queue, logging_queue).run_repos(start_time)
+    GIRunner(args, manager, host_port_queue, task_queue, logging_queue).run_repos(
+        start_time
+    )
+
+
+# Runs on a separate core, receives tasks one by one and executes each task by a
+# repo_runner instance.
+def worker(
+    args: Args,
+    host_port_queue: Queue,
+    task_queue: Queue,
+) -> None:
+    repo_task: RepoTask
+    mini_repo: MiniRepo
+    stats_found: bool
+    server_started_event: threading.Event
+    worker_done_event: threading.Event
+
+    global logger
+    _logging.set_logging_level_from_verbosity(args.verbosity)
+    logger = getLogger(__name__)
+
+    while True:
+        repo_task = task_queue.get()
+        mini_repo = repo_task.mini_repo
+        mini_repo.args = args
+
+        server_started_event = repo_task.server_started_event
+        worker_done_event = repo_task.worker_done_event
+
+        repo_runner = RepoRunner(
+            mini_repo,
+            repo_task.server_started_event,
+            repo_task.worker_done_event,
+            host_port_queue,
+        )
+
+        log(" " * 4 + f"Start {mini_repo.name}")
+        stats_found = repo_runner.run_analysis()
+        if stats_found:
+            repo_runner.generate_output()
+        elif mini_repo.args.dry_run <= 1:
+            log(
+                " " * 8 + "No statistics matching filters found for "
+                f"repository {mini_repo.name}"
+            )
+        # Do not use log or logger here, as the syncmanager may have been shut down here
+        if server_started_event is not None:
+            server_started_event.set()
+            if worker_done_event is not None:
+                worker_done_event.set()
+
+        task_queue.task_done()

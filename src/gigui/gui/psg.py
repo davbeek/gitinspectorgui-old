@@ -50,11 +50,13 @@ class PSGUI(PSGBase):
         settings: Settings,
         manager: SyncManager | None,
         host_port_queue: Queue | None,
+        task_queue: Queue,
         logging_queue: Queue,
     ):
         super().__init__(settings)
         self.manager: SyncManager | None = manager
         self.host_port_queue: Queue | None = host_port_queue
+        self.task_queue: Queue = task_queue
         self.logging_queue: Queue = logging_queue
 
         self.recreate_window: bool = True
