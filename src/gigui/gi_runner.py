@@ -14,6 +14,7 @@ from gigui._logging import log, start_logging_listener
 from gigui.args_settings import Args, MiniRepo
 from gigui.constants import MAX_BROWSER_TABS
 from gigui.gi_runner_base import GiRunnerBase
+from gigui.output.messages import CLOSE_OUTPUT_VIEWERS_CLI_MSG, CLOSE_OUTPUT_VIEWERS_MSG
 from gigui.repo_runner import RepoRunner, process_repo_multicore
 from gigui.typedefs import FileStr
 from gigui.utils import (
@@ -178,15 +179,10 @@ class GIRunner(GiRunnerBase):
             )
             if nr_started == len(self.server_started_events):
                 log_analysis_end_time(start_time)
-                ctrl = "Command" if platform.system() == "Darwin" else "Ctrl"
                 if shared.gui:
-                    log(
-                        f"To continue, close the GUI window, or browser tab(s) ({ctrl}+W) once the pages have fully loaded."
-                    )
+                    log(CLOSE_OUTPUT_VIEWERS_MSG)
                 else:
-                    log(
-                        f"To continue, close the browser tab(s) ({ctrl}+W) once the pages have fully loaded. Use {ctrl}+C if necessary."
-                    )
+                    log(CLOSE_OUTPUT_VIEWERS_CLI_MSG)
         nr_done = sum(event.is_set() for event in self.worker_done_events)
         if nr_done != self.nr_done_prev:
             self.nr_done_prev = nr_done
