@@ -204,24 +204,40 @@ def get_posix_dir_matches_for(pattern: FileStr) -> list[FileStr]:
     # If the pattern is absolute, the search is done in the root directory.
     # If the pattern is relative, the search is done in the current directory.
     # The pattern can be posix or windows style.
-    pattern_path: Path = Path(pattern)
     base_path: Path
-    if pattern_path.is_absolute():
-        if platform.system() == "Windows":
-            rel_pattern = pattern_path.as_posix().replace(
-                pattern_path.drive + "/", "", 1
-            )
+    no_drive_pattern: str
+
+    pattern = strip_quotes(pattern)  # Remove quotes from the pattern.
+    if not pattern:
+        return []
+    pattern_path: Path = Path(pattern)
+
+    if platform.system() == "Windows":
+        no_drive_pattern = pattern_path.as_posix().replace(pattern_path.drive, "", 1)
+        if pattern_path.is_absolute():
+            rel_pattern = no_drive_pattern[1:]  # type: ignore
             base_path = (
                 Path("/")
                 if pattern_path.drive == Path().drive
                 else Path(pattern_path.drive) / "/"
             )
         else:
+            rel_pattern = no_drive_pattern
+            base_path = (
+                Path()
+                if pattern_path.drive == Path().drive
+                else Path(pattern_path.drive)
+            )
+    else:
+        if pattern_path.is_absolute():
             rel_pattern = pattern_path.relative_to(Path("/")).as_posix()
             base_path = Path("/")
-    else:
-        rel_pattern = pattern
-        base_path = Path()
+        else:
+            rel_pattern = pattern
+            base_path = Path()
+
+    if not rel_pattern:
+        return []
     matches: list[FileStr] = [
         path.as_posix()
         for path in base_path.glob(rel_pattern, case_sensitive=False)
@@ -229,6 +245,10 @@ def get_posix_dir_matches_for(pattern: FileStr) -> list[FileStr]:
         if path.is_dir() and not path.name.startswith(".")
     ]
     return matches
+
+
+def strip_quotes(s: str) -> str:  # Remove quotes from the string.
+    return s.strip("'\"")  # Does nothing if the string is not quoted.
 
 
 def print_threads(message: str):

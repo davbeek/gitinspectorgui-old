@@ -11,7 +11,7 @@ from gigui.utils import get_version
 @dataclass
 class Tip:
     # IO configuration
-    input_fstrs: str = "Absolute path(s) to repository, folders or URLs to be analyzed"
+    input_fstrs: str = "Absolute path(s) to repository or folders to be analyzed"
     outfile_base: str = (
         "Name of output file without extension, prefix or postfix (default gitinspect)"
     )

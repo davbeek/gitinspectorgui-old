@@ -278,8 +278,8 @@ class PSGUI(PSGBase):
 
         args = Args()
         settings_schema: dict[str, Any] = SettingsFile.SETTINGS_SCHEMA["properties"]
-        for key, value in settings_schema.items():
-            if key not in {
+        for schema_key, schema_value in settings_schema.items():
+            if schema_key not in {
                 keys.profile,
                 keys.fix,
                 keys.n_files,
@@ -289,11 +289,10 @@ class PSGUI(PSGBase):
                 keys.multithread,
                 keys.gui_settings_full_path,
             }:
-                if value["type"] == "array":
-                    posix_mode = os.name != "nt"  # 'nt' indicates Windows
-                    setattr(args, key, shlex.split(values[key], posix=posix_mode))  # type: ignore
+                if schema_value["type"] == "array":
+                    setattr(args, schema_key, values[schema_key].split(","))  # type: ignore
                 else:
-                    setattr(args, key, values[key])
+                    setattr(args, schema_key, values[schema_key])
 
         args.multithread = self.multithread
 
@@ -307,26 +306,30 @@ class PSGUI(PSGBase):
         args.n_files = 0 if not values[keys.n_files] else int(values[keys.n_files])
 
         formats = []
-        for key in AVAILABLE_FORMATS:
-            if values[key]:
-                formats.append(key)
+        for schema_key in AVAILABLE_FORMATS:
+            if values[schema_key]:
+                formats.append(schema_key)
         args.formats = formats
 
         self.disable_buttons()
 
-        for key in keys.since, keys.until:
-            val = values[key]
+        for schema_key in keys.since, keys.until:
+            val = values[schema_key]
             if not val or val == "":
                 continue
             try:
-                val = datetime.strptime(values[key], "%Y-%m-%d").strftime("%Y-%m-%d")
+                val = datetime.strptime(values[schema_key], "%Y-%m-%d").strftime(
+                    "%Y-%m-%d"
+                )
             except (TypeError, ValueError):
                 popup(
                     "Reminder",
                     "Invalid date format. Correct format is YYYY-MM-DD. Please try again.",
                 )
                 return
-            setattr(args, key, str(val))
+            setattr(args, schema_key, str(val))
+
+        args.normalize()
 
         logger.debug(f"{args = }")  # type: ignore
         self.window.perform_long_operation(

@@ -1,5 +1,6 @@
 import multiprocessing
 import os
+import shlex
 import sys
 import time
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
@@ -16,7 +17,7 @@ from gigui.constants import AVAILABLE_FORMATS, DEFAULT_EXTENSIONS, FIRST_PORT
 from gigui.gui.psg import PSGUI
 from gigui.tiphelp import Help
 from gigui.typedefs import FileStr
-from gigui.utils import get_dir_matches
+from gigui.utils import get_dir_matches, strip_quotes
 
 # Limit the width of the help text to 80 characters.
 os.environ["COLUMNS"] = "90"
@@ -116,7 +117,11 @@ def main() -> None:
 
     args: Args = cli_args.create_args()
 
-    args.input_fstrs = [Path(p).resolve().as_posix() for p in args.input_fstrs]
+    input_fstrs_posix: list[FileStr] = [
+        Path(strip_quotes(fstr)).resolve().as_posix()  # strip enclosing '' and ""
+        for fstr in args.input_fstrs
+    ]
+    args.input_fstrs = input_fstrs_posix
 
     if namespace.save:
         settings = cli_args.create_settings()

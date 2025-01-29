@@ -78,6 +78,22 @@ class Args:
             f"KeysArgs - Args: {fld_names_keys - fld_names_args}"
         )
 
+    # When settings are read from a settings file, cleanup the input fields.
+    def normalize(self) -> None:
+        settings_schema: dict[str, Any] = SettingsFile.SETTINGS_SCHEMA["properties"]
+        for key, value in settings_schema.items():
+            if value["type"] == "array":
+                input_list = getattr(self, key)
+                clean_list = [item.strip() for item in input_list if item.strip()]
+                if key in {
+                    Keys.input_fstrs,
+                    Keys.ex_files,
+                    Keys.include_files,
+                    Keys.subfolder,
+                }:
+                    clean_list = [to_posix_fstr(fstr) for fstr in clean_list]
+                setattr(self, key, clean_list)  # type: ignore
+
 
 @dataclass
 class MiniRepo:
@@ -100,14 +116,15 @@ class Settings(Args):
             raise ValueError("n_files must be a non-negative integer")
         if not self.depth >= 0:
             raise ValueError("depth must be a non-negative integer")
-        self.as_posix()
+        self.normalize()
 
     @classmethod
     def from_args(cls, args: Args, gui_settings_full_path: bool) -> "Settings":
         # Create a Settings object using the instance variables from Args and the given
         # gui_settings_full_path
         settings = cls(gui_settings_full_path=gui_settings_full_path, **args.__dict__)
-        return settings.as_posix()
+        settings.normalize()
+        return settings
 
     def create_settings_file(self, settings_path: Path):
         settings_dict = asdict(self)
@@ -152,13 +169,6 @@ class Settings(Args):
             key = key.replace("_", "-")
             log(f"{key:22}: {value}")
 
-    def as_posix(self) -> "Settings":
-        self.input_fstrs = to_posix_fstrs(self.input_fstrs)
-        self.ex_files = to_posix_fstrs(self.ex_files)
-        self.include_files = to_posix_fstrs(self.include_files)
-        self.subfolder = to_posix_fstr(self.subfolder)
-        return self
-
     def as_system(self) -> "Settings":
         self.input_fstrs = to_system_fstrs(self.input_fstrs)
         self.ex_files = to_system_fstrs(self.ex_files)
@@ -184,10 +194,11 @@ class Settings(Args):
             0 if not values[Keys.n_files] else int(values[Keys.n_files])
         )
         for key, value in settings_schema.items():
+            # No nomalization here, that is done at the end of this method.
             if key in values:
                 if value["type"] == "array":
-                    posix_mode = os.name != "nt"  # 'nt' indicates Windows
-                    setattr(settings, key, shlex.split(values[key], posix=posix_mode))  # type: ignore
+                    input_list = values[key].split(",")  # type: ignore
+                    setattr(settings, key, input_list)  # type: ignore
                 else:
                     setattr(settings, key, values[key])
 
@@ -205,6 +216,8 @@ class Settings(Args):
         settings.formats = formats
         for key, value in asdict(settings).items():
             setattr(self, key, value)
+
+        settings.normalize()
 
     @classmethod
     def create_from_settings_dict(
@@ -402,7 +415,8 @@ class SettingsFile:
                 settings_dict = json.loads(s)
                 jsonschema.validate(settings_dict, cls.SETTINGS_SCHEMA)
                 settings = Settings(**settings_dict)
-                return settings.as_posix(), ""
+                settings.normalize()
+                return settings, ""
         except (
             ValueError,
             FileNotFoundError,

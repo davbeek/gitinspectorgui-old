@@ -23,7 +23,7 @@ from gigui.constants import (
 from gigui.keys import Keys
 from gigui.tiphelp import Help
 from gigui.typedefs import FilePattern, FileStr
-from gigui.utils import get_posix_dir_matches_for, to_posix_fstrs
+from gigui.utils import get_posix_dir_matches_for, strip_quotes, to_posix_fstrs
 
 keys = Keys()
 
@@ -79,8 +79,8 @@ class PSGBase:
         }
         for key, val in settings_min.items():
             if isinstance(val, list):
-                value_list = " ".join(val)
-                self.window.Element(key).Update(value=value_list)  # type: ignore
+                value_strings = ", ".join(val)
+                self.window.Element(key).Update(value=value_strings)  # type: ignore
             else:
                 self.window.Element(key).Update(value=val)  # type: ignore
 
@@ -93,10 +93,10 @@ class PSGBase:
                     value=key in settings.formats
                 )
 
-        self.window.write_event_value(keys.input_fstrs, " ".join(settings.input_fstrs))
+        self.window.write_event_value(keys.input_fstrs, ", ".join(settings.input_fstrs))
         self.window.write_event_value(keys.outfile_base, settings.outfile_base)
         self.window.write_event_value(
-            keys.include_files, " ".join(settings.include_files)
+            keys.include_files, ", ".join(settings.include_files)
         )
         self.window.write_event_value(keys.subfolder, settings.subfolder)
         self.window.write_event_value(keys.verbosity, settings.verbosity)
@@ -153,8 +153,7 @@ class PSGBase:
 
     def process_input_fstrs(self, input_fstr_patterns: str) -> None:
         try:
-            posix_mode = os.name != "nt"  # 'nt' indicates Windows
-            input_fstrs: list[FileStr] = shlex.split(input_fstr_patterns, posix=posix_mode)  # type: ignore
+            input_fstrs: list[FileStr] = input_fstr_patterns.split(",")
         except ValueError:
             self.window[keys.input_fstrs].update(background_color=INVALID_INPUT_COLOR)  # type: ignore
             return
