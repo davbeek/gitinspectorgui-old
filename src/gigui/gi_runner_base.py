@@ -4,7 +4,7 @@ from logging import getLogger
 from pathlib import Path
 
 from gigui._logging import log, set_logging_level_from_verbosity
-from gigui.args_settings import Args, MiniRepo
+from gigui.args_settings import Args
 from gigui.constants import (
     DEFAULT_FILE_BASE,
     DEFAULT_VERBOSITY,
@@ -12,6 +12,7 @@ from gigui.constants import (
     MAX_BROWSER_TABS,
     STATIC,
 )
+from gigui.data import IniRepo
 from gigui.gui.psg_base import is_git_repo
 from gigui.keys import Keys
 from gigui.typedefs import FileStr
@@ -111,7 +112,7 @@ class GiRunnerBase:
         set_logging_level_from_verbosity(self.args.verbosity)
         logger.debug(f"{self.args = }")  # type: ignore
 
-    def get_repos(self, dir_path: Path, depth: int) -> list[list[MiniRepo]]:
+    def get_repos(self, dir_path: Path, depth: int) -> list[list[IniRepo]]:
         """
         Recursively retrieves a list of repositories from a given directory path up to a
         specified depth.
@@ -132,19 +133,19 @@ class GiRunnerBase:
             - If the depth is greater than 0, the function will recursively search
             subdirectories for Git repositories.
         """
-        repo_lists: list[list[MiniRepo]]
+        repo_lists: list[list[IniRepo]]
         if self.is_dir_safe(dir_path):
             if is_git_repo(dir_path):
                 return [
-                    [MiniRepo(dir_path.name, dir_path, self.args)]
+                    [IniRepo(dir_path.name, dir_path, self.args)]
                 ]  # independent of depth
             elif depth == 0:
                 # For depth == 0, the input itself must be a repo, which is not the case.
                 return []
             else:  # depth >= 1:
                 subdirs: list[Path] = self.subdirs_safe(dir_path)
-                repos: list[MiniRepo] = [
-                    MiniRepo(subdir.name, subdir, self.args)
+                repos: list[IniRepo] = [
+                    IniRepo(subdir.name, subdir, self.args)
                     for subdir in subdirs
                     if is_git_repo(subdir)
                 ]

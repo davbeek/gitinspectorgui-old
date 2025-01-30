@@ -1,12 +1,9 @@
-import threading
 from logging import getLogger
-from queue import Queue
 
-from gigui import _logging
 from gigui._logging import log
-from gigui.args_settings import Args, MiniRepo
+from gigui.args_settings import Args
 from gigui.constants import DYNAMIC
-from gigui.data import FileStat, Person
+from gigui.data import FileStat, IniRepo, Person, RunnerQueues
 from gigui.output.repo_excel import Book
 from gigui.output.repo_html_server import RepoHTMLServer
 from gigui.typedefs import FileStr
@@ -19,18 +16,17 @@ logger = getLogger(__name__)
 class RepoRunner(RepoHTMLServer, Book):
     def __init__(
         self,
-        mini_repo: MiniRepo,
-        server_started_event: threading.Event,
-        worker_done_event: threading.Event,
-        host_port_queue: Queue | None,
+        ini_repo: IniRepo,
+        queues: RunnerQueues,
+        len_repos: int,
     ) -> None:
         super().__init__(
-            mini_repo,
-            server_started_event,
-            worker_done_event,
-            host_port_queue,
+            ini_repo,
+            queues,
+            len_repos,
         )
-        self.init_class_options(mini_repo.args)
+        assert ini_repo.args is not None
+        self.init_class_options(ini_repo.args)
 
     def init_class_options(self, args: Args) -> None:
         Person.show_renames = args.show_renames
@@ -38,22 +34,29 @@ class RepoRunner(RepoHTMLServer, Book):
         Person.ex_email_patterns = args.ex_emails
         FileStat.show_renames = args.show_renames
 
-    def process_repo_single_core(
+    def process_repo(
         self,
         len_repos: int,  # Total number of repositories being analyzed
         start_time: float | None = None,
     ) -> None:
+        task_done_nr: int
+
+        log(" " * 4 + f"{self.name}")
         stats_found = self.run_analysis()
-        if len_repos == 1:
+        task_done_nr = self.get_task_done_nr()
+        if not stats_found:
+            self.get_repo_done_nr()
+            if self.args.dry_run <= 1:
+                log(" " * 8 + "No statistics matching filters found")
+        if task_done_nr == len_repos:  # All repositories have been analyzed
             log_analysis_end_time(start_time)  # type: ignore
         if stats_found:
-            if self.args.dry_run == 1:
-                log("")
-            else:  # args.dry_run == 0
+            if self.args.dry_run == 0:
                 self.generate_output()
-        else:
-            self.worker_done_event.set()
-            log(" " * 8 + "No statistics matching filters found")
+        log(
+            f"    {self.name}:"
+            + (f" {task_done_nr} of {len_repos}" if len_repos > 1 else "")
+        )
 
     def generate_output(self) -> None:  # pylint: disable=too-many-locals
         """
@@ -63,11 +66,7 @@ class RepoRunner(RepoHTMLServer, Book):
         """
 
         def logfile(fname: FileStr):
-            log(
-                ("\n" if self.args.multicore and self.args.verbosity == 0 else "")
-                + " " * 8
-                + fname
-            )
+            log(" " * 8 + fname)
 
         if not self.authors_included:
             return
@@ -91,7 +90,6 @@ class RepoRunner(RepoHTMLServer, Book):
                 html_code = self.get_html()
                 with open(outfilestr + ".html", "w", encoding="utf-8") as f:
                     f.write(html_code)
-            logger.info(" " * 4 + f"Close {self.name}")
 
             if self.args.view:
                 if "excel" in self.args.formats:
@@ -101,36 +99,4 @@ class RepoRunner(RepoHTMLServer, Book):
 
         elif self.args.view:
             html_code = self.get_html()
-            log(" " * 4 + f"View {self.name}")
             self.start_werkzeug_server_with_html(html_code)
-
-
-def process_repo_multicore(
-    mini_repo: MiniRepo,
-    server_started_event: threading.Event,
-    worker_done_event: threading.Event,
-    host_port_queue: Queue | None,
-) -> None:
-    global logger
-    _logging.set_logging_level_from_verbosity(mini_repo.args.verbosity)
-    logger = getLogger(__name__)
-    repo = RepoRunner(
-        mini_repo,
-        server_started_event,
-        worker_done_event,
-        host_port_queue,
-    )
-    log(" " * 4 + f"Start {mini_repo.name}")
-    stats_found: bool = repo.run_analysis()
-    if stats_found:
-        repo.generate_output()
-    elif mini_repo.args.dry_run <= 1:
-        log(
-            " " * 8 + "No statistics matching filters found for "
-            f"repository {mini_repo.name}"
-        )
-    # Do not use log or logger here, as the syncmanager may have been shut down here
-    if server_started_event is not None:
-        server_started_event.set()
-        if worker_done_event is not None:
-            worker_done_event.set()

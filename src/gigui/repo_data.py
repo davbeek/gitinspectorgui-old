@@ -2,9 +2,8 @@ from logging import getLogger
 from pathlib import Path
 from typing import TypeVar
 
-from gigui.args_settings import MiniRepo
 from gigui.constants import STATIC
-from gigui.data import CommitGroup, FileStat, Person, PersonsDB, PersonStat
+from gigui.data import CommitGroup, FileStat, IniRepo, Person, PersonsDB, PersonStat
 from gigui.repo_blame import RepoBlameHistory
 from gigui.typedefs import SHA, Author, FileStr
 from gigui.utils import divide_to_percentage
@@ -13,10 +12,10 @@ logger = getLogger(__name__)
 
 
 class RepoData(RepoBlameHistory):
-    def __init__(self, mini_repo: MiniRepo) -> None:
-        super().__init__(mini_repo)
+    def __init__(self, ini_repo: IniRepo) -> None:
+        super().__init__(ini_repo)
 
-        self.path = Path(mini_repo.location).resolve()
+        self.path = Path(ini_repo.location).resolve()
         self.pathstr = str(self.path)
 
         self.stat_tables = StatTables()

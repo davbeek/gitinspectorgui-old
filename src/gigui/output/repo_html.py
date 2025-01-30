@@ -5,8 +5,8 @@ from pathlib import Path
 from bs4 import BeautifulSoup, Tag
 
 from gigui._logging import log
-from gigui.args_settings import MiniRepo
 from gigui.constants import DYNAMIC, HIDE, NONE, SHOW, STATIC
+from gigui.data import IniRepo
 from gigui.output.repo_blame_rows import RepoBlameRows
 from gigui.typedefs import SHA, Author, FileStr, HtmlStr, Row
 from gigui.utils import get_relative_fstr
@@ -75,8 +75,8 @@ class RepoColor(RepoBlameRows):
 
 
 class TableSoup(RepoColor):
-    def __init__(self, mini_repo: MiniRepo) -> None:
-        super().__init__(mini_repo)
+    def __init__(self, ini_repo: IniRepo) -> None:
+        super().__init__(ini_repo)
 
         self.soup = BeautifulSoup("<div></div>", "html.parser")
 
@@ -298,8 +298,8 @@ class RepoBlameTableSoup(RepoStatTableSoup):
 
 
 class RepoBlameTablesSoup(RepoBlameTableSoup):
-    def __init__(self, mini_repo: MiniRepo) -> None:
-        super().__init__(mini_repo)
+    def __init__(self, ini_repo: IniRepo) -> None:
+        super().__init__(ini_repo)
 
         # Is set when get_html() from superclass RepoHTML is called.
         self.global_soup: BeautifulSoup

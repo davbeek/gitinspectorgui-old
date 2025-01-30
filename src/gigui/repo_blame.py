@@ -9,10 +9,9 @@ from git import GitCommandError
 from git import Repo as GitRepo
 
 from gigui._logging import log_dots
-from gigui.args_settings import MiniRepo
 from gigui.comment import get_is_comment_lines
 from gigui.constants import BLAME_CHUNK_SIZE, MAX_THREAD_WORKERS
-from gigui.data import FileStat
+from gigui.data import FileStat, IniRepo
 from gigui.repo_base import RepoBase
 from gigui.typedefs import SHA, Author, BlameLines, Email, FileStr, GitBlames
 
@@ -32,8 +31,8 @@ class Blame:
 
 
 class RepoBlameBase(RepoBase):
-    def __init__(self, mini_repo: MiniRepo) -> None:
-        super().__init__(mini_repo)
+    def __init__(self, ini_repo: IniRepo) -> None:
+        super().__init__(ini_repo)
 
         # List of blame authors, so no filtering, ordered by highest blame line count.
         self.blame_authors: list[Author] = []
@@ -227,8 +226,8 @@ class RepoBlame(RepoBlameBase):
 
 
 class RepoBlameHistory(RepoBlame):
-    def __init__(self, mini_repo: MiniRepo) -> None:
-        super().__init__(mini_repo)
+    def __init__(self, ini_repo: IniRepo) -> None:
+        super().__init__(ini_repo)
 
         self.fr2f2shas: dict[FileStr, dict[FileStr, list[SHA]]] = {}
         self.fstr2sha2blames: dict[FileStr, dict[SHA, list[Blame]]] = {}

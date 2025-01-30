@@ -11,9 +11,9 @@ from git import Commit as GitCommit
 from git import Repo as GitRepo
 
 from gigui._logging import log, log_dots
-from gigui.args_settings import Args, MiniRepo
+from gigui.args_settings import Args
 from gigui.constants import GIT_LOG_CHUNK_SIZE, MAX_THREAD_WORKERS
-from gigui.data import CommitGroup, PersonsDB, RepoStats
+from gigui.data import CommitGroup, IniRepo, PersonsDB, RepoStats
 from gigui.typedefs import OID, SHA, Author, FileStr, Rev
 
 logger = getLogger(__name__)
@@ -28,10 +28,10 @@ class SHADate:
 
 
 class RepoBase:
-    def __init__(self, mini_repo: MiniRepo):
-        self.name: str = mini_repo.name
-        self.location: Path = mini_repo.location
-        self.args: Args = mini_repo.args
+    def __init__(self, ini_repo: IniRepo):
+        self.name: str = ini_repo.name
+        self.location: Path = ini_repo.location
+        self.args: Args = ini_repo.args
 
         # Here the values of the --ex-revision option are stored as a set.
         self.ex_revisions: set[Rev] = set(self.args.ex_revisions)

@@ -1,19 +1,18 @@
 import multiprocessing
 import os
-import shlex
 import sys
 import time
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from logging import getLogger
 from multiprocessing.managers import SyncManager
 from pathlib import Path
-from queue import Queue
 
 from gigui import _logging, gi_runner
 from gigui._logging import log, set_logging_level_from_verbosity
 from gigui.args_settings import Args, CLIArgs, Settings, SettingsFile
 from gigui.cli_arguments import define_arguments
-from gigui.constants import AVAILABLE_FORMATS, DEFAULT_EXTENSIONS, FIRST_PORT
+from gigui.constants import AVAILABLE_FORMATS, DEFAULT_EXTENSIONS
+from gigui.data import RunnerQueues, get_runner_queues
 from gigui.gui.psg import PSGUI
 from gigui.tiphelp import Help
 from gigui.typedefs import FileStr
@@ -29,6 +28,7 @@ def main() -> None:
     settings: Settings
     start_time: float = time.time()
     manager: SyncManager | None = None
+    queues: RunnerQueues
 
     parser = ArgumentParser(
         prog="gitinspectorgui",
@@ -150,41 +150,21 @@ def main() -> None:
         log("")
 
     if cli_args.gui or cli_args.run:
-        if cli_args.multicore:
-            manager = multiprocessing.Manager()
-            host_port_queue = None if namespace.formats else manager.Queue()
-            task_queue = manager.Queue()
-            logging_queue = manager.Queue()  # type: ignore
-        else:
-            manager = None
-            host_port_queue = None if namespace.formats else Queue()
-            task_queue = Queue()
-            logging_queue = Queue()
-        if host_port_queue:
-            host_port_queue.put(FIRST_PORT)
+        queues, manager = get_runner_queues(args.multicore)
         if cli_args.gui:
             settings = Settings.from_args(args, gui_settings_full_path)
-            PSGUI(
-                settings,
-                manager,
-                host_port_queue,
-                task_queue,
-                logging_queue,
-            )
+            PSGUI(settings, queues)
         elif namespace.run:
-            gi_runner.run_repos(
+            gi_runner.start_gi_runner(
                 args,
                 start_time,
-                manager,
-                host_port_queue,
-                task_queue,
-                logging_queue,
+                queues,
             )
 
         # Cleanup resources
-        if host_port_queue:
+        if queues.host_port:
             # Need to remove the last port value to avoid a deadlock
-            host_port_queue.get()
+            queues.host_port.get()
 
         if manager:
             manager.shutdown()

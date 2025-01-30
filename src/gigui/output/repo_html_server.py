@@ -4,7 +4,6 @@ import threading
 import time
 import webbrowser
 from logging import getLogger
-from queue import Queue
 from threading import Thread
 from typing import Callable
 from uuid import uuid4
@@ -13,8 +12,8 @@ from werkzeug.routing import Map, Rule
 from werkzeug.serving import BaseWSGIServer, make_server
 from werkzeug.wrappers import Request, Response
 
-from gigui.args_settings import MiniRepo
 from gigui.constants import DEBUG_WERKZEUG_SERVER, DYNAMIC
+from gigui.data import IniRepo, RunnerQueues
 from gigui.output.repo_html import RepoHTML
 from gigui.typedefs import SHA, FileStr, HtmlStr
 
@@ -39,19 +38,15 @@ shutdown_func: Callable
 
 
 class RepoHTMLServer(RepoHTML):
-    def __init__(
-        self,
-        mini_repo: MiniRepo,
-        server_started_event: threading.Event,
-        worker_done_event: threading.Event,
-        host_port_queue: Queue | None,
-    ) -> None:
-        super().__init__(mini_repo)
+    def __init__(self, ini_repo: IniRepo, queues: RunnerQueues, len_repos: int) -> None:
+        super().__init__(ini_repo)
 
-        self.server_started_event: threading.Event = server_started_event
-        self.worker_done_event: threading.Event = worker_done_event
+        self.queues: RunnerQueues = queues
+        self.len_repos: int = len_repos
+
+        self.repo_done_nr: int = 0
+
         self.server_shutting_down_event: threading.Event = threading.Event()
-        self.host_port_queue: Queue | None = host_port_queue
 
         self.run_server_thread: Thread
         self.server_thread: Thread
@@ -67,22 +62,18 @@ class RepoHTMLServer(RepoHTML):
         self,
         html_code: HtmlStr,
     ) -> None:
-        assert self.host_port_queue is not None
         self.browser_id = f"{self.name}-{str(uuid4())[-12:]}"
         self.html_doc_code = self.create_html_document(
             html_code, self.load_css(), self.browser_id
         )
         try:
-            self.port_value = self.host_port_queue.get()
-            self.host_port_queue.put(self.port_value + 1)
+            self.port_value = self.queues.host_port.get()
+            self.queues.host_port.put(self.port_value + 1)
 
             self.server = make_server(
                 "localhost",
                 self.port_value,
-                lambda environ, start_response: self.server_app(
-                    environ,
-                    start_response,
-                ),  # type: ignore
+                self.server_app_wrapper,
                 threaded=False,
                 processes=0,
             )
@@ -93,26 +84,23 @@ class RepoHTMLServer(RepoHTML):
             )
             self.server_thread.start()
 
-            if self.args.multicore:
-                self.server_shutting_down_event.wait()
-                self.server_thread.join()
-                self.browser_thread.join()
-                self.worker_done_event.set()
-            else:  # Single core
-                Thread(
-                    target=self.monitor_events_single_core,
-                    name=f"Event monitor for {self.name}",
-                ).start()
+            self.monitor_thread = Thread(
+                target=self.monitor_events,
+                name=f"Event monitor for {self.name}",
+            )
+            self.monitor_thread.start()
         except Exception as e:
             print(f"{self.name} port number {self.port_value} main body exception {e}")
             raise e
+
+    def server_app_wrapper(self, environ, start_response):
+        return self.server_app(environ, start_response)
 
     def run_server(self) -> None:
         try:
             self.browser_thread = Thread(target=self.open_browser)
             self.browser_thread.start()
             logger.info(f"{self.name}: starting server on port {self.port_value}")
-            self.server_started_event.set()
             self.server.serve_forever()
         except Exception as e:
             print(f"{self.name} port number {self.port_value} server exception {e}")
@@ -123,7 +111,6 @@ class RepoHTMLServer(RepoHTML):
         try:
             time.sleep(0.1)  # Wait for the server to start
             browser = webbrowser.get()
-            logger.info(f"{self.name}: opening browser tab on port {self.port_value}")
             browser.open_new_tab(
                 f"http://localhost:{self.port_value}?v={self.browser_id}"
             )
@@ -131,17 +118,17 @@ class RepoHTMLServer(RepoHTML):
             print(f"{self.name} port number {self.port_value} browser exception {e}")
             raise e
 
-    def monitor_events_single_core(self) -> None:
+    def monitor_events(self) -> None:
         self.server_shutting_down_event.wait()
         self.server_thread.join()
         self.browser_thread.join()
-        self.worker_done_event.set()
+        self.get_repo_done_nr()
 
     def server_app(
         self,
         environ,
         start_response,
-    ) -> Response:
+    ):
         try:
             request = Request(environ)
             logger.info(f"{self.name}: browser request = {request.path} {request.args.get('id')}")  # type: ignore
@@ -176,7 +163,8 @@ class RepoHTMLServer(RepoHTML):
 
             else:
                 response = Response("Not found", status=404)
-            return response(environ, start_response)  # type: ignore
+            start_response(response.status, response.headers)
+            return [response.data]
         except Exception as e:
             print(f"{self.name} port number {self.port_value} server app exception {e}")
             raise e
@@ -210,3 +198,13 @@ class RepoHTMLServer(RepoHTML):
         html_code = html_code.replace("&amp;gt;", "&gt;")
         html_code = html_code.replace("&amp;quot;", "&quot;")
         return html_code
+
+    def get_task_done_nr(self) -> int:
+        i = self.queues.task_done_nr.get()
+        self.queues.task_done_nr.task_done()
+        return i
+
+    def get_repo_done_nr(self) -> int:
+        i = self.queues.repo_done_nr.get()
+        self.queues.repo_done_nr.task_done()
+        return i

@@ -1,6 +1,4 @@
 import json
-import os
-import shlex
 from argparse import Namespace
 from dataclasses import asdict, dataclass, field, fields
 from logging import getLogger
@@ -29,7 +27,7 @@ from gigui.constants import (
 )
 from gigui.keys import Keys, KeysArgs
 from gigui.typedefs import FileStr
-from gigui.utils import to_posix_fstr, to_posix_fstrs, to_system_fstr, to_system_fstrs
+from gigui.utils import to_posix_fstr, to_system_fstr, to_system_fstrs
 
 logger = getLogger(__name__)
 
@@ -83,7 +81,7 @@ class Args:
         settings_schema: dict[str, Any] = SettingsFile.SETTINGS_SCHEMA["properties"]
         for key, value in settings_schema.items():
             if value["type"] == "array":
-                input_list = getattr(self, key)
+                input_list: list = getattr(self, key)
                 clean_list = [item.strip() for item in input_list if item.strip()]
                 if key in {
                     Keys.input_fstrs,
@@ -93,13 +91,6 @@ class Args:
                 }:
                     clean_list = [to_posix_fstr(fstr) for fstr in clean_list]
                 setattr(self, key, clean_list)  # type: ignore
-
-
-@dataclass
-class MiniRepo:
-    name: str
-    location: Path
-    args: Args
 
 
 @dataclass
@@ -194,7 +185,7 @@ class Settings(Args):
             0 if not values[Keys.n_files] else int(values[Keys.n_files])
         )
         for key, value in settings_schema.items():
-            # No nomalization here, that is done at the end of this method.
+            # No normalization here, that is done at the end of this method.
             if key in values:
                 if value["type"] == "array":
                     input_list = values[key].split(",")  # type: ignore

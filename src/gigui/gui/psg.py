@@ -2,17 +2,15 @@
 
 import multiprocessing
 import os
-import shlex  # Use shlex.split to handle quoted strings
 import sys
 import time
 from datetime import datetime
 from logging import getLogger
 from multiprocessing.managers import SyncManager
 from pathlib import Path
-from queue import Queue
 from typing import Any
 
-import PySimpleGUI as sg  # type: ignore; type: ignore[import-untyped]
+import PySimpleGUI as sg  # type: ignore
 
 from gigui import _logging, shared
 from gigui._logging import add_cli_handler, set_logging_level_from_verbosity
@@ -20,11 +18,11 @@ from gigui.args_settings import Args, Settings, SettingsFile
 from gigui.constants import (
     AVAILABLE_FORMATS,
     DEBUG_SHOW_MAIN_EVENT_LOOP,
-    FIRST_PORT,
     MAX_COL_HEIGHT,
     WINDOW_HEIGHT_CORR,
 )
-from gigui.gi_runner import run_repos
+from gigui.data import RunnerQueues, get_runner_queues
+from gigui.gi_runner import start_gi_runner
 from gigui.gui.psg_base import (
     PSGBase,
     disable_element,
@@ -45,19 +43,9 @@ keys = Keys()
 
 
 class PSGUI(PSGBase):
-    def __init__(
-        self,
-        settings: Settings,
-        manager: SyncManager | None,
-        host_port_queue: Queue | None,
-        task_queue: Queue,
-        logging_queue: Queue,
-    ):
+    def __init__(self, settings: Settings, queues: RunnerQueues):
         super().__init__(settings)
-        self.manager: SyncManager | None = manager
-        self.host_port_queue: Queue | None = host_port_queue
-        self.task_queue: Queue = task_queue
-        self.logging_queue: Queue = logging_queue
+        self.queues: RunnerQueues = queues
 
         self.recreate_window: bool = True
 
@@ -335,12 +323,10 @@ class PSGUI(PSGBase):
 
         logger.debug(f"{args = }")  # type: ignore
         self.window.perform_long_operation(
-            lambda: run_repos(
+            lambda: start_gi_runner(
                 args,
                 start_time,
-                self.manager,
-                self.host_port_queue,
-                self.logging_queue,
+                self.queues,
             ),
             keys.end,
         )
@@ -374,34 +360,19 @@ if __name__ == "__main__":
     error: str
     try:
         manager: SyncManager | None
-        host_port_queue: Queue | None
-        logging_queue: Queue
+        queues: RunnerQueues
 
         settings, error = SettingsFile.load()
         multiprocessing.freeze_support()
         _logging.ini_for_gui_base()
 
-        if settings.multicore:
-            manager = multiprocessing.Manager()
-            host_port_queue = None if settings.formats else manager.Queue()
-            logging_queue = manager.Queue()  # type: ignore
-        else:
-            manager = None
-            host_port_queue = None if settings.formats else Queue()
-            logging_queue = Queue()
-        if host_port_queue:
-            host_port_queue.put(FIRST_PORT)
-        PSGUI(
-            settings,
-            manager,
-            host_port_queue,
-            logging_queue,
-        )
+        queues, manager = get_runner_queues(settings.multicore)
+        PSGUI(settings, queues)
 
         # Cleanup resources
-        if host_port_queue:
+        if queues.host_port:
             # Need to remove the last port value to avoid a deadlock
-            host_port_queue.get()
+            queues.host_port.get()
 
         if manager:
             manager.shutdown()
