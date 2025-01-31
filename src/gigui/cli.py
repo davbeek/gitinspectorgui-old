@@ -11,7 +11,7 @@ from gigui import _logging, gi_runner
 from gigui._logging import log, set_logging_level_from_verbosity
 from gigui.args_settings import Args, CLIArgs, Settings, SettingsFile
 from gigui.cli_arguments import define_arguments
-from gigui.constants import AVAILABLE_FORMATS, DEFAULT_EXTENSIONS
+from gigui.constants import DEFAULT_EXTENSIONS, NONE
 from gigui.data import RunnerQueues, get_runner_queues
 from gigui.gui.psg import PSGUI
 from gigui.tiphelp import Help
@@ -100,15 +100,7 @@ def main() -> None:
     cli_args.update_with_namespace(namespace)
 
     if cli_args.profile:
-        cli_args.view = False
-
-    # Validate formats
-    for fmt in cli_args.formats:
-        if fmt not in AVAILABLE_FORMATS:
-            # Print error message and exit
-            parser.error(
-                f"Invalid format: {fmt}. Available formats: {', '.join(AVAILABLE_FORMATS)}"
-            )
+        cli_args.view = NONE
 
     if not cli_args.extensions:
         cli_args.extensions = DEFAULT_EXTENSIONS

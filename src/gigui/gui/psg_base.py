@@ -1,5 +1,3 @@
-import os
-import shlex
 import webbrowser
 from copy import copy
 from dataclasses import asdict
@@ -11,11 +9,12 @@ from git import Repo as GitRepo
 
 from gigui.args_settings import Settings, SettingsFile
 from gigui.constants import (
-    AVAILABLE_FORMATS,
     DEFAULT_FILE_BASE,
     DISABLED_COLOR,
     ENABLED_COLOR,
+    FILE_FORMATS,
     INVALID_INPUT_COLOR,
+    NONE,
     PARENT_HINT,
     REPO_HINT,
     VALID_INPUT_COLOR,
@@ -23,7 +22,7 @@ from gigui.constants import (
 from gigui.keys import Keys
 from gigui.tiphelp import Help
 from gigui.typedefs import FilePattern, FileStr
-from gigui.utils import get_posix_dir_matches_for, strip_quotes, to_posix_fstrs
+from gigui.utils import get_posix_dir_matches_for, to_posix_fstrs
 
 keys = Keys()
 
@@ -71,7 +70,8 @@ class PSGBase:
             if key
             not in {
                 keys.fix,
-                keys.formats,
+                keys.view,
+                keys.file_formats,
                 keys.gui_settings_full_path,
                 keys.profile,
                 keys.multithread,
@@ -84,13 +84,19 @@ class PSGBase:
             else:
                 self.window.Element(key).Update(value=val)  # type: ignore
 
-        # default values of boolean window.Element are False
+        # Default values of boolean window.Element are False
+        # Enable the fix radio button that corresponds to the settings.fix value
         self.window.Element(settings.fix).Update(value=True)  # type: ignore
 
-        if settings.formats:
-            for key in set(AVAILABLE_FORMATS):
+        # Default values of boolean window.Element are False
+        # Enable the view radio button that corresponds to the settings.view value
+        if settings.view != NONE:
+            self.window.Element(settings.view).Update(value=True)  # type:ignore
+
+        if settings.file_formats:
+            for key in set(FILE_FORMATS):
                 self.window.Element(key).Update(  # type:ignore
-                    value=key in settings.formats
+                    value=key in settings.file_formats
                 )
 
         self.window.write_event_value(keys.input_fstrs, ", ".join(settings.input_fstrs))
@@ -107,7 +113,6 @@ class PSGBase:
             keys.col_percent, min(settings.col_percent + 5, 100)
         )
         self.window.write_event_value(keys.col_percent, settings.col_percent)
-        self.window.write_event_value(keys.blame_history, settings.blame_history)
         if settings.gui_settings_full_path:
             settings_fstr = str(SettingsFile.get_location_path())
         else:
@@ -253,6 +258,24 @@ class PSGBase:
         # Filter out any initial zero and all non-digit characters
         filtered_str = "".join(filter(str.isdigit, n_files_str)).lstrip("0")
         input_field.update(filtered_str)
+
+    def process_view_format_radio_buttons(self, html_key: str) -> None:
+        match html_key:
+            case keys.auto:
+                self.window[keys.dynamic_blame_history].update(value=False)  # type: ignore
+            case keys.dynamic_blame_history:
+                self.window[keys.auto].update(value=False)  # type: ignore
+                self.window[keys.html].update(value=False)  # type: ignore
+                self.window[keys.html_blame_history].update(value=False)  # type: ignore
+                self.window[keys.excel].update(value=False)  # type: ignore
+            case keys.html:
+                self.window[keys.html_blame_history].update(value=False)  # type: ignore
+                self.window[keys.dynamic_blame_history].update(value=False)  # type: ignore
+            case keys.html_blame_history:
+                self.window[keys.html].update(value=False)  # type: ignore
+                self.window[keys.dynamic_blame_history].update(value=False)  # type: ignore
+            case keys.excel:
+                self.window[keys.dynamic_blame_history].update(value=False)  # type: ignore
 
     def disable_buttons(self) -> None:
         for button in self.buttons:

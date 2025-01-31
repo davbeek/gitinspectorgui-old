@@ -51,11 +51,6 @@ def log_end_time(start_time: float):
     log(f"Done in {end_time - start_time:.1f} s")
 
 
-def log_analysis_end_time(start_time: float):
-    end_time = time.time()
-    log(f"Analysis done in {end_time - start_time:.1f} s")
-
-
 def get_outfile_name(fix: str, outfile_base: str, repo_name: str) -> FileStr:
     base_name = Path(outfile_base).name
     if fix == Keys.prefix:

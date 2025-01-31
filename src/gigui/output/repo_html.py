@@ -5,8 +5,9 @@ from pathlib import Path
 from bs4 import BeautifulSoup, Tag
 
 from gigui._logging import log
-from gigui.constants import DYNAMIC, HIDE, NONE, SHOW, STATIC
+from gigui.constants import HIDE, SHOW
 from gigui.data import IniRepo
+from gigui.keys import Keys
 from gigui.output.repo_blame_rows import RepoBlameRows
 from gigui.typedefs import SHA, Author, FileStr, HtmlStr, Row
 from gigui.utils import get_relative_fstr
@@ -52,13 +53,11 @@ BG_AUTHOR_COLORS: list[str] = [
 BG_ROW_COLORS: list[str] = ["bg-row-light-green", "bg-white"]
 
 
-# Global variables to store the value of CLI or GUI options
+# Global variable to store the value of CLI or GUI options
 # Set by gitinspector.init_classes
 # blame_exclusions_hide is true when --blame_exclusions=hide.
-# blame_history is the value of the --blame-history option.
 # noqa: F821 (undefined name) is added in the code to suppress the flake8 error
 blame_exclusions_hide: bool  # noqa: F821
-blame_history: str
 
 logger = getLogger(__name__)
 
@@ -260,7 +259,7 @@ class RepoBlameTableSoup(RepoStatTableSoup):
         tbody: Tag = self.soup.new_tag("tbody")
         table.append(tbody)
 
-        if self.args.blame_history == DYNAMIC:
+        if self.dynamic_blame_history_selected():
             table["id"] = f"file-{fstr_nr}-sha-{sha_nr}"
 
         header_row = self.header_blames()
@@ -316,17 +315,20 @@ class RepoBlameTablesSoup(RepoBlameTableSoup):
 
         blame_tab_index = 0
         for fstr in self.fstrs:
-            if self.args.blame_history == STATIC:
+            if Keys.html_blame_history in self.args.file_formats:
                 tables = self.get_blame_history_static_tables_soup(
                     fstr, sha2nr, blame_tab_index
                 )
                 if tables:
                     fstr2tables[fstr] = tables
                     fstrs.append(fstr)
-            elif self.args.blame_history == DYNAMIC:
+            elif self.dynamic_blame_history_selected():
                 fstr2tables[fstr] = []
                 fstrs.append(fstr)
-            elif self.args.blame_history == NONE:
+            elif (
+                Keys.html_blame_history not in self.args.file_formats
+                and not self.dynamic_blame_history_selected()
+            ):
                 table = self.get_blame_table_soup(fstr)
                 if table:
                     fstr2table[fstr] = table
@@ -357,7 +359,10 @@ class RepoBlameTablesSoup(RepoBlameTableSoup):
                 "div", attrs={"class": "table-container"}
             )
 
-            if self.args.blame_history in {STATIC, DYNAMIC}:
+            if (
+                Keys.html_blame_history in self.args.file_formats
+                or self.dynamic_blame_history_selected()
+            ):
                 self._add_radio_buttons(
                     self.fstr2shas[fstr],
                     sha2nr,
@@ -458,8 +463,11 @@ class RepoHTML(RepoBlameTablesSoup):
         with open(html_path, "r", encoding="utf-8") as f:
             html_template = f.read()
 
-        if self.args.blame_history in {NONE, STATIC}:
-            # If blame_history == DYNAMIC, create_html_document is called in repo_html_server.py
+        if (
+            Keys.html in self.args.file_formats
+            or Keys.html_blame_history in self.args.file_formats
+        ):
+            # If blame_history_dynamic, create_html_document is called in repo_html_server.py
             html_template = self.create_html_document(html_template, self.load_css())
 
         self.global_soup = BeautifulSoup(html_template, "html.parser")

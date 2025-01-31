@@ -2,12 +2,13 @@ from logging import getLogger
 
 from gigui._logging import log
 from gigui.args_settings import Args
-from gigui.constants import DYNAMIC
+from gigui.constants import AUTO, NONE
 from gigui.data import FileStat, IniRepo, Person, RunnerQueues
+from gigui.keys import Keys
 from gigui.output.repo_excel import Book
 from gigui.output.repo_html_server import RepoHTMLServer
 from gigui.typedefs import FileStr
-from gigui.utils import get_outfile_name, log_analysis_end_time, open_file
+from gigui.utils import get_outfile_name, log_end_time, open_file
 
 # For multicore, logger is set in process_repo_multicore().
 logger = getLogger(__name__)
@@ -19,14 +20,19 @@ class RepoRunner(RepoHTMLServer, Book):
         ini_repo: IniRepo,
         queues: RunnerQueues,
         len_repos: int,
+        start_time: float,
     ) -> None:
         super().__init__(
             ini_repo,
             queues,
             len_repos,
+            start_time,
         )
         assert ini_repo.args is not None
         self.init_class_options(ini_repo.args)
+        self.requires_server: bool = (
+            not self.args.file_formats and not self.args.view == NONE
+        )
 
     def init_class_options(self, args: Args) -> None:
         Person.show_renames = args.show_renames
@@ -34,29 +40,23 @@ class RepoRunner(RepoHTMLServer, Book):
         Person.ex_email_patterns = args.ex_emails
         FileStat.show_renames = args.show_renames
 
-    def process_repo(
-        self,
-        len_repos: int,  # Total number of repositories being analyzed
-        start_time: float | None = None,
-    ) -> None:
+    def process_repo(self) -> None:
         task_done_nr: int
 
-        log(" " * 4 + f"{self.name}")
+        log(" " * 4 + f"{self.name}" + (": start" if self.args.multicore else ""))
         stats_found = self.run_analysis()
-        task_done_nr = self.get_task_done_nr()
         if not stats_found:
-            self.get_repo_done_nr()
             if self.args.dry_run <= 1:
                 log(" " * 8 + "No statistics matching filters found")
-        if task_done_nr == len_repos:  # All repositories have been analyzed
-            log_analysis_end_time(start_time)  # type: ignore
-        if stats_found:
+            task_done_nr = self.get_task_done_nr()
+            if self.len_repos > 1:
+                log(f"    {self.name}: done {task_done_nr} of {self.len_repos}")
+            self.get_repo_done_nr()
+            if self.len_repos in {1, task_done_nr}:
+                log_end_time(self.start_time)  # type: ignore
+        else:
             if self.args.dry_run == 0:
                 self.generate_output()
-        log(
-            f"    {self.name}:"
-            + (f" {task_done_nr} of {len_repos}" if len_repos > 1 else "")
-        )
 
     def generate_output(self) -> None:  # pylint: disable=too-many-locals
         """
@@ -79,24 +79,35 @@ class RepoRunner(RepoHTMLServer, Book):
             self.args.fix, self.args.outfile_base, self.name
         )
         outfilestr = str(self.path.parent / outfile_name)
-        if self.args.formats:
+        if self.args.file_formats:
             # Write the excel file if requested.
-            if "excel" in self.args.formats:
+            if Keys.excel in self.args.file_formats:
                 logfile(f"{outfile_name}.xlsx")
                 self.run_excel(outfilestr)
             # Write the HTML file if requested.
-            if "html" in self.args.formats:
+            if (
+                Keys.html in self.args.file_formats
+                or Keys.html_blame_history in self.args.file_formats
+            ):
                 logfile(f"{outfile_name}.html")
                 html_code = self.get_html()
                 with open(outfilestr + ".html", "w", encoding="utf-8") as f:
                     f.write(html_code)
 
-            if self.args.view:
-                if "excel" in self.args.formats:
-                    open_file(outfilestr + ".xlsx")
-                if "html" in self.args.formats and self.args.blame_history != DYNAMIC:
-                    open_file(outfilestr + ".html")
+            task_done_nr = self.get_task_done_nr()
+            if self.len_repos > 1:
+                log(f"    {self.name}: done {task_done_nr} of {self.len_repos}")
+            if task_done_nr == self.len_repos:  # All repositories have been analyzed
+                log_end_time(self.start_time)  # type: ignore
 
-        elif self.args.view:
+        if self.args.view == AUTO and self.args.file_formats:
+            if Keys.excel in self.args.file_formats:
+                open_file(outfilestr + ".xlsx")
+            if (
+                Keys.html in self.args.file_formats
+                or Keys.html_blame_history in self.args.file_formats
+            ):
+                open_file(outfilestr + ".html")
+        elif not self.args.view == NONE:
             html_code = self.get_html()
             self.start_werkzeug_server_with_html(html_code)

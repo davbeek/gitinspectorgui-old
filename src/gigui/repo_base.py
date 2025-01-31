@@ -14,6 +14,7 @@ from gigui._logging import log, log_dots
 from gigui.args_settings import Args
 from gigui.constants import GIT_LOG_CHUNK_SIZE, MAX_THREAD_WORKERS
 from gigui.data import CommitGroup, IniRepo, PersonsDB, RepoStats
+from gigui.keys import Keys
 from gigui.typedefs import OID, SHA, Author, FileStr, Rev
 
 logger = getLogger(__name__)
@@ -45,7 +46,7 @@ class RepoBase:
         # that are excluded later, because the blame run may find new authors that match
         # an excluded author and thus must be excluded later.
 
-        # In self.run_gi_no_history from GIRepo, self.fstrs is sorted and all excluded
+        # In self._run_no_history from RepoData, self.fstrs is sorted and all excluded
         # files are removed.
         self.fstrs: list[FileStr] = []
 
@@ -482,7 +483,7 @@ class RepoBase:
             if fstr_root not in target:
                 target[fstr_root] = {}
                 # Ensure that there is at least one entry for fstr_root in the target
-                # when --blame-history in {dynamic, static} is used. This is necessary
+                # when static or dynamic blame history is used. This is necessary
                 # for when the first commit in the list of commits from the top down, is
                 # a rename without any changes in the file. Such renames are not show in
                 # the output for git log --follow --numstat.
@@ -517,3 +518,6 @@ class RepoBase:
                 commit_groups.append(commit_group)
             i += 1
         return commit_groups
+
+    def dynamic_blame_history_selected(self) -> bool:
+        return self.args.view == Keys.dynamic_blame_history

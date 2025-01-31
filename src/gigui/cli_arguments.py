@@ -5,7 +5,12 @@ from argparse import (  # type: ignore
     BooleanOptionalAction,
 )
 
-from gigui.constants import BLAME_EXCLUSION_CHOICES, BLAME_HISTORY_CHOICES, FIX_TYPE
+from gigui.constants import (
+    BLAME_EXCLUSION_CHOICES,
+    FILE_FORMATS,
+    FIX_TYPE,
+    VIEW_OPTIONS,
+)
 from gigui.tiphelp import Help
 from gigui.utils import get_digit, get_pos_number, get_pos_number_or_empty, get_version
 
@@ -99,15 +104,16 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
     group_generation = parser.add_argument_group("Output generation and viewing")
     group_generation.add_argument(
         "--view",
-        action=BooleanOptionalAction,
-        help=hlp.view,
+        choices=VIEW_OPTIONS,
+        help=hlp.view_options,
     )
     group_generation.add_argument(
         "-F",
-        "--formats",
+        "--file-formats",
+        choices=FILE_FORMATS,
         action="extend",
         nargs="*",
-        help=hlp.formats,
+        help=hlp.file_formats,
     )
 
     # Below follow the subgroups from group "Output generation and formatting". The
@@ -134,11 +140,6 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
 
     # Blame subgroup
     subgroup_blame = parser.add_argument_group("Blame")
-    subgroup_blame.add_argument(
-        "--blame-history",
-        choices=BLAME_HISTORY_CHOICES,
-        help=hlp.blame_history,
-    )
     subgroup_blame.add_argument(
         "--blame-exclusions",
         choices=BLAME_EXCLUSION_CHOICES,

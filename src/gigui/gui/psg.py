@@ -16,21 +16,17 @@ from gigui import _logging, shared
 from gigui._logging import add_cli_handler, set_logging_level_from_verbosity
 from gigui.args_settings import Args, Settings, SettingsFile
 from gigui.constants import (
-    AVAILABLE_FORMATS,
+    AUTO,
     DEBUG_SHOW_MAIN_EVENT_LOOP,
+    DYNAMIC_BLAME_HISTORY,
+    FILE_FORMATS,
     MAX_COL_HEIGHT,
+    NONE,
     WINDOW_HEIGHT_CORR,
 )
 from gigui.data import RunnerQueues, get_runner_queues
 from gigui.gi_runner import start_gi_runner
-from gigui.gui.psg_base import (
-    PSGBase,
-    disable_element,
-    enable_element,
-    help_window,
-    log,
-    popup,
-)
+from gigui.gui.psg_base import PSGBase, help_window, log, popup
 from gigui.gui.psg_window import make_window
 from gigui.keys import Keys
 from gigui.tiphelp import Help, Tip
@@ -114,7 +110,6 @@ class PSGUI(PSGBase):
 
                 # Top level buttons
                 ###########################
-
                 case keys.col_percent:
                     self._update_col_percent(last_window_height, values[event])  # type: ignore
 
@@ -143,7 +138,6 @@ class PSGUI(PSGBase):
 
                 # IO configuration
                 ##################################
-
                 case keys.input_fstrs:
                     self.process_input_fstrs(values[event])
 
@@ -163,36 +157,26 @@ class PSGUI(PSGBase):
 
                 # Output generation and formatting
                 ##################################
+                case keys.auto:
+                    self.process_view_format_radio_buttons(event)
 
-                case keys.blame_history:
-                    value = values[event]
-                    match value:
-                        case "none":
-                            enable_element(self.window[keys.view])  # type: ignore
-                            enable_element(self.window[keys.html])  # type: ignore
-                            enable_element(self.window[keys.excel])  # type: ignore
+                case keys.dynamic_blame_history:
+                    self.process_view_format_radio_buttons(event)
 
-                        case "dynamic":
-                            self.window[keys.view].update(value=True)  # type: ignore
-                            self.window[keys.html].update(value=False)  # type: ignore
-                            self.window[keys.excel].update(value=False)  # type: ignore
-                            disable_element(self.window[keys.view])  # type: ignore
-                            disable_element(self.window[keys.html])  # type: ignore
-                            disable_element(self.window[keys.excel])  # type: ignore
+                case keys.html:
+                    self.process_view_format_radio_buttons(event)
 
-                        case "static":
-                            self.window[keys.html].update(value=True)  # type: ignore
-                            self.window[keys.excel].update(value=False)  # type: ignore
-                            enable_element(self.window[keys.view])  # type: ignore
-                            disable_element(self.window[keys.html])  # type: ignore
-                            disable_element(self.window[keys.excel])  # type: ignore
+                case keys.html_blame_history:
+                    self.process_view_format_radio_buttons(event)
+
+                case keys.excel:
+                    self.process_view_format_radio_buttons(event)
 
                 case keys.verbosity:
                     set_logging_level_from_verbosity(values[event])
 
                 # Settings
                 ##################################
-
                 case keys.save:
                     self.settings.from_values_dict(values)
                     self.settings.gui_settings_full_path = self.gui_settings_full_path
@@ -273,7 +257,8 @@ class PSGUI(PSGBase):
                 keys.profile,
                 keys.fix,
                 keys.n_files,
-                keys.formats,
+                keys.view,
+                keys.file_formats,
                 keys.since,
                 keys.until,
                 keys.multithread,
@@ -293,13 +278,20 @@ class PSGUI(PSGBase):
         else:
             args.fix = keys.nofix
 
+        if values[keys.auto]:
+            args.view = AUTO
+        elif values[keys.dynamic_blame_history]:
+            args.view = DYNAMIC_BLAME_HISTORY
+        else:
+            args.view = NONE
+
         args.n_files = 0 if not values[keys.n_files] else int(values[keys.n_files])
 
-        formats = []
-        for schema_key in AVAILABLE_FORMATS:
+        file_formats = []
+        for schema_key in FILE_FORMATS:
             if values[schema_key]:
-                formats.append(schema_key)
-        args.formats = formats
+                file_formats.append(schema_key)
+        args.file_formats = file_formats
 
         self.disable_buttons()
 

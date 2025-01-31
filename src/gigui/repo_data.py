@@ -2,8 +2,8 @@ from logging import getLogger
 from pathlib import Path
 from typing import TypeVar
 
-from gigui.constants import STATIC
 from gigui.data import CommitGroup, FileStat, IniRepo, Person, PersonsDB, PersonStat
+from gigui.keys import Keys
 from gigui.repo_blame import RepoBlameHistory
 from gigui.typedefs import SHA, Author, FileStr
 from gigui.utils import divide_to_percentage
@@ -25,7 +25,7 @@ class RepoData(RepoBlameHistory):
         self.fstr2author2fstat: dict[str, dict[str, FileStat]] = {}
         self.author2pstat: dict[str, PersonStat] = {}
 
-        # Valid only after self.run_no_history has been called, which calculates the
+        # Valid only after self._run_no_history has been called, which calculates the
         # sorted versions of self.fstrs and self.star_fstrs.
         self.star_fstrs: list[str] = []
 
@@ -34,7 +34,8 @@ class RepoData(RepoBlameHistory):
 
         self.fr2f2a2shas: dict[FileStr, dict[FileStr, dict[Author, list[SHA]]]] = {}
 
-        # Valid only after self.run has been called with option --blame-history.
+        # Valid only after self.run has been called for static or dynamic blame history
+        # formats.
         self.fstr2shas: dict[FileStr, list[SHA]] = {}
 
         self.author2nr: dict[Author, int] = {}  # does not include "*" as author
@@ -61,7 +62,10 @@ class RepoData(RepoBlameHistory):
                 return False
 
             self._set_final_data()
-            if self.args.blame_history == STATIC and not self.args.blame_skip:
+            if (
+                Keys.html_blame_history in self.args.file_formats
+                and not self.args.blame_skip
+            ):
                 super().run_blame_history_static()
             return True
         finally:

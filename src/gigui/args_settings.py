@@ -12,18 +12,19 @@ from git import PathLike
 from gigui import shared
 from gigui._logging import log, set_logging_level_from_verbosity
 from gigui.constants import (
-    AVAILABLE_FORMATS,
+    AUTO,
     BLAME_EXCLUSION_CHOICES,
     BLAME_EXCLUSIONS_DEFAULT,
-    BLAME_HISTORY_CHOICES,
-    BLAME_HISTORY_DEFAULT,
     DEFAULT_COPY_MOVE,
     DEFAULT_FILE_BASE,
     DEFAULT_N_FILES,
+    FILE_FORMATS,
     FIX_TYPE,
     INIT_COL_PERCENT,
+    NONE,
     PREFIX,
     SUBDIR_NESTING_DEPTH,
+    VIEW_OPTIONS,
 )
 from gigui.keys import Keys, KeysArgs
 from gigui.typedefs import FileStr
@@ -40,12 +41,11 @@ class Args:
     outfile_base: str = DEFAULT_FILE_BASE
     fix: str = PREFIX
     depth: int = SUBDIR_NESTING_DEPTH
-    view: bool = True
-    formats: list[str] = field(default_factory=lambda: [])
+    view: str = AUTO
+    file_formats: list[str] = field(default_factory=lambda: [])
     scaled_percentages: bool = False
     blame_exclusions: str = BLAME_EXCLUSIONS_DEFAULT
     blame_skip: bool = False
-    blame_history: str = BLAME_HISTORY_DEFAULT
     subfolder: str = ""
     n_files: int = DEFAULT_N_FILES
     include_files: list[str] = field(default_factory=list)
@@ -81,8 +81,13 @@ class Args:
         settings_schema: dict[str, Any] = SettingsFile.SETTINGS_SCHEMA["properties"]
         for key, value in settings_schema.items():
             if value["type"] == "array":
-                input_list: list = getattr(self, key)
-                clean_list = [item.strip() for item in input_list if item.strip()]
+                input_list: list[str] = getattr(self, key)
+                clean_list: list[str] = [
+                    item.strip()
+                    for item in input_list  # pylint: disable=not-an-iterable
+                    if item.strip()
+                ]
+
                 if key in {
                     Keys.input_fstrs,
                     Keys.ex_files,
@@ -200,11 +205,18 @@ class Settings(Args):
         elif values[Keys.nofix]:
             settings.fix = Keys.nofix
 
-        formats = []
-        for fmt in AVAILABLE_FORMATS:
+        if values[Keys.auto]:
+            settings.view = Keys.auto
+        elif values[Keys.dynamic_blame_history]:
+            settings.view = Keys.dynamic_blame_history
+        else:
+            settings.view = NONE
+
+        file_formats = []
+        for fmt in FILE_FORMATS:
             if values[fmt]:
-                formats.append(fmt)
-        settings.formats = formats
+                file_formats.append(fmt)
+        settings.file_formats = file_formats
         for key, value in asdict(settings).items():
             setattr(self, key, value)
 
@@ -303,10 +315,10 @@ class SettingsFile:
             "col_percent": {"type": "integer"},  # Not used in CLI
             "profile": {"type": "integer"},  # Not used in GUI
             "input_fstrs": {"type": "array", "items": {"type": "string"}},
-            "view": {"type": "boolean"},
-            "formats": {
+            "view": {"type": "string", "enum": VIEW_OPTIONS},
+            "file_formats": {
                 "type": "array",
-                "items": {"type": "string", "enum": AVAILABLE_FORMATS},
+                "items": {"type": "string", "enum": FILE_FORMATS},
             },
             "extensions": {"type": "array", "items": {"type": "string"}},
             "fix": {"type": "string", "enum": FIX_TYPE},
@@ -317,7 +329,6 @@ class SettingsFile:
             "include_files": {"type": "array", "items": {"type": "string"}},
             "blame_exclusions": {"type": "string", "enum": BLAME_EXCLUSION_CHOICES},
             "blame_skip": {"type": "boolean"},
-            "blame_history": {"type": "string", "enum": BLAME_HISTORY_CHOICES},
             "show_renames": {"type": "boolean"},
             "gui_settings_full_path": {"type": "boolean"},
             "subfolder": {"type": "string"},
@@ -339,7 +350,7 @@ class SettingsFile:
             "ex_revisions": {"type": "array", "items": {"type": "string"}},
         },
         "additionalProperties": False,
-        "minProperties": 32,
+        "minProperties": 33,
     }
 
     # Create file that contains the location of the settings file and return this

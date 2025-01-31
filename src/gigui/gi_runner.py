@@ -1,4 +1,5 @@
 import threading
+import time
 from concurrent.futures import Future, ProcessPoolExecutor, as_completed
 from cProfile import Profile
 from dataclasses import dataclass
@@ -9,7 +10,7 @@ from pathlib import Path
 from gigui import _logging, shared
 from gigui._logging import log, start_logging_listener
 from gigui.args_settings import Args
-from gigui.constants import MAX_CORE_WORKERS
+from gigui.constants import MAX_CORE_WORKERS, NONE
 from gigui.data import IniRepo, RunnerQueues
 from gigui.gi_runner_base import GiRunnerBase
 from gigui.messages import CLOSE_OUTPUT_VIEWERS_CLI_MSG, CLOSE_OUTPUT_VIEWERS_MSG
@@ -42,7 +43,9 @@ class GIRunner(GiRunnerBase):
 
         self.queue_listener: QueueListener | None = None
 
-        self.requires_server: bool = not self.args.formats and self.args.view
+        self.requires_server: bool = (
+            not self.args.file_formats and not self.args.view == NONE
+        )
         self.future_to_ini_repo: dict[Future, IniRepo] = {}
         self.nr_workers: int = 0
         self.nr_started_prev: int = -1
@@ -128,6 +131,9 @@ class GIRunner(GiRunnerBase):
 
             if self.requires_server:
                 self.queues.task_done_nr.join()
+                time.sleep(
+                    0.1
+                )  # wait for the server to start and for logging to catch up
                 if shared.gui:
                     log(CLOSE_OUTPUT_VIEWERS_MSG)
                 else:
@@ -167,7 +173,7 @@ class GIRunner(GiRunnerBase):
             repo_parent_str = str(repos[0].location.resolve().parent)
             log(
                 "Output in folder "
-                if self.args.formats
+                if self.args.file_formats
                 else "Folder " + repo_parent_str
             )
             for ini_repo in repos:
@@ -175,14 +181,12 @@ class GIRunner(GiRunnerBase):
                     ini_repo,
                     self.queues,
                     len_repos,
+                    start_time,
                 )
                 i += 1
                 self.queues.task_done_nr.put(i)
                 self.queues.repo_done_nr.put(i)
-                repo_runner.process_repo(
-                    len_repos,
-                    start_time,
-                )
+                repo_runner.process_repo()
 
         if self.requires_server:
             self.queues.task_done_nr.join()
@@ -226,8 +230,8 @@ def multicore_worker(
         ini_repo = runner_queues.task.get()
         if ini_repo is None:
             break
-        repo_runner = RepoRunner(ini_repo, runner_queues, len_repos)
+        repo_runner = RepoRunner(ini_repo, runner_queues, len_repos, start_time)
         repo_runners.append(repo_runner)
-        repo_runner.process_repo(len_repos, start_time)
+        repo_runner.process_repo()
 
         runner_queues.task.task_done()

@@ -5,13 +5,7 @@ from pathlib import Path
 
 from gigui._logging import log, set_logging_level_from_verbosity
 from gigui.args_settings import Args
-from gigui.constants import (
-    DEFAULT_FILE_BASE,
-    DEFAULT_VERBOSITY,
-    DYNAMIC,
-    MAX_BROWSER_TABS,
-    STATIC,
-)
+from gigui.constants import DEFAULT_FILE_BASE, DEFAULT_VERBOSITY, MAX_BROWSER_TABS, NONE
 from gigui.data import IniRepo
 from gigui.gui.psg_base import is_git_repo
 from gigui.keys import Keys
@@ -26,22 +20,6 @@ class GiRunnerBase:
         self.args: Args = args
 
     def _check_options(self, len_repos: int) -> bool:
-        if (
-            self.args.blame_history == STATIC
-            and self.args.formats
-            and self.args.formats != ["html"]
-        ):
-            logger.warning(
-                "Static blame history is supported only for html or no output formats.\n"
-            )
-            return False
-        if self.args.blame_history == DYNAMIC and self.args.formats != []:
-            logger.warning(
-                "Dynamic blame history is available only when no output formats are "
-                "selected, because it is generated on the fly and the output cannot be "
-                "stored in a file."
-            )
-            return False
         if not len_repos:
             log(
                 "Missing search path. Specify a valid relative or absolute search "
@@ -55,27 +33,31 @@ class GiRunnerBase:
             )
             return False
         if (
-            not self.args.formats
-            and self.args.view
+            not self.args.file_formats
+            and not self.args.view == NONE
             and len_repos > 1
             and self.args.dry_run == 0
         ):
             if len_repos > MAX_BROWSER_TABS:
                 logger.warning(
-                    f"No output formats selected and number of {len_repos} repositories "
+                    f"No file formats selected and number of {len_repos} repositories "
                     f"exceeds the maximum number of {MAX_BROWSER_TABS} browser tabs.\n"
                     "Select an output format or set dry run."
                 )
                 return False
-        if len_repos > 1 and self.args.fix == Keys.nofix and self.args.formats:
+        if len_repos > 1 and self.args.fix == Keys.nofix and self.args.file_formats:
             log(
                 "Multiple repos detected and nofix option selected for file output.\n"
                 "Multiple repos with file output need the (default prefix) or postfix option."
             )
             return False
-        if not self.args.view and not self.args.formats and self.args.dry_run == 0:
+        if (
+            self.args.view == NONE
+            and not self.args.file_formats
+            and self.args.dry_run == 0
+        ):
             log(
-                "View option not set and no output formats selected.\n"
+                "View option not set and no file formats selected.\n"
                 "Set the view option and/or an output format."
             )
             return False

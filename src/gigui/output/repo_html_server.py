@@ -12,10 +12,12 @@ from werkzeug.routing import Map, Rule
 from werkzeug.serving import BaseWSGIServer, make_server
 from werkzeug.wrappers import Request, Response
 
-from gigui.constants import DEBUG_WERKZEUG_SERVER, DYNAMIC
+from gigui._logging import log
+from gigui.constants import DEBUG_WERKZEUG_SERVER
 from gigui.data import IniRepo, RunnerQueues
 from gigui.output.repo_html import RepoHTML
 from gigui.typedefs import SHA, FileStr, HtmlStr
+from gigui.utils import log_end_time
 
 PORT = 8080
 
@@ -38,11 +40,18 @@ shutdown_func: Callable
 
 
 class RepoHTMLServer(RepoHTML):
-    def __init__(self, ini_repo: IniRepo, queues: RunnerQueues, len_repos: int) -> None:
+    def __init__(
+        self,
+        ini_repo: IniRepo,
+        queues: RunnerQueues,
+        len_repos: int,
+        start_time: float,
+    ) -> None:
         super().__init__(ini_repo)
 
         self.queues: RunnerQueues = queues
         self.len_repos: int = len_repos
+        self.start_time: float = start_time
 
         self.repo_done_nr: int = 0
 
@@ -119,6 +128,11 @@ class RepoHTMLServer(RepoHTML):
             raise e
 
     def monitor_events(self) -> None:
+        task_done_nr = self.get_task_done_nr()
+        if self.len_repos > 1:
+            log(f"    {self.name}: done {task_done_nr} of {self.len_repos}")
+        if task_done_nr == self.len_repos:  # All repositories have been analyzed
+            log_end_time(self.start_time)  # type: ignore
         self.server_shutting_down_event.wait()
         self.server_thread.join()
         self.browser_thread.join()
@@ -153,7 +167,7 @@ class RepoHTMLServer(RepoHTML):
                 load_table_id = request.args.get("id")
                 if load_table_id == self.browser_id:
                     table_html = self.handle_load_table(
-                        table_id, self.args.blame_history
+                        table_id, self.dynamic_blame_history_selected()
                     )
                     response = Response(table_html, content_type="text/html")
                 else:
@@ -169,14 +183,16 @@ class RepoHTMLServer(RepoHTML):
             print(f"{self.name} port number {self.port_value} server app exception {e}")
             raise e
 
-    def handle_load_table(self, table_id: str, blame_history: str) -> HtmlStr:
+    def handle_load_table(
+        self, table_id: str, dynamic_blame_history_enabled: bool
+    ) -> HtmlStr:
         # Extract file_nr and commit_nr from table_id
         table_html: HtmlStr = ""
         match = re.match(r"file-(\d+)-sha-(\d+)", table_id)
         if match:
             file_nr = int(match.group(1))
             commit_nr = int(match.group(2))
-            if blame_history == DYNAMIC:
+            if dynamic_blame_history_enabled:
                 table_html = self.generate_fstr_commit_table(file_nr, commit_nr)
             else:  # NONE
                 logger.error("Error: blame history option is not enabled.")

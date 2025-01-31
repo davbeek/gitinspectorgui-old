@@ -27,7 +27,6 @@ PARENT_HINT = "<repo-parent-folder>"
 # GUI and CLI defaults
 DEFAULT_FILE_BASE = "gitinspect"
 SUBDIR_NESTING_DEPTH = 5
-AVAILABLE_FORMATS = ["html", "excel"]
 DEFAULT_N_FILES = 5
 DEFAULT_COPY_MOVE = 1
 DEFAULT_VERBOSITY = 0
@@ -47,6 +46,16 @@ DEFAULT_EXTENSIONS = [
     "sql",
 ]
 
+# Output options
+NONE = "none"
+AUTO = "auto"
+DYNAMIC_BLAME_HISTORY = "dynamic-blame-history"
+VIEW_OPTIONS = [AUTO, DYNAMIC_BLAME_HISTORY, NONE]
+HTML = "html"
+HTML_BLAME_HISTORY = "html-blame-history"
+EXCEL = "excel"
+FILE_FORMATS = [HTML, HTML_BLAME_HISTORY, EXCEL]
+
 # Output settings web browser
 MAX_BROWSER_TABS = 20
 FIRST_PORT = 8080
@@ -59,12 +68,6 @@ PREFIX = "prefix"
 POSTFIX = "postfix"
 NOFIX = "nofix"
 FIX_TYPE = [PREFIX, POSTFIX, NOFIX]
-
-NONE = "none"
-STATIC = "static"
-DYNAMIC = "dynamic"
-BLAME_HISTORY_CHOICES = [NONE, DYNAMIC, STATIC]
-BLAME_HISTORY_DEFAULT = NONE
 
 REMOVE = "remove"
 HIDE = "hide"

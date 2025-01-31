@@ -31,7 +31,7 @@ def name_basic(text: str, tooltip, size=SIZE_NONE, pad=None) -> sg.Text:
     )
 
 
-def name_header(text: str, tooltip) -> sg.Text:
+def name_header(text: str, tooltip=None) -> sg.Text:
     return name_basic(
         text,
         tooltip,
@@ -74,10 +74,11 @@ def checkbox(
     key: str,
     disabled=False,
 ) -> sg.Checkbox:
+    underscore_key = key.replace("-", "_")
     return sg.Checkbox(
         text,
         k=key,
-        tooltip=getattr(tip, key),
+        tooltip=getattr(tip, underscore_key),
         pad=((0, 6), 0),
         enable_events=True,
         disabled=disabled,
