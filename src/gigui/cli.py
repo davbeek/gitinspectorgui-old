@@ -142,24 +142,22 @@ def main() -> None:
         log("")
 
     if cli_args.gui or cli_args.run:
-        queues, manager = get_runner_queues(args.multicore)
         if cli_args.gui:
             settings = Settings.from_args(args, gui_settings_full_path)
-            PSGUI(settings, queues)
+            PSGUI(settings)
         elif namespace.run:
+            queues, manager = get_runner_queues(args.multicore)
             gi_runner.start_gi_runner(
                 args,
                 start_time,
                 queues,
             )
-
-        # Cleanup resources
-        if queues.host_port:
-            # Need to remove the last port value to avoid a deadlock
-            queues.host_port.get()
-
-        if manager:
-            manager.shutdown()
+            # Cleanup resources
+            if queues.host_port:
+                # Need to remove the last port value to avoid a deadlock
+                queues.host_port.get()
+            if manager:
+                manager.shutdown()
     elif not namespace.save and not namespace.save_as and not namespace.show:
         log(
             "This command has no effect. Use --run/-r or --gui/-g to run the program, or "

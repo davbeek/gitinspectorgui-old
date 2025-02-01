@@ -39,9 +39,10 @@ keys = Keys()
 
 
 class PSGUI(PSGBase):
-    def __init__(self, settings: Settings, queues: RunnerQueues):
+    def __init__(self, settings: Settings) -> None:
         super().__init__(settings)
-        self.queues: RunnerQueues = queues
+        self.queues: RunnerQueues
+        self.manager: SyncManager | None = None
 
         self.recreate_window: bool = True
 
@@ -116,12 +117,21 @@ class PSGUI(PSGBase):
                 case keys.run:
                     # Update processing of input patterns because dir state may have changed
                     self.process_inputs()  # type: ignore
+                    self.queues, self.manager = get_runner_queues(
+                        self.settings.multicore
+                    )
                     self.run(values)
 
                 # Run command has finished via self.window.perform_long_operation in
                 # run_gitinspector().
                 case keys.end:
                     self.enable_buttons()
+                    # Cleanup resources
+                    if self.queues.host_port:
+                        # Need to remove the last port value to avoid a deadlock
+                        self.queues.host_port.get()
+                    if self.manager:
+                        self.manager.shutdown()
 
                 case keys.clear:
                     self.window[keys.multiline].update(value="")  # type: ignore
@@ -351,22 +361,9 @@ if __name__ == "__main__":
     settings: Settings
     error: str
     try:
-        manager: SyncManager | None
-        queues: RunnerQueues
-
         settings, error = SettingsFile.load()
         multiprocessing.freeze_support()
         _logging.ini_for_gui_base()
-
-        queues, manager = get_runner_queues(settings.multicore)
-        PSGUI(settings, queues)
-
-        # Cleanup resources
-        if queues.host_port:
-            # Need to remove the last port value to avoid a deadlock
-            queues.host_port.get()
-
-        if manager:
-            manager.shutdown()
+        PSGUI(settings)
     except KeyboardInterrupt:
         os._exit(0)

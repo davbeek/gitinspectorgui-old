@@ -13,12 +13,10 @@ from werkzeug.routing import Map, Rule
 from werkzeug.serving import BaseWSGIServer, make_server
 from werkzeug.wrappers import Request, Response
 
-from gigui._logging import log
 from gigui.constants import DEBUG_WERKZEUG_SERVER
 from gigui.data import IniRepo, RunnerQueues
 from gigui.output.repo_html import RepoHTML
 from gigui.typedefs import SHA, FileStr, HtmlStr
-from gigui.utils import log_end_time
 
 logger = getLogger(__name__)
 if DEBUG_WERKZEUG_SERVER:
@@ -40,23 +38,18 @@ class RepoHTMLServer(RepoHTML):
         self,
         ini_repo: IniRepo,
         queues: RunnerQueues,
-        len_repos: int,
-        start_time: float,
     ) -> None:
         super().__init__(ini_repo)
 
         self.queues: RunnerQueues = queues
-        self.len_repos: int = len_repos
-        self.start_time: float = start_time
 
         self.repo_done_nr: int = 0
 
         self.server_shutting_down_event: threading.Event = threading.Event()
 
-        self.run_server_thread: Thread
-        self.server_thread: Thread
-        self.browser_thread: Thread
-        self.monitor_thread: Thread
+        self.server_thread: Thread | None = None
+        self.browser_thread: Thread | None = None
+        self.monitor_thread: Thread | None = None
 
         self.server: BaseWSGIServer
         self.port_value: int = 0
@@ -124,15 +117,13 @@ class RepoHTMLServer(RepoHTML):
             raise e
 
     def monitor_events(self) -> None:
-        task_done_nr = self.get_task_done_nr()
-        if self.len_repos > 1:
-            log(f"    {self.name}: done {task_done_nr} of {self.len_repos}")
-        if task_done_nr == self.len_repos:  # All repositories have been analyzed
-            log_end_time(self.start_time)  # type: ignore
+        assert self.server_thread is not None
+        assert self.browser_thread is not None
+        self.queues.task_done.put(self.name)
         self.server_shutting_down_event.wait()
         self.server_thread.join()
         self.browser_thread.join()
-        self.get_repo_done_nr()
+        self.queues.repo_done.put(self.name)
 
     def server_app(
         self, environ: WSGIEnvironment, start_response: StartResponse
@@ -208,13 +199,3 @@ class RepoHTMLServer(RepoHTML):
         html_code = html_code.replace("&amp;gt;", "&gt;")
         html_code = html_code.replace("&amp;quot;", "&quot;")
         return html_code
-
-    def get_task_done_nr(self) -> int:
-        i = self.queues.task_done_nr.get()
-        self.queues.task_done_nr.task_done()
-        return i
-
-    def get_repo_done_nr(self) -> int:
-        i = self.queues.repo_done_nr.get()
-        self.queues.repo_done_nr.task_done()
-        return i

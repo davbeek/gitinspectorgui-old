@@ -434,8 +434,8 @@ class IniRepo:
 class RunnerQueues:
     host_port: Queue[int]
     task: Queue[IniRepo]
-    task_done_nr: Queue[int]
-    repo_done_nr: Queue[int]
+    task_done: Queue[str]
+    repo_done: Queue[str]
     logging: Queue[str]
 
 

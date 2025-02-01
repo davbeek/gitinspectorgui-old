@@ -18,7 +18,14 @@ def close_browser_key():
 
 
 CLOSE_OUTPUT_VIEWERS_MSG = (
-    f"Close browser window ({close_browser_key()}) or browser "
-    f"tab(s) ({close_tab_key()}) when pages have fully loaded."
+    f"When you are done, close the browser window ({close_browser_key()}) or browser "
+    f"tab(s) ({close_tab_key()}) when the pages have fully loaded. "
 )
-CLOSE_OUTPUT_VIEWERS_CLI_MSG = CLOSE_OUTPUT_VIEWERS_MSG + " Use Ctrl+C if necessary."
+
+CONTROL_C = (
+    "If that does not work, use Ctrl+C"
+    + (" (or Ctrl+Pause or Ctrl+Break) " if platform.system() == "Windows" else "")
+    + " on the command line."
+)
+
+CLOSE_OUTPUT_VIEWERS_CLI_MSG = CLOSE_OUTPUT_VIEWERS_MSG + CONTROL_C

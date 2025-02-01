@@ -36,10 +36,12 @@ class GIRunner(GiRunnerBase):
     def __init__(
         self,
         args: Args,
+        start_time: float,
         runner_queues: RunnerQueues,
     ) -> None:
         super().__init__(args)
         self.queues: RunnerQueues = runner_queues
+        self.start_time: float = start_time
 
         self.queue_listener: QueueListener | None = None
 
@@ -50,11 +52,11 @@ class GIRunner(GiRunnerBase):
         self.nr_workers: int = 0
         self.nr_started_prev: int = -1
         self.nr_done_prev: int = -1
+        self.len_repos: int = 0
 
-    def run_repos(self, start_time: float) -> None:
+    def run_repos(self) -> None:
         profiler: Profile | None = None
         repo_lists: list[list[IniRepo]] = []
-        len_repos: int = 0
         dir_strs: list[FileStr]
         dirs_sorted: list[FileStr]
 
@@ -64,32 +66,24 @@ class GIRunner(GiRunnerBase):
         dirs_sorted = sorted(dir_strs)
         for dir_str in dirs_sorted:
             repo_lists.extend(self.get_repos(Path(dir_str), self.args.depth))
-        len_repos = self.total_len(repo_lists)
+        self.len_repos = self.total_len(repo_lists)
 
-        if len_repos == 0:
+        if self.len_repos == 0:
             logger.warning("No repositories found, exiting.")
             return
 
-        if not self._check_options(len_repos):
+        if not self._check_options(self.len_repos):
             return
 
         if self.args.multicore:
             self.queue_listener = start_logging_listener(
                 self.queues.logging, self.args.verbosity
             )
-            self.process_tasks_multicore(
-                repo_lists,
-                len_repos,
-                start_time,
-            )
+            self.process_tasks_multicore(repo_lists)
             if self.queue_listener:
                 self.queue_listener.stop()
         else:  # single core
-            self.process_repos_singlecore(
-                repo_lists,
-                len_repos,
-                start_time,
-            )
+            self.process_repos_singlecore(repo_lists)
 
         if self.requires_server:
             log("Done")
@@ -98,21 +92,16 @@ class GIRunner(GiRunnerBase):
     def process_tasks_multicore(
         self,
         repo_lists: list[list[IniRepo]],
-        len_repos: int,
-        start_time: float,
     ) -> None:
-        i: int = 0
+        nr_workers: int = 0
         futures: list[Future] = []
-        max_workers: int = min(MAX_CORE_WORKERS, len_repos)
+        max_workers: int = min(MAX_CORE_WORKERS, self.len_repos)
 
         for repos in repo_lists:
             repo_parent_str = str(repos[0].location.resolve().parent)
             log("Output in folder " + repo_parent_str)
             for ini_repo in repos:
-                i += 1
                 self.queues.task.put(ini_repo)
-                self.queues.task_done_nr.put(i)
-                self.queues.repo_done_nr.put(i)
 
         with ProcessPoolExecutor(
             max_workers=max_workers,
@@ -123,34 +112,56 @@ class GIRunner(GiRunnerBase):
                 future = process_executor.submit(
                     multicore_worker,
                     self.queues,
-                    len_repos,
                     self.args.verbosity,
-                    start_time,
                 )
                 futures.append(future)
+                nr_workers += 1
 
-            if self.requires_server:
-                self.queues.task_done_nr.join()
-                time.sleep(
-                    0.1
-                )  # wait for the server to start and for logging to catch up
-                if shared.gui:
-                    log(CLOSE_OUTPUT_VIEWERS_MSG)
-                else:
-                    log(CLOSE_OUTPUT_VIEWERS_CLI_MSG)
-                self.queues.repo_done_nr.join()
+            for _ in range(nr_workers):
+                self.queues.task.put(None)  # type: ignore
+
+            self.await_tasks()
 
             for _ in range(max_workers):
-                self.queues.task.put(None)  # type: ignore # signal to stop worker
+                # signal to stop worker by sending None
+                self.queues.task.put(None)  # type: ignore
 
             for future in as_completed(futures):
                 future.result()
 
+    def await_tasks(self) -> None:
+        task_done_nr: int = 0
+        while task_done_nr < self.len_repos:
+            repo_name = self.queues.task_done.get()
+            task_done_nr += 1
+            if self.len_repos > 1:
+                logger.info(f"    {repo_name}: done {task_done_nr} of {self.len_repos}")
+        log_end_time(self.start_time)
+
+        if self.requires_server:
+            time.sleep(0.1)  # wait for the server to start
+            if shared.gui:
+                log(CLOSE_OUTPUT_VIEWERS_MSG)
+            else:
+                log(CLOSE_OUTPUT_VIEWERS_CLI_MSG)
+
+        repo_done_nr = 0
+        while repo_done_nr < self.len_repos:
+            repo_name = self.queues.repo_done.get()
+            repo_done_nr += 1
+            if self.requires_server:
+                logger.info(
+                    f"    {repo_name}: server shutdown"
+                    + (
+                        f" {repo_done_nr} of {self.len_repos}"
+                        if self.len_repos > 1
+                        else ""
+                    )
+                )
+
     def process_repos_singlecore(
         self,
         repo_lists: list[list[IniRepo]],
-        len_repos: int,
-        start_time: float,
     ) -> None:
         """Processes repositories on a single core.
 
@@ -166,7 +177,7 @@ class GIRunner(GiRunnerBase):
             start_time: Start time of the process.
             shared_data: Shared data dictionary for inter-process communication.
         """
-        i = 0
+        repo_runners: list[RepoRunner] = []
         while repo_lists:
             # output a batch of repos from the same folder in a single run
             repos = repo_lists.pop(0)
@@ -180,23 +191,14 @@ class GIRunner(GiRunnerBase):
                 repo_runner = RepoRunner(
                     ini_repo,
                     self.queues,
-                    len_repos,
-                    start_time,
                 )
-                i += 1
-                self.queues.task_done_nr.put(i)
-                self.queues.repo_done_nr.put(i)
+                repo_runners.append(repo_runner)
                 repo_runner.process_repo()
 
-        if self.requires_server:
-            self.queues.task_done_nr.join()
-            if shared.gui:
-                log(CLOSE_OUTPUT_VIEWERS_MSG)
-            else:
-                log(CLOSE_OUTPUT_VIEWERS_CLI_MSG)
-            self.queues.repo_done_nr.join()
-        else:
-            log_end_time(start_time)
+            self.await_tasks()
+
+        for repo_runner in repo_runners:
+            repo_runner.join_threads()
 
     @staticmethod
     def total_len(repo_lists: list[list[IniRepo]]) -> int:
@@ -209,14 +211,12 @@ def start_gi_runner(
     start_time: float,
     runner_queues: RunnerQueues,
 ) -> None:
-    GIRunner(args, runner_queues).run_repos(start_time)
+    GIRunner(args, start_time, runner_queues).run_repos()
 
 
 # Runs on a separate core, receives tasks one by one and executes each task by a
 # repo_runner instance.
-def multicore_worker(
-    runner_queues: RunnerQueues, len_repos: int, verbosity: int, start_time: float
-) -> None:
+def multicore_worker(runner_queues: RunnerQueues, verbosity: int) -> None:
     ini_repo: IniRepo
     repo_runners: list[RepoRunner] = []
 
@@ -230,8 +230,10 @@ def multicore_worker(
         ini_repo = runner_queues.task.get()
         if ini_repo is None:
             break
-        repo_runner = RepoRunner(ini_repo, runner_queues, len_repos, start_time)
+        repo_runner = RepoRunner(ini_repo, runner_queues)
         repo_runners.append(repo_runner)
         repo_runner.process_repo()
-
         runner_queues.task.task_done()
+
+    for repo_runner in repo_runners:
+        repo_runner.join_threads()

@@ -8,7 +8,7 @@ from gigui.keys import Keys
 from gigui.output.repo_excel import Book
 from gigui.output.repo_html_server import RepoHTMLServer
 from gigui.typedefs import FileStr
-from gigui.utils import get_outfile_name, log_end_time, open_file
+from gigui.utils import get_outfile_name, open_file
 
 # For multicore, logger is set in process_repo_multicore().
 logger = getLogger(__name__)
@@ -19,14 +19,10 @@ class RepoRunner(RepoHTMLServer, Book):
         self,
         ini_repo: IniRepo,
         queues: RunnerQueues,
-        len_repos: int,
-        start_time: float,
     ) -> None:
         super().__init__(
             ini_repo,
             queues,
-            len_repos,
-            start_time,
         )
         assert ini_repo.args is not None
         self.init_class_options(ini_repo.args)
@@ -38,19 +34,13 @@ class RepoRunner(RepoHTMLServer, Book):
         FileStat.show_renames = args.show_renames
 
     def process_repo(self) -> None:
-        task_done_nr: int
-
         log(" " * 4 + f"{self.name}" + (": start" if self.args.multicore else ""))
         stats_found = self.run_analysis()
         if not stats_found:
             if self.args.dry_run <= 1:
                 log(" " * 8 + "No statistics matching filters found")
-            task_done_nr = self.get_task_done_nr()
-            if self.len_repos > 1:
-                log(f"    {self.name}: done {task_done_nr} of {self.len_repos}")
-            self.get_repo_done_nr()
-            if self.len_repos in {1, task_done_nr}:
-                log_end_time(self.start_time)  # type: ignore
+            self.queues.task_done.put(self.name)
+            self.queues.repo_done.put(self.name)
         else:
             if self.args.dry_run == 0:
                 self.generate_output()
@@ -90,12 +80,7 @@ class RepoRunner(RepoHTMLServer, Book):
                 html_code = self.get_html()
                 with open(outfilestr + ".html", "w", encoding="utf-8") as f:
                     f.write(html_code)
-
-            task_done_nr = self.get_task_done_nr()
-            if self.len_repos > 1:
-                log(f"    {self.name}: done {task_done_nr} of {self.len_repos}")
-            if task_done_nr == self.len_repos:  # All repositories have been analyzed
-                log_end_time(self.start_time)  # type: ignore
+            self.queues.task_done.put(self.name)
 
         if self.args.view == AUTO and self.args.file_formats:
             if Keys.excel in self.args.file_formats:
@@ -105,6 +90,17 @@ class RepoRunner(RepoHTMLServer, Book):
                 or Keys.html_blame_history in self.args.file_formats
             ):
                 open_file(outfilestr + ".html")
+            self.queues.repo_done.put(self.name)
         elif not self.args.view == NONE:
             html_code = self.get_html()
             self.start_werkzeug_server_with_html(html_code)
+        else:
+            self.queues.repo_done.put(self.name)
+
+    def join_threads(self) -> None:
+        if self.browser_thread is not None:
+            self.browser_thread.join()
+        if self.server_thread is not None:
+            self.server_thread.join()
+        if self.monitor_thread is not None:
+            self.monitor_thread.join()
