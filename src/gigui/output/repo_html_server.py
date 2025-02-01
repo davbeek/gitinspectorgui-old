@@ -5,8 +5,9 @@ import time
 import webbrowser
 from logging import getLogger
 from threading import Thread
-from typing import Callable
+from typing import Iterable
 from uuid import uuid4
+from wsgiref.types import StartResponse, WSGIEnvironment
 
 from werkzeug.routing import Map, Rule
 from werkzeug.serving import BaseWSGIServer, make_server
@@ -18,8 +19,6 @@ from gigui.data import IniRepo, RunnerQueues
 from gigui.output.repo_html import RepoHTML
 from gigui.typedefs import SHA, FileStr, HtmlStr
 from gigui.utils import log_end_time
-
-PORT = 8080
 
 logger = getLogger(__name__)
 if DEBUG_WERKZEUG_SERVER:
@@ -34,9 +33,6 @@ url_map = Map(
         Rule("/", endpoint="serve_initial_html"),
     ]
 )
-
-
-shutdown_func: Callable
 
 
 class RepoHTMLServer(RepoHTML):
@@ -82,11 +78,10 @@ class RepoHTMLServer(RepoHTML):
             self.server = make_server(
                 "localhost",
                 self.port_value,
-                self.server_app_wrapper,
+                self.server_app,
                 threaded=False,
                 processes=0,
             )
-
             self.server_thread = Thread(
                 target=self.run_server,
                 name=f"Werkzeug server for {self.name}",
@@ -102,11 +97,12 @@ class RepoHTMLServer(RepoHTML):
             print(f"{self.name} port number {self.port_value} main body exception {e}")
             raise e
 
-    def server_app_wrapper(self, environ, start_response):
-        return self.server_app(environ, start_response)
-
     def run_server(self) -> None:
         try:
+            # Open browser in child thread, so that first the server is started, and
+            # only when the server does a wait, the browser is opened. Note that the
+            # browser thread starts with a small delay to ensure that the server is
+            # started.
             self.browser_thread = Thread(target=self.open_browser)
             self.browser_thread.start()
             logger.info(f"{self.name}: starting server on port {self.port_value}")
@@ -139,10 +135,8 @@ class RepoHTMLServer(RepoHTML):
         self.get_repo_done_nr()
 
     def server_app(
-        self,
-        environ,
-        start_response,
-    ):
+        self, environ: WSGIEnvironment, start_response: StartResponse
+    ) -> Iterable[bytes]:
         try:
             request = Request(environ)
             logger.info(f"{self.name}: browser request = {request.path} {request.args.get('id')}")  # type: ignore
@@ -177,7 +171,7 @@ class RepoHTMLServer(RepoHTML):
 
             else:
                 response = Response("Not found", status=404)
-            start_response(response.status, response.headers)
+            start_response(response.status, list(response.headers.items()))
             return [response.data]
         except Exception as e:
             print(f"{self.name} port number {self.port_value} server app exception {e}")

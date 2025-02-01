@@ -80,6 +80,7 @@ GIT_LOG_CHUNK_SIZE = 100  # no errors for 400 for website/main repo (394 files)
 BLAME_CHUNK_SIZE = (
     20  # 80 will lead to "too many open files" error for website/main repo
 )
+
 LIMIT_CORE_WORKERS = 16
 # 1 if os.cpu_count() is None, copied from ProcessPoolExecutor in concurrent.futures
 CPU_COUNT = os.cpu_count() or 1

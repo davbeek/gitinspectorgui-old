@@ -30,9 +30,6 @@ class RepoRunner(RepoHTMLServer, Book):
         )
         assert ini_repo.args is not None
         self.init_class_options(ini_repo.args)
-        self.requires_server: bool = (
-            not self.args.file_formats and not self.args.view == NONE
-        )
 
     def init_class_options(self, args: Args) -> None:
         Person.show_renames = args.show_renames
