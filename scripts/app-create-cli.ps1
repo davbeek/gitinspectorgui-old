@@ -12,11 +12,11 @@ conda activate gui
 Write-Host "Deleting old app directories"
 Remove-Item -Path "$ROOTDIR/app/*" -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item -Path "$ROOTDIR/build" -Recurse -Force -ErrorAction SilentlyContinue
-Write-Host "Creating GUI bundle with gitinspectorgui"
+Write-Host "Creating CLI bundle with gitinspectorgui"
 Write-Host ""
 
-pyinstaller --distpath="$ROOTDIR/app" "$ROOTDIR/app-gui-bundle.spec"
+pyinstaller --distpath="$ROOTDIR/app" "$ROOTDIR/app-cli-bundle.spec"
 if ($LASTEXITCODE -eq 0) {
     Write-Host ""
-    Write-Host "Done, created gitinspectorgui.exe bundle in directory $ROOTDIR/app:"
+    Write-Host "Done, created gitinspectorgui CLI bundle in directory $ROOTDIR/app:"
 }
