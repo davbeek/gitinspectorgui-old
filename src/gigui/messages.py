@@ -23,8 +23,8 @@ CLOSE_OUTPUT_VIEWERS_MSG = (
 )
 
 CONTROL_C = (
-    "If that does not work, use Ctrl+C"
-    + (" (or Ctrl+Pause or Ctrl+Break) " if platform.system() == "Windows" else "")
+    "If necessary, use Ctrl+C"
+    + (" (or Ctrl+Pause or Ctrl+Break)" if platform.system() == "Windows" else "")
     + " on the command line."
 )
 

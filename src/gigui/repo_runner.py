@@ -98,9 +98,6 @@ class RepoRunner(RepoHTMLServer, Book):
             self.queues.repo_done.put(self.name)
 
     def join_threads(self) -> None:
-        if self.browser_thread is not None:
-            self.browser_thread.join()
-        if self.server_thread is not None:
-            self.server_thread.join()
+        # server thread is joined in monitor_events()
         if self.monitor_thread is not None:
             self.monitor_thread.join()

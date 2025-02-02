@@ -1,3 +1,4 @@
+import os
 import threading
 import time
 from concurrent.futures import Future, ProcessPoolExecutor, as_completed
@@ -224,16 +225,19 @@ def multicore_worker(runner_queues: RunnerQueues, verbosity: int) -> None:
     _logging.set_logging_level_from_verbosity(verbosity)
     logger = getLogger(__name__)
 
-    # Take into account the SyncManager be shut down in the main process.
-    # which will cause logging to fail.
-    while True:
-        ini_repo = runner_queues.task.get()
-        if ini_repo is None:
-            break
-        repo_runner = RepoRunner(ini_repo, runner_queues)
-        repo_runners.append(repo_runner)
-        repo_runner.process_repo()
-        runner_queues.task.task_done()
+    # Take into account that the SyncManager can be shut down in the main process,
+    # which will cause subsequent logging to fail.
+    try:
+        while True:
+            ini_repo = runner_queues.task.get()
+            if ini_repo is None:
+                break
+            repo_runner = RepoRunner(ini_repo, runner_queues)
+            repo_runners.append(repo_runner)
+            repo_runner.process_repo()
+            runner_queues.task.task_done()
 
-    for repo_runner in repo_runners:
-        repo_runner.join_threads()
+        for repo_runner in repo_runners:
+            repo_runner.join_threads()
+    except KeyboardInterrupt:
+        os._exit(0)

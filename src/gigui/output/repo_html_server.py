@@ -42,13 +42,10 @@ class RepoHTMLServer(RepoHTML):
         super().__init__(ini_repo)
 
         self.queues: RunnerQueues = queues
-
         self.repo_done_nr: int = 0
-
-        self.server_shutting_down_event: threading.Event = threading.Event()
+        self.server_shutdown_request_event: threading.Event = threading.Event()
 
         self.server_thread: Thread | None = None
-        self.browser_thread: Thread | None = None
         self.monitor_thread: Thread | None = None
 
         self.server: BaseWSGIServer
@@ -66,8 +63,6 @@ class RepoHTMLServer(RepoHTML):
         )
         try:
             self.port_value = self.queues.host_port.get()
-            self.queues.host_port.put(self.port_value + 1)
-
             self.server = make_server(
                 "localhost",
                 self.port_value,
@@ -76,10 +71,16 @@ class RepoHTMLServer(RepoHTML):
                 processes=0,
             )
             self.server_thread = Thread(
-                target=self.run_server,
+                target=self.server.serve_forever,
                 name=f"Werkzeug server for {self.name}",
             )
             self.server_thread.start()
+            browser = webbrowser.get()
+            browser.open_new_tab(
+                f"http://localhost:{self.port_value}?v={self.browser_id}"
+            )
+            time.sleep(0.1)  # Wait before allowing next server to start
+            self.queues.host_port.put(self.port_value + 1)  # Allow next server to start
 
             self.monitor_thread = Thread(
                 target=self.monitor_events,
@@ -90,39 +91,12 @@ class RepoHTMLServer(RepoHTML):
             print(f"{self.name} port number {self.port_value} main body exception {e}")
             raise e
 
-    def run_server(self) -> None:
-        try:
-            # Open browser in child thread, so that first the server is started, and
-            # only when the server does a wait, the browser is opened. Note that the
-            # browser thread starts with a small delay to ensure that the server is
-            # started.
-            self.browser_thread = Thread(target=self.open_browser)
-            self.browser_thread.start()
-            logger.info(f"{self.name}: starting server on port {self.port_value}")
-            self.server.serve_forever()
-        except Exception as e:
-            print(f"{self.name} port number {self.port_value} server exception {e}")
-            raise e
-
-    def open_browser(self) -> None:
-        # Open the web browser to serve the initial contents
-        try:
-            time.sleep(0.1)  # Wait for the server to start
-            browser = webbrowser.get()
-            browser.open_new_tab(
-                f"http://localhost:{self.port_value}?v={self.browser_id}"
-            )
-        except Exception as e:
-            print(f"{self.name} port number {self.port_value} browser exception {e}")
-            raise e
-
     def monitor_events(self) -> None:
         assert self.server_thread is not None
-        assert self.browser_thread is not None
         self.queues.task_done.put(self.name)
-        self.server_shutting_down_event.wait()
+        self.server_shutdown_request_event.wait()
+        self.server.shutdown()
         self.server_thread.join()
-        self.browser_thread.join()
         self.queues.repo_done.put(self.name)
 
     def server_app(
@@ -138,11 +112,7 @@ class RepoHTMLServer(RepoHTML):
             elif request.path.startswith("/shutdown"):
                 shutdown_id = request.args.get("id")
                 if shutdown_id == self.browser_id:
-                    Thread(
-                        target=self.server.shutdown,
-                        name=f"Shutdown thread for {self.name}",
-                    ).start()  # calling shutdown_directly leads to deadlock
-                    self.server_shutting_down_event.set()  # Set shutting_down_event
+                    self.server_shutdown_request_event.set()
                     response = Response(content_type="text/plain")
                 else:
                     logger.info(f"Invalid shutdown: {shutdown_id=}  {self.browser_id=}")
