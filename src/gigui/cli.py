@@ -17,7 +17,7 @@ from gigui.gui.psg import PSG
 from gigui.tiphelp import Help
 from gigui.typedefs import FileStr
 from gigui.utils import get_dir_matches
-from gigui.gui.dpg import runDPGui
+from gigui.gui.dpg import DPGui
 
 # Limit the width of the help text to 80 characters.
 os.environ["COLUMNS"] = "90"
@@ -146,7 +146,7 @@ def main() -> None:
     if namespace.gui:
         PSG(Settings.from_args(args, gui_settings_full_path))
     elif namespace.dpggui:
-        runDPGui()
+        DPGui(Settings.from_args(args, gui_settings_full_path))
     elif namespace.run:
         if args.multicore:
             manager = multiprocessing.Manager()
