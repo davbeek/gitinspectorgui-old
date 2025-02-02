@@ -186,8 +186,9 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
     subgroup_general_options.add_argument(
         "-v",
         "--verbosity",
-        action="count",
-        help=hlp.cli_verbosity,
+        type=int,
+        choices=[0, 1, 2],
+        help=hlp.verbosity,
     )
     subgroup_general_options.add_argument(
         "--dry-run",

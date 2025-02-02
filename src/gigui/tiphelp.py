@@ -220,7 +220,6 @@ separated by a space. Quotes may be used to keep spaces in names and * may be us
 specify any string."""
 
     # Logging
-    cli_verbosity: str = "More verbose output for each v, e.g. -vv."
     profile: str = "Add profiling output to the console."
 
     exclude: str = "\n".join(
