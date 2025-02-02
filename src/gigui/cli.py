@@ -48,15 +48,20 @@ def main() -> None:
 
     settings = load_settings(namespace.save, namespace.save_as)
 
-    if namespace.input_fstrs:
-        input_fstrs = [
-            Path(fstr).resolve().as_posix() for fstr in namespace.input_fstrs
-        ]
+    # input_fstrs (option -i) and run (option -r) can only be used together if run has
+    # no arguments.
+    if namespace.input_fstrs or namespace.run:
+        input_fstrs: list[FileStr] = (
+            namespace.input_fstrs if namespace.input_fstrs else namespace.run
+        )
+        input_fstrs = [Path(fstr).resolve().as_posix() for fstr in input_fstrs]
         matches: list[FileStr] = get_dir_matches(input_fstrs)
         if not matches:
             return
-        else:
+        elif namespace.input_fstrs:
             namespace.input_fstrs = input_fstrs
+        else:  # namespace.run
+            namespace.run = input_fstrs
 
     if namespace.reset_file:
         settings = SettingsFile.reset()

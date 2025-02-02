@@ -362,6 +362,7 @@ if __name__ == "__main__":
     error: str
     try:
         settings, error = SettingsFile.load()
+        # Required for pyinstaller to support the use of multiprocessing in gigui
         multiprocessing.freeze_support()
         _logging.ini_for_gui_base()
         PSGUI(settings)
