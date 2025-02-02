@@ -72,6 +72,7 @@ class RepoHTMLServer(RepoHTML):
             )
             self.server_thread = Thread(
                 target=self.server.serve_forever,
+                args=(0.1,),  # 0.1 is the poll interval
                 name=f"Werkzeug server for {self.name}",
             )
             self.server_thread.start()
