@@ -1,7 +1,6 @@
 import multiprocessing
 import os
 import sys
-import threading
 import time
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from logging import getLogger
@@ -12,12 +11,17 @@ from gigui import _logging, gi_runner
 from gigui._logging import log, set_logging_level_from_verbosity
 from gigui.args_settings import Args, CLIArgs, Settings, SettingsFile
 from gigui.cli_arguments import define_arguments
-from gigui.constants import AVAILABLE_FORMATS, DEFAULT_EXTENSIONS
-from gigui.gui.psg import PSG
+from gigui.constants import DEFAULT_EXTENSIONS, NONE
+from gigui.data import RunnerQueues, get_runner_queues
+from gigui.gui.psg import PSGUI
 from gigui.tiphelp import Help
 from gigui.typedefs import FileStr
+<<<<<<< HEAD
 from gigui.utils import get_dir_matches
 from gigui.gui.dpg import DPGui
+=======
+from gigui.utils import get_dir_matches, strip_quotes
+>>>>>>> 550ed2b5584be60d5e6ca49b0646b42079ee006d
 
 # Limit the width of the help text to 80 characters.
 os.environ["COLUMNS"] = "90"
@@ -26,10 +30,10 @@ logger = getLogger(__name__)
 
 
 def main() -> None:
-    settings: Settings = Settings()
+    settings: Settings
     start_time: float = time.time()
     manager: SyncManager | None = None
-    stop_all_event: threading.Event = threading.Event()
+    queues: RunnerQueues
 
     parser = ArgumentParser(
         prog="gitinspectorgui",
@@ -47,15 +51,22 @@ def main() -> None:
 
     _logging.ini_for_cli(namespace.verbosity)
 
-    if namespace.input_fstrs:
-        input_fstrs = [
-            Path(fstr).resolve().as_posix() for fstr in namespace.input_fstrs
-        ]
+    settings = load_settings(namespace.save, namespace.save_as)
+
+    # input_fstrs (option -i) and run (option -r) can only be used together if run has
+    # no arguments.
+    if namespace.input_fstrs or namespace.run:
+        input_fstrs: list[FileStr] = (
+            namespace.input_fstrs if namespace.input_fstrs else namespace.run
+        )
+        input_fstrs = [Path(fstr).resolve().as_posix() for fstr in input_fstrs]
         matches: list[FileStr] = get_dir_matches(input_fstrs)
         if not matches:
             return
-        else:
+        elif namespace.input_fstrs:
             namespace.input_fstrs = input_fstrs
+        else:  # namespace.run
+            namespace.run = input_fstrs
 
     if namespace.reset_file:
         settings = SettingsFile.reset()
@@ -99,15 +110,7 @@ def main() -> None:
     cli_args.update_with_namespace(namespace)
 
     if cli_args.profile:
-        cli_args.view = False
-
-    # Validate formats
-    for fmt in cli_args.formats:
-        if fmt not in AVAILABLE_FORMATS:
-            # Print error message and exit
-            parser.error(
-                f"Invalid format: {fmt}. Available formats: {', '.join(AVAILABLE_FORMATS)}"
-            )
+        cli_args.view = NONE
 
     if not cli_args.extensions:
         cli_args.extensions = DEFAULT_EXTENSIONS
@@ -115,7 +118,12 @@ def main() -> None:
     logger.debug(f"{cli_args = }")  # type: ignore
 
     args: Args = cli_args.create_args()
-    args.input_fstrs = [Path(p).resolve().as_posix() for p in args.input_fstrs]
+
+    input_fstrs_posix: list[FileStr] = [
+        Path(strip_quotes(fstr)).resolve().as_posix()  # strip enclosing '' and ""
+        for fstr in args.input_fstrs
+    ]
+    args.input_fstrs = input_fstrs_posix
 
     if namespace.save:
         settings = cli_args.create_settings()
@@ -143,15 +151,25 @@ def main() -> None:
         SettingsFile.show()
         log("")
 
-    if namespace.gui:
-        PSG(Settings.from_args(args, gui_settings_full_path))
-    elif namespace.dpggui:
-        DPGui(Settings.from_args(args, gui_settings_full_path))
-    elif namespace.run:
-        if args.multicore:
-            manager = multiprocessing.Manager()
-            stop_all_event = manager.Event()
-        gi_runner.run_repos(args, start_time, manager, stop_all_event)
+    if cli_args.gui or cli_args.run or cli_args.dpggui:
+        settings = Settings.from_args(args, gui_settings_full_path)
+        if cli_args.gui:
+            PSGUI(settings)
+        elif cli_args.dpggui:
+            DPGui(Settings.from_args(args, gui_settings_full_path))
+        elif namespace.run:
+            queues, manager = get_runner_queues(args.multicore)
+            gi_runner.start_gi_runner(
+                args,
+                start_time,
+                queues,
+            )
+            # Cleanup resources
+            if queues.host_port:
+                # Need to remove the last port value to avoid a deadlock
+                queues.host_port.get()
+            if manager:
+                manager.shutdown()
     elif not namespace.save and not namespace.save_as and not namespace.show:
         log(
             "This command has no effect. Use --run/-r or --gui/-g to run the program, or "

@@ -445,6 +445,7 @@ disable=raw-checker-failed,
         no-else-return, # R1705
         too-few-public-methods, #
         undefined-variable, # E0602
+        logging-not-lazy, # W1201
 
 # Enable the message, report, category or checker with the given id(s). You can
 # either give multiple identifier separated by comma (,) or put this option

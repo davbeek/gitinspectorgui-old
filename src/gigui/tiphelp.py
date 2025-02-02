@@ -1,7 +1,7 @@
 import textwrap
 from dataclasses import dataclass, fields
 
-from gigui.constants import AVAILABLE_FORMATS, DEFAULT_EXTENSIONS, DEFAULT_N_FILES
+from gigui.constants import DEFAULT_EXTENSIONS, DEFAULT_N_FILES, FILE_FORMATS
 from gigui.utils import get_version
 
 
@@ -11,7 +11,7 @@ from gigui.utils import get_version
 @dataclass
 class Tip:
     # IO configuration
-    input_fstrs: str = "Absolute path(s) to repository, folders or URLs to be analyzed"
+    input_fstrs: str = "Absolute path(s) to repository or folders to be analyzed"
     outfile_base: str = (
         "Name of output file without extension, prefix or postfix (default gitinspect)"
     )
@@ -32,11 +32,19 @@ class Tip:
         "searched for repositories"
     )
 
-    # Output generation and formatting
-    outputs: str = "Select output viewing and output formats to be generated"
-    view: str = "View the generated output"
-    html: str = "Generate html output"
-    excel: str = "Generate excel output"
+    # View options
+    auto: str = (
+        "View file output in the associated application or generate output in a browser"
+    )
+    dynamic_blame_history: str = (
+        "View output with dynamic blame history tables in a browser and disable file "
+        "output"
+    )
+
+    # File formats
+    html: str = "html file output"
+    html_blame_history: str = "html file output with blame history tables"
+    excel: str = "excel file output"
 
     # Statistics subgroup
     deletions: str = "Include deletions in addition to lines and insertions output"
@@ -49,12 +57,6 @@ class Tip:
     )
 
     # Blame subgroup
-    blame_history: str = (
-        "Generate blame tables, "
-        "static: all tables in html, "
-        "dynamic: generate on demand, "
-        "none: single table per file (default)"
-    )
     blame_exclusions: str = (
         "Deal with: comments, empty and author lines that are excluded in html output, "
         "show: add and start by showing, "
@@ -193,10 +195,19 @@ class Help(Tip):
         Specify whether or not to add the name of the repository as
         prefix or postfix to the output file name."""
 
+    # View options
+    view_options: str = (
+        "- auto: view file output in the associated application or generate output in a "
+        "browser."
+        "- dynamic-blame-history: view output with dynamic blame history tables in a "
+        "browser and disable file output."
+        "- none: no output viewing."
+    )
+
     # IO arguments
-    formats: str = (
-        "Space-separated list of output formats. Select from "
-        f"{', '.join(AVAILABLE_FORMATS)} (default html)."
+    file_formats: str = (
+        "Space-separated list of file formats. Select from "
+        f"{', '.join(FILE_FORMATS)} (default no file output)."
     )
     # General configuration
     multicore: str = "Execute multiple repositories using multiple cores."
@@ -209,7 +220,6 @@ separated by a space. Quotes may be used to keep spaces in names and * may be us
 specify any string."""
 
     # Logging
-    cli_verbosity: str = "More verbose output for each v, e.g. -vv."
     profile: str = "Add profiling output to the console."
 
     exclude: str = "\n".join(

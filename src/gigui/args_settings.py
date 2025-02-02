@@ -1,5 +1,4 @@
 import json
-import shlex
 from argparse import Namespace
 from dataclasses import asdict, dataclass, field, fields
 from logging import getLogger
@@ -13,22 +12,23 @@ from git import PathLike
 from gigui import shared
 from gigui._logging import log, set_logging_level_from_verbosity
 from gigui.constants import (
-    AVAILABLE_FORMATS,
+    AUTO,
     BLAME_EXCLUSION_CHOICES,
     BLAME_EXCLUSIONS_DEFAULT,
-    BLAME_HISTORY_CHOICES,
-    BLAME_HISTORY_DEFAULT,
     DEFAULT_COPY_MOVE,
     DEFAULT_FILE_BASE,
     DEFAULT_N_FILES,
+    FILE_FORMATS,
     FIX_TYPE,
     INIT_COL_PERCENT,
+    NONE,
     PREFIX,
     SUBDIR_NESTING_DEPTH,
+    VIEW_OPTIONS,
 )
 from gigui.keys import Keys, KeysArgs
 from gigui.typedefs import FileStr
-from gigui.utils import to_posix_fstr, to_posix_fstrs, to_system_fstr, to_system_fstrs
+from gigui.utils import to_posix_fstr, to_system_fstr, to_system_fstrs
 
 logger = getLogger(__name__)
 
@@ -41,12 +41,11 @@ class Args:
     outfile_base: str = DEFAULT_FILE_BASE
     fix: str = PREFIX
     depth: int = SUBDIR_NESTING_DEPTH
-    view: bool = True
-    formats: list[str] = field(default_factory=lambda: [])
+    view: str = AUTO
+    file_formats: list[str] = field(default_factory=lambda: [])
     scaled_percentages: bool = False
     blame_exclusions: str = BLAME_EXCLUSIONS_DEFAULT
     blame_skip: bool = False
-    blame_history: str = BLAME_HISTORY_DEFAULT
     subfolder: str = ""
     n_files: int = DEFAULT_N_FILES
     include_files: list[str] = field(default_factory=list)
@@ -77,12 +76,26 @@ class Args:
             f"KeysArgs - Args: {fld_names_keys - fld_names_args}"
         )
 
+    # When settings are read from a settings file, cleanup the input fields.
+    def normalize(self) -> None:
+        settings_schema: dict[str, Any] = SettingsFile.SETTINGS_SCHEMA["properties"]
+        for key, value in settings_schema.items():
+            if value["type"] == "array":
+                input_list: list[str] = getattr(self, key)
+                clean_list: list[str] = [
+                    item.strip()
+                    for item in input_list  # pylint: disable=not-an-iterable
+                    if item.strip()
+                ]
 
-@dataclass
-class MiniRepo:
-    name: str
-    location: Path
-    args: Args
+                if key in {
+                    Keys.input_fstrs,
+                    Keys.ex_files,
+                    Keys.include_files,
+                    Keys.subfolder,
+                }:
+                    clean_list = [to_posix_fstr(fstr) for fstr in clean_list]
+                setattr(self, key, clean_list)  # type: ignore
 
 
 @dataclass
@@ -99,14 +112,15 @@ class Settings(Args):
             raise ValueError("n_files must be a non-negative integer")
         if not self.depth >= 0:
             raise ValueError("depth must be a non-negative integer")
-        self.as_posix()
+        self.normalize()
 
     @classmethod
     def from_args(cls, args: Args, gui_settings_full_path: bool) -> "Settings":
         # Create a Settings object using the instance variables from Args and the given
         # gui_settings_full_path
         settings = cls(gui_settings_full_path=gui_settings_full_path, **args.__dict__)
-        return settings.as_posix()
+        settings.normalize()
+        return settings
 
     def create_settings_file(self, settings_path: Path):
         settings_dict = asdict(self)
@@ -151,13 +165,6 @@ class Settings(Args):
             key = key.replace("_", "-")
             log(f"{key:22}: {value}")
 
-    def as_posix(self) -> "Settings":
-        self.input_fstrs = to_posix_fstrs(self.input_fstrs)
-        self.ex_files = to_posix_fstrs(self.ex_files)
-        self.include_files = to_posix_fstrs(self.include_files)
-        self.subfolder = to_posix_fstr(self.subfolder)
-        return self
-
     def as_system(self) -> "Settings":
         self.input_fstrs = to_system_fstrs(self.input_fstrs)
         self.ex_files = to_system_fstrs(self.ex_files)
@@ -183,9 +190,11 @@ class Settings(Args):
             0 if not values[Keys.n_files] else int(values[Keys.n_files])
         )
         for key, value in settings_schema.items():
+            # No normalization here, that is done at the end of this method.
             if key in values:
                 if value["type"] == "array":
-                    setattr(settings, key, shlex.split(values[key]))  # type: ignore
+                    input_list = values[key].split(",")  # type: ignore
+                    setattr(settings, key, input_list)  # type: ignore
                 else:
                     setattr(settings, key, values[key])
 
@@ -196,13 +205,22 @@ class Settings(Args):
         elif values[Keys.nofix]:
             settings.fix = Keys.nofix
 
-        formats = []
-        for fmt in AVAILABLE_FORMATS:
+        if values[Keys.auto]:
+            settings.view = Keys.auto
+        elif values[Keys.dynamic_blame_history]:
+            settings.view = Keys.dynamic_blame_history
+        else:
+            settings.view = NONE
+
+        file_formats = []
+        for fmt in FILE_FORMATS:
             if values[fmt]:
-                formats.append(fmt)
-        settings.formats = formats
+                file_formats.append(fmt)
+        settings.file_formats = file_formats
         for key, value in asdict(settings).items():
             setattr(self, key, value)
+
+        settings.normalize()
 
     @classmethod
     def create_from_settings_dict(
@@ -298,10 +316,10 @@ class SettingsFile:
             "col_percent": {"type": "integer"},  # Not used in CLI
             "profile": {"type": "integer"},  # Not used in GUI
             "input_fstrs": {"type": "array", "items": {"type": "string"}},
-            "view": {"type": "boolean"},
-            "formats": {
+            "view": {"type": "string", "enum": VIEW_OPTIONS},
+            "file_formats": {
                 "type": "array",
-                "items": {"type": "string", "enum": AVAILABLE_FORMATS},
+                "items": {"type": "string", "enum": FILE_FORMATS},
             },
             "extensions": {"type": "array", "items": {"type": "string"}},
             "fix": {"type": "string", "enum": FIX_TYPE},
@@ -312,7 +330,6 @@ class SettingsFile:
             "include_files": {"type": "array", "items": {"type": "string"}},
             "blame_exclusions": {"type": "string", "enum": BLAME_EXCLUSION_CHOICES},
             "blame_skip": {"type": "boolean"},
-            "blame_history": {"type": "string", "enum": BLAME_HISTORY_CHOICES},
             "show_renames": {"type": "boolean"},
             "gui_settings_full_path": {"type": "boolean"},
             "subfolder": {"type": "string"},
@@ -334,7 +351,7 @@ class SettingsFile:
             "ex_revisions": {"type": "array", "items": {"type": "string"}},
         },
         "additionalProperties": False,
-        "minProperties": 32,
+        "minProperties": 33,
     }
 
     # Create file that contains the location of the settings file and return this
@@ -401,7 +418,8 @@ class SettingsFile:
                 settings_dict = json.loads(s)
                 jsonschema.validate(settings_dict, cls.SETTINGS_SCHEMA)
                 settings = Settings(**settings_dict)
-                return settings.as_posix(), ""
+                settings.normalize()
+                return settings, ""
         except (
             ValueError,
             FileNotFoundError,

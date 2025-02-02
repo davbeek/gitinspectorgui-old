@@ -2,7 +2,7 @@
 # config file.
 
 [flake8]
-exclude = xx.py
+exclude = xx.py, *.spec
 max-line-length = 1000
 
 extend-ignore =

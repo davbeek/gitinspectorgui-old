@@ -1,9 +1,6 @@
-import shlex
-import threading
 import webbrowser
 from copy import copy
 from dataclasses import asdict
-from multiprocessing.managers import SyncManager
 from pathlib import Path
 
 import PySimpleGUI as sg  # type: ignore
@@ -12,11 +9,12 @@ from git import Repo as GitRepo
 
 from gigui.args_settings import Settings, SettingsFile
 from gigui.constants import (
-    AVAILABLE_FORMATS,
     DEFAULT_FILE_BASE,
     DISABLED_COLOR,
     ENABLED_COLOR,
+    FILE_FORMATS,
     INVALID_INPUT_COLOR,
+    NONE,
     PARENT_HINT,
     REPO_HINT,
     VALID_INPUT_COLOR,
@@ -47,10 +45,6 @@ class PSGBase:
         self.outfile_base: FileStr = DEFAULT_FILE_BASE
         self.subfolder: FileStr = ""
         self.subfolder_valid: bool = True
-        self.buttons: list[str] = []
-        self.manager: SyncManager | None = None
-        self.stop_all_event: threading.Event = threading.Event()
-
         self.buttons: list[str] = [
             keys.run,
             keys.clear,
@@ -60,6 +54,7 @@ class PSGBase:
             keys.reset,
             keys.help,
             keys.about,
+            keys.exit,
             keys.browse_input_fstr,
         ]
 
@@ -75,7 +70,8 @@ class PSGBase:
             if key
             not in {
                 keys.fix,
-                keys.formats,
+                keys.view,
+                keys.file_formats,
                 keys.gui_settings_full_path,
                 keys.profile,
                 keys.multithread,
@@ -83,24 +79,30 @@ class PSGBase:
         }
         for key, val in settings_min.items():
             if isinstance(val, list):
-                value_list = " ".join(val)
-                self.window.Element(key).Update(value=value_list)  # type: ignore
+                value_strings = ", ".join(val)
+                self.window.Element(key).Update(value=value_strings)  # type: ignore
             else:
                 self.window.Element(key).Update(value=val)  # type: ignore
 
-        # default values of boolean window.Element are False
+        # Default values of boolean window.Element are False
+        # Enable the fix radio button that corresponds to the settings.fix value
         self.window.Element(settings.fix).Update(value=True)  # type: ignore
 
-        if settings.formats:
-            for key in set(AVAILABLE_FORMATS):
+        # Default values of boolean window.Element are False
+        # Enable the view radio button that corresponds to the settings.view value
+        if settings.view != NONE:
+            self.window.Element(settings.view).Update(value=True)  # type:ignore
+
+        if settings.file_formats:
+            for key in set(FILE_FORMATS):
                 self.window.Element(key).Update(  # type:ignore
-                    value=key in settings.formats
+                    value=key in settings.file_formats
                 )
 
-        self.window.write_event_value(keys.input_fstrs, " ".join(settings.input_fstrs))
+        self.window.write_event_value(keys.input_fstrs, ", ".join(settings.input_fstrs))
         self.window.write_event_value(keys.outfile_base, settings.outfile_base)
         self.window.write_event_value(
-            keys.include_files, " ".join(settings.include_files)
+            keys.include_files, ", ".join(settings.include_files)
         )
         self.window.write_event_value(keys.subfolder, settings.subfolder)
         self.window.write_event_value(keys.verbosity, settings.verbosity)
@@ -111,7 +113,6 @@ class PSGBase:
             keys.col_percent, min(settings.col_percent + 5, 100)
         )
         self.window.write_event_value(keys.col_percent, settings.col_percent)
-        self.window.write_event_value(keys.blame_history, settings.blame_history)
         if settings.gui_settings_full_path:
             settings_fstr = str(SettingsFile.get_location_path())
         else:
@@ -157,7 +158,7 @@ class PSGBase:
 
     def process_input_fstrs(self, input_fstr_patterns: str) -> None:
         try:
-            input_fstrs: list[FileStr] = shlex.split(input_fstr_patterns)  # type: ignore
+            input_fstrs: list[FileStr] = input_fstr_patterns.split(",")
         except ValueError:
             self.window[keys.input_fstrs].update(background_color=INVALID_INPUT_COLOR)  # type: ignore
             return
@@ -258,18 +259,31 @@ class PSGBase:
         filtered_str = "".join(filter(str.isdigit, n_files_str)).lstrip("0")
         input_field.update(filtered_str)
 
+    def process_view_format_radio_buttons(self, html_key: str) -> None:
+        match html_key:
+            case keys.auto:
+                self.window[keys.dynamic_blame_history].update(value=False)  # type: ignore
+            case keys.dynamic_blame_history:
+                self.window[keys.auto].update(value=False)  # type: ignore
+                self.window[keys.html].update(value=False)  # type: ignore
+                self.window[keys.html_blame_history].update(value=False)  # type: ignore
+                self.window[keys.excel].update(value=False)  # type: ignore
+            case keys.html:
+                self.window[keys.html_blame_history].update(value=False)  # type: ignore
+                self.window[keys.dynamic_blame_history].update(value=False)  # type: ignore
+            case keys.html_blame_history:
+                self.window[keys.html].update(value=False)  # type: ignore
+                self.window[keys.dynamic_blame_history].update(value=False)  # type: ignore
+            case keys.excel:
+                self.window[keys.dynamic_blame_history].update(value=False)  # type: ignore
+
     def disable_buttons(self) -> None:
         for button in self.buttons:
             self.update_button_state(button, disabled=True)
-            self.update_button_state(keys.stop, disabled=True)
 
-    def configure_for_idle(self) -> None:
+    def enable_buttons(self) -> None:
         for button in self.buttons:
             self.update_button_state(button, disabled=False)
-        self.update_button_state(keys.stop, disabled=True)
-
-    def enable_stop_button(self) -> None:
-        self.update_button_state(keys.stop, disabled=False)
 
     def update_button_state(self, button: str, disabled: bool) -> None:
         if disabled:

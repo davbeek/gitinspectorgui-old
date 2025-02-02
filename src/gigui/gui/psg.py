@@ -1,34 +1,32 @@
 # noinspection PyPep8Naming
 
 import multiprocessing
-import shlex  # Use shlex.split to handle quoted strings
+import os
 import sys
 import time
 from datetime import datetime
 from logging import getLogger
+from multiprocessing.managers import SyncManager
 from pathlib import Path
 from typing import Any
 
-import PySimpleGUI as sg  # type: ignore; type: ignore[import-untyped]
+import PySimpleGUI as sg  # type: ignore
 
 from gigui import _logging, shared
-from gigui._logging import set_logging_level_from_verbosity
+from gigui._logging import add_cli_handler, set_logging_level_from_verbosity
 from gigui.args_settings import Args, Settings, SettingsFile
 from gigui.constants import (
-    AVAILABLE_FORMATS,
+    AUTO,
     DEBUG_SHOW_MAIN_EVENT_LOOP,
+    DYNAMIC_BLAME_HISTORY,
+    FILE_FORMATS,
     MAX_COL_HEIGHT,
+    NONE,
     WINDOW_HEIGHT_CORR,
 )
-from gigui.gi_runner import run_repos
-from gigui.gui.psg_support import (
-    PSGBase,
-    disable_element,
-    enable_element,
-    help_window,
-    log,
-    popup,
-)
+from gigui.data import RunnerQueues, get_runner_queues
+from gigui.gi_runner import start_gi_runner
+from gigui.gui.psg_base import PSGBase, help_window, log, popup
 from gigui.gui.psg_window import make_window
 from gigui.keys import Keys
 from gigui.tiphelp import Help, Tip
@@ -40,9 +38,11 @@ tip = Tip()
 keys = Keys()
 
 
-class PSG(PSGBase):
-    def __init__(self, settings: Settings):
+class PSGUI(PSGBase):
+    def __init__(self, settings: Settings) -> None:
         super().__init__(settings)
+        self.queues: RunnerQueues
+        self.manager: SyncManager | None = None
 
         self.recreate_window: bool = True
 
@@ -62,10 +62,11 @@ class PSG(PSGBase):
         if sys.platform == "darwin":
             sg.set_options(font=("Any", 12))
 
+        add_cli_handler()
         self.window = make_window()
         shared.gui_window = self.window
 
-        self.configure_for_idle()
+        self.enable_buttons()
 
         self.window_state_from_settings()  # type: ignore
         last_window_height: int = self.window.Size[1]  # type: ignore
@@ -110,23 +111,27 @@ class PSG(PSGBase):
 
                 # Top level buttons
                 ###########################
-
                 case keys.col_percent:
                     self._update_col_percent(last_window_height, values[event])  # type: ignore
 
                 case keys.run:
                     # Update processing of input patterns because dir state may have changed
                     self.process_inputs()  # type: ignore
-                    if self.settings.multicore:
-                        self.manager = multiprocessing.Manager()
-                        self.stop_all_event = self.manager.Event()
+                    self.queues, self.manager = get_runner_queues(
+                        self.settings.multicore
+                    )
                     self.run(values)
 
-                case keys.enable_stop_button:
-                    self.enable_stop_button()
-
-                case keys.stop:
-                    self.stop_all_event.set()
+                # Run command has finished via self.window.perform_long_operation in
+                # run_gitinspector().
+                case keys.end:
+                    self.enable_buttons()
+                    # Cleanup resources
+                    if self.queues.host_port:
+                        # Need to remove the last port value to avoid a deadlock
+                        self.queues.host_port.get()
+                    if self.manager:
+                        self.manager.shutdown()
 
                 case keys.clear:
                     self.window[keys.multiline].update(value="")  # type: ignore
@@ -141,14 +146,8 @@ class PSG(PSGBase):
                 case sg.WIN_CLOSED | keys.exit:
                     break
 
-                # Run command has finished via self.window.perform_long_operation in
-                # run_gitinspector().
-                case keys.end:
-                    self.configure_for_idle()
-
                 # IO configuration
                 ##################################
-
                 case keys.input_fstrs:
                     self.process_input_fstrs(values[event])
 
@@ -168,36 +167,26 @@ class PSG(PSGBase):
 
                 # Output generation and formatting
                 ##################################
+                case keys.auto:
+                    self.process_view_format_radio_buttons(event)
 
-                case keys.blame_history:
-                    value = values[event]
-                    match value:
-                        case "none":
-                            enable_element(self.window[keys.view])  # type: ignore
-                            enable_element(self.window[keys.html])  # type: ignore
-                            enable_element(self.window[keys.excel])  # type: ignore
+                case keys.dynamic_blame_history:
+                    self.process_view_format_radio_buttons(event)
 
-                        case "dynamic":
-                            self.window[keys.view].update(value=True)  # type: ignore
-                            self.window[keys.html].update(value=False)  # type: ignore
-                            self.window[keys.excel].update(value=False)  # type: ignore
-                            disable_element(self.window[keys.view])  # type: ignore
-                            disable_element(self.window[keys.html])  # type: ignore
-                            disable_element(self.window[keys.excel])  # type: ignore
+                case keys.html:
+                    self.process_view_format_radio_buttons(event)
 
-                        case "static":
-                            self.window[keys.html].update(value=True)  # type: ignore
-                            self.window[keys.excel].update(value=False)  # type: ignore
-                            enable_element(self.window[keys.view])  # type: ignore
-                            disable_element(self.window[keys.html])  # type: ignore
-                            disable_element(self.window[keys.excel])  # type: ignore
+                case keys.html_blame_history:
+                    self.process_view_format_radio_buttons(event)
+
+                case keys.excel:
+                    self.process_view_format_radio_buttons(event)
 
                 case keys.verbosity:
                     set_logging_level_from_verbosity(values[event])
 
                 # Settings
                 ##################################
-
                 case keys.save:
                     self.settings.from_values_dict(values)
                     self.settings.gui_settings_full_path = self.gui_settings_full_path
@@ -273,21 +262,22 @@ class PSG(PSGBase):
 
         args = Args()
         settings_schema: dict[str, Any] = SettingsFile.SETTINGS_SCHEMA["properties"]
-        for key, value in settings_schema.items():
-            if key not in {
+        for schema_key, schema_value in settings_schema.items():
+            if schema_key not in {
                 keys.profile,
                 keys.fix,
                 keys.n_files,
-                keys.formats,
+                keys.view,
+                keys.file_formats,
                 keys.since,
                 keys.until,
                 keys.multithread,
                 keys.gui_settings_full_path,
             }:
-                if value["type"] == "array":
-                    setattr(args, key, shlex.split(values[key]))  # type: ignore
+                if schema_value["type"] == "array":
+                    setattr(args, schema_key, values[schema_key].split(","))  # type: ignore
                 else:
-                    setattr(args, key, values[key])
+                    setattr(args, schema_key, values[schema_key])
 
         args.multithread = self.multithread
 
@@ -298,33 +288,48 @@ class PSG(PSGBase):
         else:
             args.fix = keys.nofix
 
+        if values[keys.auto]:
+            args.view = AUTO
+        elif values[keys.dynamic_blame_history]:
+            args.view = DYNAMIC_BLAME_HISTORY
+        else:
+            args.view = NONE
+
         args.n_files = 0 if not values[keys.n_files] else int(values[keys.n_files])
 
-        formats = []
-        for key in AVAILABLE_FORMATS:
-            if values[key]:
-                formats.append(key)
-        args.formats = formats
+        file_formats = []
+        for schema_key in FILE_FORMATS:
+            if values[schema_key]:
+                file_formats.append(schema_key)
+        args.file_formats = file_formats
 
         self.disable_buttons()
 
-        for key in keys.since, keys.until:
-            val = values[key]
+        for schema_key in keys.since, keys.until:
+            val = values[schema_key]
             if not val or val == "":
                 continue
             try:
-                val = datetime.strptime(values[key], "%Y-%m-%d").strftime("%Y-%m-%d")
+                val = datetime.strptime(values[schema_key], "%Y-%m-%d").strftime(
+                    "%Y-%m-%d"
+                )
             except (TypeError, ValueError):
                 popup(
                     "Reminder",
                     "Invalid date format. Correct format is YYYY-MM-DD. Please try again.",
                 )
                 return
-            setattr(args, key, str(val))
+            setattr(args, schema_key, str(val))
+
+        args.normalize()
 
         logger.debug(f"{args = }")  # type: ignore
         self.window.perform_long_operation(
-            lambda: run_repos(args, start_time, self.manager, self.stop_all_event),
+            lambda: start_gi_runner(
+                args,
+                start_time,
+                self.queues,
+            ),
             keys.end,
         )
 
@@ -353,9 +358,13 @@ class PSG(PSGBase):
 
 
 if __name__ == "__main__":
-    current_settings: Settings
+    settings: Settings
     error: str
-    current_settings, error = SettingsFile.load()
-    multiprocessing.freeze_support()
-    _logging.ini_for_gui_base()
-    PSG(current_settings)
+    try:
+        settings, error = SettingsFile.load()
+        # Required for pyinstaller to support the use of multiprocessing in gigui
+        multiprocessing.freeze_support()
+        _logging.ini_for_gui_base()
+        PSGUI(settings)
+    except KeyboardInterrupt:
+        os._exit(0)

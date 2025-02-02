@@ -12,11 +12,10 @@ class KeysArgs:
     fix: str = "fix"
     depth: str = "depth"
     view: str = "view"
-    formats: str = "formats"
+    file_formats: str = "file_formats"
     scaled_percentages: str = "scaled_percentages"
     blame_exclusions: str = "blame_exclusions"
     blame_skip: str = "blame_skip"
-    blame_history: str = "blame_history"
     subfolder: str = "subfolder"
     n_files: str = "n_files"
     include_files: str = "include_files"
@@ -77,13 +76,23 @@ class Keys(KeysArgs):
     # IO configuration
     browse_input_fstr: str = "browse_input_fstr"
     outfile_path: str = "outfile_path"
+
+    # Radio buttons for prefix, postfix and no prefix or postfix
     prefix: str = "prefix"
     postfix: str = "postfix"
     nofix: str = "nofix"
 
-    # Output formats in table form
-    view: str = "view"
+    # Radio buttons for viewing: auto or dynamic blame history
+    # Note that hyphens are used in "dynamic-blame-history" because it is used as option
+    # value in the CLI.
+    auto: str = "auto"
+    dynamic_blame_history: str = "dynamic-blame-history"
+
+    # Radio buttons for file formats
+    # Note that hyphens are used in "html-blame-history" because it is used as option
+    # value in the CLI.
     html: str = "html"
+    html_blame_history: str = "html-blame-history"
     excel: str = "excel"
 
     # General configuration

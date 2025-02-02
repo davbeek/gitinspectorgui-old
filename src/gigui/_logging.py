@@ -206,9 +206,7 @@ def log_dots(
         return
 
     # i from 1 to and including i_max
-    if multicore:
-        log(".", end="", flush=True)
-    else:
+    if not multicore:
         if i == 1:
             log(prefix, end="")
         log("." if i < i_max else "." + postfix, end="", flush=True)

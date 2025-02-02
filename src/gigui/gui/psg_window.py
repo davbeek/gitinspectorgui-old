@@ -10,10 +10,8 @@ from gigui._logging import add_gui_handler
 from gigui.args_settings import SettingsFile
 from gigui.constants import (
     BLAME_EXCLUSION_CHOICES,
-    BLAME_HISTORY_CHOICES,
     INIT_COL_PERCENT,
     MAX_COL_HEIGHT,
-    NONE,
     SHOW,
     WINDOW_HEIGHT_CORR,
     WINDOW_SIZE_X,
@@ -153,7 +151,6 @@ def layout_top_row() -> list[sg.Column]:
             [
                 [
                     button("Run", keys.run),
-                    button("Stop", keys.stop),
                     button("Clear", keys.clear),
                     button("Help", keys.help, pad=((20, 3), 2)),
                     button("About", keys.about),
@@ -282,14 +279,26 @@ def output_formats_frame() -> sg.Frame:
         "Output generation and formatting",
         layout=[
             [
-                name_header("Output formats", tooltip=tip.outputs),
+                name_header("View options"),
                 checkbox(
-                    keys.view,
-                    keys.view,
+                    keys.auto,
+                    keys.auto,
                 ),
                 checkbox(
+                    "dynamic blame history",
+                    keys.dynamic_blame_history,
+                ),
+                sg.Text("", expand_x=True, background_color="white"),
+            ],
+            [
+                name_header("File formats"),
+                checkbox(
                     keys.html,
                     keys.html,
+                ),
+                checkbox(
+                    "html blame history",
+                    keys.html_blame_history,
                 ),
                 checkbox(
                     keys.excel,
@@ -314,21 +323,6 @@ def output_formats_frame() -> sg.Frame:
             ],
             [
                 name_header("Blame options", ""),
-                name_choice(
-                    "History",
-                    tooltip=tip.blame_history,
-                ),
-                sg.Combo(
-                    BLAME_HISTORY_CHOICES,
-                    default_value=NONE,
-                    key=keys.blame_history,
-                    enable_events=True,
-                    size=6,
-                    pad=((3, 10), 2),
-                    readonly=True,
-                    text_color="black",
-                    background_color="white",
-                ),
                 name_choice(
                     "Exclusions",
                     tooltip=tip.blame_exclusions,

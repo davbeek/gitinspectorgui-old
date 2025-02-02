@@ -1,9 +1,15 @@
+import multiprocessing
 import time
 from dataclasses import dataclass, field
 from fnmatch import fnmatchcase
 from logging import getLogger
 from math import floor
+from multiprocessing.managers import SyncManager
+from pathlib import Path
+from queue import Queue
 
+from gigui.args_settings import Args
+from gigui.constants import FIRST_PORT
 from gigui.typedefs import SHA, Author, Email, FileStr, Row
 from gigui.utils import get_relative_fstr
 
@@ -415,3 +421,51 @@ class PersonsDB(dict[Author | Email, Person]):
 class OutputSingleLevel:
     header: list[str]
     data: list[Row]
+
+
+@dataclass
+class IniRepo:
+    name: str
+    location: Path
+    args: Args
+
+
+@dataclass
+class RunnerQueues:
+    host_port: Queue[int]
+    task: Queue[IniRepo]
+    task_done: Queue[str]
+    repo_done: Queue[str]
+    logging: Queue[str]
+
+
+def get_runner_queues(multicore: bool) -> tuple[RunnerQueues, SyncManager | None]:
+    manager: SyncManager | None
+    if multicore:
+        manager = multiprocessing.Manager()
+        host_port = manager.Queue()
+        task = manager.Queue()
+        task_done_nr = manager.Queue()
+        repo_done_nr = manager.Queue()
+        logging = manager.Queue()  # type: ignore
+    else:
+        manager = None
+        host_port = Queue()
+        task = Queue()
+        task_done_nr = Queue()
+        repo_done_nr = Queue()
+        logging = Queue()
+
+    if host_port:
+        host_port.put(FIRST_PORT)
+
+    return (
+        RunnerQueues(
+            host_port,
+            task,
+            task_done_nr,
+            repo_done_nr,
+            logging,
+        ),
+        manager,
+    )
