@@ -16,12 +16,8 @@ from gigui.data import RunnerQueues, get_runner_queues
 from gigui.gui.psg import PSGUI
 from gigui.tiphelp import Help
 from gigui.typedefs import FileStr
-<<<<<<< HEAD
-from gigui.utils import get_dir_matches
-from gigui.gui.dpg import DPGui
-=======
 from gigui.utils import get_dir_matches, strip_quotes
->>>>>>> 550ed2b5584be60d5e6ca49b0646b42079ee006d
+from gigui.gui.dpg import DPGui
 
 # Limit the width of the help text to 80 characters.
 os.environ["COLUMNS"] = "90"
