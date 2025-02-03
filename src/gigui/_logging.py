@@ -157,7 +157,7 @@ def get_custom_cli_formatter() -> colorlog.ColoredFormatter:  # subclass of Form
 def get_custom_gui_formatter() -> Formatter:
     class CustomGUIFormatter(Formatter):
         def format(self, record: LogRecord) -> str:
-            self._style._fmt = (
+            self._style._fmt = (  # pylint: disable=protected-access
                 PRINT_FORMAT
                 if record.levelno in {logging.INFO, ALWAYS_LOG_LEVEL}
                 else CUSTOM_FORMAT
@@ -171,6 +171,9 @@ def get_custom_gui_formatter() -> Formatter:
 class GUIOutputHandler(Handler):
     def emit(self, record: LogRecord) -> None:
         log_entry = self.format(record)
+        if shared.gui_window_closed:
+            print(log_entry)
+            return
         match record.levelno:
             case logging.DEBUG:
                 shared.gui_window.write_event_value(LOGGING_KEY, (log_entry, "blue"))  # type: ignore
@@ -191,7 +194,7 @@ class GUIOutputHandler(Handler):
 def log(arg: Any, text_color: str | None = None, end: str = "\n", flush: bool = False):
     if gui_multicore:
         logger.log(ALWAYS_LOG_LEVEL, arg)
-    elif shared.gui:
+    elif shared.gui and not shared.gui_window_closed:
         shared.gui_window.write_event_value(  # type: ignore
             "log", (str(arg) + end, (text_color if text_color else "black"))
         )

@@ -3,6 +3,7 @@
 import multiprocessing
 import os
 import sys
+import threading
 import time
 from datetime import datetime
 from logging import getLogger
@@ -25,7 +26,7 @@ from gigui.constants import (
     WINDOW_HEIGHT_CORR,
 )
 from gigui.data import RunnerQueues, get_runner_queues
-from gigui.gi_runner import start_gi_runner
+from gigui.gi_runner import GIRunner
 from gigui.gui.psg_base import PSGBase, help_window, log, popup
 from gigui.gui.psg_window import make_window
 from gigui.keys import Keys
@@ -39,11 +40,17 @@ keys = Keys()
 
 
 class PSGUI(PSGBase):
-    def __init__(self, settings: Settings) -> None:
+    def __init__(
+        self,
+        settings: Settings,  # pylint: disable=redefined-outer-name
+    ) -> None:
         super().__init__(settings)
-        self.queues: RunnerQueues
-        self.manager: SyncManager | None = None
 
+        self.queues: RunnerQueues  # defined when the event keys.run is triggered
+        self.manager: SyncManager | None = (
+            None  # defined when the event keys.run is triggered
+        )
+        self.gi_runner_thread: threading.Thread | None = None
         self.recreate_window: bool = True
 
         while self.recreate_window:
@@ -62,7 +69,6 @@ class PSGUI(PSGBase):
         if sys.platform == "darwin":
             sg.set_options(font=("Any", 12))
 
-        add_cli_handler()
         self.window = make_window()
         shared.gui_window = self.window
 
@@ -100,11 +106,12 @@ class PSGUI(PSGBase):
                     )
                     last_window_height = window_height
 
-                    # Custom logging for GUI, see gigui._logging.GUIOutputHandler.emit
+                # Custom logging for GUI, see gigui._logging.GUIOutputHandler.emit()
                 case keys.logging:
                     message, color = values[event]
                     sg.cprint(message, text_color=color)
 
+                # Custom logging for GUI, see gigui._logging.log
                 case keys.log:
                     message, color = values[event]
                     sg.cprint(message, text_color=color, end="")
@@ -122,16 +129,18 @@ class PSGUI(PSGBase):
                     )
                     self.run(values)
 
-                # Run command has finished via self.window.perform_long_operation in
-                # run_gitinspector().
+                # Run command has finished
                 case keys.end:
+                    if self.gi_runner_thread:
+                        self.gi_runner_thread.join()
+                        # Cleanup resources
+                        if self.queues.host_port:
+                            # Need to remove the last port value to avoid a deadlock
+                            self.queues.host_port.get()
+                        if self.manager:
+                            self.manager.shutdown()
+                    self.gi_runner_thread = None
                     self.enable_buttons()
-                    # Cleanup resources
-                    if self.queues.host_port:
-                        # Need to remove the last port value to avoid a deadlock
-                        self.queues.host_port.get()
-                    if self.manager:
-                        self.manager.shutdown()
 
                 case keys.clear:
                     self.window[keys.multiline].update(value="")  # type: ignore
@@ -142,8 +151,22 @@ class PSGUI(PSGBase):
                 case keys.about:
                     log(Help.about_info)
 
-                # Window closed, or Exit button clicked
-                case sg.WIN_CLOSED | keys.exit:
+                # Exit button clicked
+                case keys.exit:
+                    break
+
+                # Window closed, or
+                case sg.WIN_CLOSED:
+                    if self.gi_runner_thread:
+                        shared.gui_window_closed = True
+                        self.queues.shutdown_all.put(None)
+                        self.gi_runner_thread.join()
+                        # Cleanup resources
+                        if self.queues.host_port:
+                            # Need to remove the last port value to avoid a deadlock
+                            self.queues.host_port.get()
+                        if self.manager:
+                            self.manager.shutdown()
                     break
 
                 # IO configuration
@@ -324,14 +347,20 @@ class PSGUI(PSGBase):
         args.normalize()
 
         logger.debug(f"{args = }")  # type: ignore
-        self.window.perform_long_operation(
-            lambda: start_gi_runner(
-                args,
-                start_time,
-                self.queues,
-            ),
-            keys.end,
+
+        self.gi_runner_thread = threading.Thread(
+            target=self.start_gi_runner,
+            args=(args, start_time, self.queues),
+            name="GI Runner",
         )
+        self.gi_runner_thread.start()
+
+    def start_gi_runner(
+        self, args: Args, start_time: float, queues: RunnerQueues
+    ) -> None:
+        GIRunner(args, start_time, queues).run_repos()
+        if not shared.gui_window_closed:
+            self.window.write_event_value(keys.end, None)
 
     def _update_column_height(
         self,
@@ -365,6 +394,7 @@ if __name__ == "__main__":
         # Required for pyinstaller to support the use of multiprocessing in gigui
         multiprocessing.freeze_support()
         _logging.ini_for_gui_base()
+        add_cli_handler()
         PSGUI(settings)
     except KeyboardInterrupt:
         os._exit(0)

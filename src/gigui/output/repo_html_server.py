@@ -1,4 +1,5 @@
 import logging
+import queue
 import re
 import threading
 import time
@@ -97,13 +98,16 @@ class RepoHTMLServer(RepoHTML):
         assert self.server_thread is not None
         self.queues.task_done.put(self.name)
         while True:
-            if self.queues.shutdown_all_event.is_set():
-                self.send_shutdown_request()
-                self.server_shutdown_request_event.wait()
-                break
-            self.server_shutdown_request_event.wait(0.1)
             if self.server_shutdown_request_event.is_set():
                 break
+            try:
+                self.queues.shutdown_all.get(timeout=0.1)
+                self.send_shutdown_request()
+                time.sleep(0.1)
+                self.queues.shutdown_all.put(None)
+                self.server_shutdown_request_event.wait()
+            except queue.Empty:
+                pass
         self.server.shutdown()
         self.server_thread.join()
         self.queues.repo_done.put(self.name)
@@ -188,4 +192,4 @@ class RepoHTMLServer(RepoHTML):
             timeout=1,
         )
         if not response.status_code == 200:
-            logger.info(f"Failed to send shutdown request: {response.status_code}")
+            print(f"Failed to send shutdown request: {response.status_code}")

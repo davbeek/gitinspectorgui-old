@@ -58,14 +58,15 @@ class GIRunner(GiRunnerBase):
         self.nr_done_prev: int = -1
         self.len_repos: int = 0
 
-        signal.signal(signal.SIGINT, self.shutdown_handler)
-        signal.signal(signal.SIGTERM, self.shutdown_handler)
+        if not shared.gui:
+            signal.signal(signal.SIGINT, self.shutdown_handler)
+            signal.signal(signal.SIGTERM, self.shutdown_handler)
 
     def shutdown_handler(
         self, signum: int, frame: FrameType | None  # pylint: disable=unused-argument
     ) -> None:
         logger.info("Signal received, shutdown started")
-        self.queues.shutdown_all_event.set()
+        self.queues.shutdown_all.put(None)
         sys.exit(0)
 
     def run_repos(self) -> None:
@@ -145,6 +146,9 @@ class GIRunner(GiRunnerBase):
 
     def await_tasks(self) -> None:
         task_done_nr: int = 0
+        repo_name: str = ""
+        repo_done_nr: int = 0
+
         while task_done_nr < self.len_repos:
             repo_name = self.queues.task_done.get()
             task_done_nr += 1
@@ -159,12 +163,12 @@ class GIRunner(GiRunnerBase):
             else:
                 log(CLOSE_OUTPUT_VIEWERS_CLI_MSG)
 
-        repo_done_nr = 0
+        repo_name = ""
         while repo_done_nr < self.len_repos:
             repo_name = self.queues.repo_done.get()
             repo_done_nr += 1
             if self.requires_server:
-                logger.info(
+                print(
                     f"    {repo_name}: server shutdown"
                     + (
                         f" {repo_done_nr} of {self.len_repos}"

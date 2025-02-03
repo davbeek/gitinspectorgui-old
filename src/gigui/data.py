@@ -1,5 +1,4 @@
 import multiprocessing
-import threading
 import time
 from dataclasses import dataclass, field
 from fnmatch import fnmatchcase
@@ -438,7 +437,7 @@ class RunnerQueues:
     task_done: Queue[str]
     repo_done: Queue[str]
     logging: Queue[str]
-    shutdown_all_event: threading.Event
+    shutdown_all: Queue[None]
 
 
 def get_runner_queues(multicore: bool) -> tuple[RunnerQueues, SyncManager | None]:
@@ -450,7 +449,7 @@ def get_runner_queues(multicore: bool) -> tuple[RunnerQueues, SyncManager | None
         task_done_nr = manager.Queue()
         repo_done_nr = manager.Queue()
         logging = manager.Queue()  # type: ignore
-        shutdown_event = manager.Event()
+        shutdown_all = manager.Queue()
     else:
         manager = None
         host_port = Queue()
@@ -458,8 +457,7 @@ def get_runner_queues(multicore: bool) -> tuple[RunnerQueues, SyncManager | None
         task_done_nr = Queue()
         repo_done_nr = Queue()
         logging = Queue()
-        shutdown_event = threading.Event()
-
+        shutdown_all = Queue()
     if host_port:
         host_port.put(FIRST_PORT)
 
@@ -470,7 +468,7 @@ def get_runner_queues(multicore: bool) -> tuple[RunnerQueues, SyncManager | None
             task_done_nr,
             repo_done_nr,
             logging,
-            shutdown_event,
+            shutdown_all,
         ),
         manager,
     )
