@@ -109,6 +109,7 @@ class RepoHTMLServer(RepoHTML):
             except queue.Empty:
                 pass
         self.server.shutdown()
+        self.server.server_close()
         self.server_thread.join()
         self.queues.repo_done.put(self.name)
 
