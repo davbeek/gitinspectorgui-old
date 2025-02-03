@@ -25,11 +25,11 @@ from gigui.constants import (
     NONE,
     WINDOW_HEIGHT_CORR,
 )
-from gigui.data import RunnerQueues, get_runner_queues
 from gigui.gi_runner import GIRunner
 from gigui.gui.psg_base import PSGBase, help_window, log, popup
 from gigui.gui.psg_window import make_window
 from gigui.keys import Keys
+from gigui.queues_setup import RunnerQueues, get_runner_queues
 from gigui.tiphelp import Help, Tip
 from gigui.utils import to_posix_fstr
 

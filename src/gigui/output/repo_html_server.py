@@ -16,8 +16,9 @@ from werkzeug.serving import BaseWSGIServer, make_server
 from werkzeug.wrappers import Request, Response
 
 from gigui.constants import DEBUG_WERKZEUG_SERVER
-from gigui.data import IniRepo, RunnerQueues
+from gigui.data import IniRepo
 from gigui.output.repo_html import RepoHTML
+from gigui.queues_setup import RunnerQueues
 from gigui.typedefs import SHA, FileStr, HtmlStr
 
 logger = getLogger(__name__)

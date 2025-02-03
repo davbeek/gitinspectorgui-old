@@ -1,6 +1,5 @@
 import os
 import signal
-import sys
 import threading
 import time
 from concurrent.futures import Future, ProcessPoolExecutor, as_completed
@@ -9,15 +8,16 @@ from dataclasses import dataclass
 from logging import getLogger
 from logging.handlers import QueueListener
 from pathlib import Path
-from types import FrameType
+from queue import Queue
 
 from gigui import _logging, shared
 from gigui._logging import log, start_logging_listener
 from gigui.args_settings import Args
 from gigui.constants import MAX_CORE_WORKERS, NONE
-from gigui.data import IniRepo, RunnerQueues
+from gigui.data import IniRepo
 from gigui.gi_runner_base import GiRunnerBase
 from gigui.messages import CLOSE_OUTPUT_VIEWERS_CLI_MSG, CLOSE_OUTPUT_VIEWERS_MSG
+from gigui.queues_setup import RunnerQueues
 from gigui.repo_runner import RepoRunner
 from gigui.typedefs import FileStr
 from gigui.utils import get_dir_matches, log_end_time, out_profile
@@ -57,17 +57,6 @@ class GIRunner(GiRunnerBase):
         self.nr_started_prev: int = -1
         self.nr_done_prev: int = -1
         self.len_repos: int = 0
-
-        if not shared.gui:
-            signal.signal(signal.SIGINT, self.shutdown_handler)
-            signal.signal(signal.SIGTERM, self.shutdown_handler)
-
-    def shutdown_handler(
-        self, signum: int, frame: FrameType | None  # pylint: disable=unused-argument
-    ) -> None:
-        logger.info("Signal received, shutdown started")
-        self.queues.shutdown_all.put(None)
-        sys.exit(0)
 
     def run_repos(self) -> None:
         profiler: Profile | None = None
@@ -123,11 +112,9 @@ class GIRunner(GiRunnerBase):
             initializer=_logging.ini_worker_for_multiprocessing,
             initargs=(self.queues.logging, self.args.verbosity, shared.gui),
         ) as process_executor:
-            for _ in range(max_workers):
+            for i in range(max_workers):
                 future = process_executor.submit(
-                    multicore_worker,
-                    self.queues,
-                    self.args.verbosity,
+                    multicore_worker, self.queues, self.args.verbosity, i
                 )
                 futures.append(future)
                 nr_workers += 1
@@ -223,24 +210,72 @@ class GIRunner(GiRunnerBase):
         return sum(len(repo_list) for repo_list in repo_lists)
 
 
+def shutdown_handler_main(
+    signum, frame, shutdown_all: Queue[None]
+) -> None:  # pylint: disable=unused-argument
+    shutdown_all.put(None)  # Only used for single core
+
+
 # Main function to run the analysis and create the output
 def start_gi_runner(
     args: Args,
     start_time: float,
     runner_queues: RunnerQueues,
 ) -> None:
+    signal.signal(
+        signal.SIGINT,
+        lambda signum, frame: shutdown_handler_main(
+            signum,
+            frame,
+            runner_queues.shutdown_all,
+        ),
+    )
+    signal.signal(
+        signal.SIGTERM,
+        lambda signum, frame: shutdown_handler_main(
+            signum,
+            frame,
+            runner_queues.shutdown_all,
+        ),
+    )
     GIRunner(args, start_time, runner_queues).run_repos()
+
+
+def shutdown_handler_worker(
+    signum, frame, shutdown_all: Queue[None], nr: int
+) -> None:  # pylint: disable=unused-argument
+    if nr == 0:
+        shutdown_all.put(None)  # Only used for multicore
 
 
 # Runs on a separate core, receives tasks one by one and executes each task by a
 # repo_runner instance.
-def multicore_worker(runner_queues: RunnerQueues, verbosity: int) -> None:
+def multicore_worker(runner_queues: RunnerQueues, verbosity: int, nr: int) -> None:
     ini_repo: IniRepo
     repo_runners: list[RepoRunner] = []
 
     global logger
     _logging.set_logging_level_from_verbosity(verbosity)
     logger = getLogger(__name__)
+
+    signal.signal(
+        signal.SIGINT,
+        lambda signum, frame: shutdown_handler_worker(
+            signum,
+            frame,
+            runner_queues.shutdown_all,
+            nr,
+        ),
+    )
+    signal.signal(
+        signal.SIGTERM,
+        lambda signum, frame: shutdown_handler_worker(
+            signum,
+            frame,
+            runner_queues.shutdown_all,
+            nr,
+        ),
+    )
 
     # Take into account that the SyncManager can be shut down in the main process,
     # which will cause subsequent logging to fail.
