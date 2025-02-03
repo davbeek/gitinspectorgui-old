@@ -1,4 +1,6 @@
 import os
+import signal
+import sys
 import threading
 import time
 from concurrent.futures import Future, ProcessPoolExecutor, as_completed
@@ -7,6 +9,7 @@ from dataclasses import dataclass
 from logging import getLogger
 from logging.handlers import QueueListener
 from pathlib import Path
+from types import FrameType
 
 from gigui import _logging, shared
 from gigui._logging import log, start_logging_listener
@@ -54,6 +57,16 @@ class GIRunner(GiRunnerBase):
         self.nr_started_prev: int = -1
         self.nr_done_prev: int = -1
         self.len_repos: int = 0
+
+        signal.signal(signal.SIGINT, self.shutdown_handler)
+        signal.signal(signal.SIGTERM, self.shutdown_handler)
+
+    def shutdown_handler(
+        self, signum: int, frame: FrameType | None  # pylint: disable=unused-argument
+    ) -> None:
+        logger.info("Signal received, shutdown started")
+        self.queues.shutdown_all_event.set()
+        sys.exit(0)
 
     def run_repos(self) -> None:
         profiler: Profile | None = None

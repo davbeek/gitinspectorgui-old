@@ -9,6 +9,7 @@ from typing import Iterable
 from uuid import uuid4
 from wsgiref.types import StartResponse, WSGIEnvironment
 
+import requests
 from werkzeug.routing import Map, Rule
 from werkzeug.serving import BaseWSGIServer, make_server
 from werkzeug.wrappers import Request, Response
@@ -95,7 +96,14 @@ class RepoHTMLServer(RepoHTML):
     def monitor_events(self) -> None:
         assert self.server_thread is not None
         self.queues.task_done.put(self.name)
-        self.server_shutdown_request_event.wait()
+        while True:
+            if self.queues.shutdown_all_event.is_set():
+                self.send_shutdown_request()
+                self.server_shutdown_request_event.wait()
+                break
+            self.server_shutdown_request_event.wait(0.1)
+            if self.server_shutdown_request_event.is_set():
+                break
         self.server.shutdown()
         self.server_thread.join()
         self.queues.repo_done.put(self.name)
@@ -105,7 +113,10 @@ class RepoHTMLServer(RepoHTML):
     ) -> Iterable[bytes]:
         try:
             request = Request(environ)
-            logger.info(f"{self.name}: browser request = {request.path} {request.args.get('id')}")  # type: ignore
+            logger.debug(
+                f"{self.name}: browser request = {request.path} "
+                + f"{request.args.get('id')}"
+            )  # type: ignore
             if request.path == "/":
                 response = Response(
                     self.html_doc_code, content_type="text/html; charset=utf-8"
@@ -170,3 +181,11 @@ class RepoHTMLServer(RepoHTML):
         html_code = html_code.replace("&amp;gt;", "&gt;")
         html_code = html_code.replace("&amp;quot;", "&quot;")
         return html_code
+
+    def send_shutdown_request(self) -> None:
+        response = requests.post(
+            f"http://localhost:{self.port_value}/shutdown?id={self.browser_id}",
+            timeout=1,
+        )
+        if not response.status_code == 200:
+            logger.info(f"Failed to send shutdown request: {response.status_code}")
