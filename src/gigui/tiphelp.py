@@ -198,9 +198,9 @@ class Help(Tip):
     # View options
     view_options: str = (
         "- auto: view file output in the associated application or generate output in a "
-        "browser."
+        "browser. "
         "- dynamic-blame-history: view output with dynamic blame history tables in a "
-        "browser and disable file output."
+        "browser and disable file output. "
         "- none: no output viewing."
     )
 

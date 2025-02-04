@@ -187,9 +187,8 @@ class GIRunner(GiRunnerBase):
             repos = repo_lists.pop(0)
             repo_parent_str = str(repos[0].location.resolve().parent)
             log(
-                "Output in folder "
-                if self.args.file_formats
-                else "Folder " + repo_parent_str
+                ("Output in folder " if self.args.file_formats else "Folder ")
+                + repo_parent_str
             )
             for ini_repo in repos:
                 repo_runner = RepoRunner(
@@ -210,14 +209,14 @@ class GIRunner(GiRunnerBase):
 
 
 def shutdown_handler_main_multi_core(
-    signum, frame
-) -> None:  # pylint: disable=unused-argument
+    signum, frame  # pylint: disable=unused-argument
+) -> None:
     pass
 
 
 def shutdown_handler_main(
-    signum, frame, shutdown_all: Queue[None]
-) -> None:  # pylint: disable=unused-argument
+    signum, frame, shutdown_all: Queue[None]  # pylint: disable=unused-argument
+) -> None:
     shutdown_all.put(None)  # Only used for single core
 
 
@@ -251,8 +250,8 @@ def start_gi_runner(
 
 
 def shutdown_handler_worker(
-    signum, frame, shutdown_all: Queue[None], nr: int
-) -> None:  # pylint: disable=unused-argument
+    signum, frame, shutdown_all: Queue[None], nr: int  # pylint: disable=unused-argument
+) -> None:
     if nr == 0:
         shutdown_all.put(None)  # Only used for multicore
 
