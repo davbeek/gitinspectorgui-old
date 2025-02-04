@@ -185,7 +185,4 @@ def load_settings(save: bool, save_as: str) -> Settings:
 
 if __name__ == "__main__":
     multiprocessing.freeze_support()
-    try:
-        main()
-    except KeyboardInterrupt:
-        os._exit(0)
+    main()

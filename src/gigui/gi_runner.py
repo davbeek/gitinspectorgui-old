@@ -1,4 +1,3 @@
-import os
 import signal
 import threading
 import time
@@ -155,7 +154,7 @@ class GIRunner(GiRunnerBase):
             repo_name = self.queues.repo_done.get()
             repo_done_nr += 1
             if self.requires_server:
-                print(
+                logger.info(
                     f"    {repo_name}: server shutdown"
                     + (
                         f" {repo_done_nr} of {self.len_repos}"
@@ -210,6 +209,12 @@ class GIRunner(GiRunnerBase):
         return sum(len(repo_list) for repo_list in repo_lists)
 
 
+def shutdown_handler_main_multi_core(
+    signum, frame
+) -> None:  # pylint: disable=unused-argument
+    pass
+
+
 def shutdown_handler_main(
     signum, frame, shutdown_all: Queue[None]
 ) -> None:  # pylint: disable=unused-argument
@@ -222,22 +227,26 @@ def start_gi_runner(
     start_time: float,
     runner_queues: RunnerQueues,
 ) -> None:
-    signal.signal(
-        signal.SIGINT,
-        lambda signum, frame: shutdown_handler_main(
-            signum,
-            frame,
-            runner_queues.shutdown_all,
-        ),
-    )
-    signal.signal(
-        signal.SIGTERM,
-        lambda signum, frame: shutdown_handler_main(
-            signum,
-            frame,
-            runner_queues.shutdown_all,
-        ),
-    )
+    if args.multicore:
+        signal.signal(signal.SIGINT, shutdown_handler_main_multi_core)
+        signal.signal(signal.SIGTERM, shutdown_handler_main_multi_core)
+    else:  # single core
+        signal.signal(
+            signal.SIGINT,
+            lambda signum, frame: shutdown_handler_main(
+                signum,
+                frame,
+                runner_queues.shutdown_all,
+            ),
+        )
+        signal.signal(
+            signal.SIGTERM,
+            lambda signum, frame: shutdown_handler_main(
+                signum,
+                frame,
+                runner_queues.shutdown_all,
+            ),
+        )
     GIRunner(args, start_time, runner_queues).run_repos()
 
 
@@ -279,17 +288,14 @@ def multicore_worker(runner_queues: RunnerQueues, verbosity: int, nr: int) -> No
 
     # Take into account that the SyncManager can be shut down in the main process,
     # which will cause subsequent logging to fail.
-    try:
-        while True:
-            ini_repo = runner_queues.task.get()
-            if ini_repo is None:
-                break
-            repo_runner = RepoRunner(ini_repo, runner_queues)
-            repo_runners.append(repo_runner)
-            repo_runner.process_repo()
-            runner_queues.task.task_done()
+    while True:
+        ini_repo = runner_queues.task.get()
+        if ini_repo is None:
+            break
+        repo_runner = RepoRunner(ini_repo, runner_queues)
+        repo_runners.append(repo_runner)
+        repo_runner.process_repo()
+        runner_queues.task.task_done()
 
-        for repo_runner in repo_runners:
-            repo_runner.join_threads()
-    except KeyboardInterrupt:
-        os._exit(0)
+    for repo_runner in repo_runners:
+        repo_runner.join_threads()

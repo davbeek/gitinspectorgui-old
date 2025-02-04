@@ -1,7 +1,6 @@
 # noinspection PyPep8Naming
 
 import multiprocessing
-import os
 import sys
 import threading
 import time
@@ -389,12 +388,9 @@ class PSGUI(PSGBase):
 if __name__ == "__main__":
     settings: Settings
     error: str
-    try:
-        settings, error = SettingsFile.load()
-        # Required for pyinstaller to support the use of multiprocessing in gigui
-        multiprocessing.freeze_support()
-        _logging.ini_for_gui_base()
-        add_cli_handler()
-        PSGUI(settings)
-    except KeyboardInterrupt:
-        os._exit(0)
+    settings, error = SettingsFile.load()
+    # Required for pyinstaller to support the use of multiprocessing in gigui
+    multiprocessing.freeze_support()
+    _logging.ini_for_gui_base()
+    add_cli_handler()
+    PSGUI(settings)
