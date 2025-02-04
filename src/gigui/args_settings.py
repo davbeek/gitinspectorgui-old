@@ -129,6 +129,7 @@ class Settings(Args):
             f.write(d)
 
     def save(self):
+        self.normalize()
         settings_dict = asdict(self)
         jsonschema.validate(settings_dict, SettingsFile.SETTINGS_SCHEMA)
         try:
