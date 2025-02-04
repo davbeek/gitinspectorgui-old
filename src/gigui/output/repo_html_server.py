@@ -189,9 +189,15 @@ class RepoHTMLServer(RepoHTML):
         return html_code
 
     def send_shutdown_request(self) -> None:
-        response = requests.post(
-            f"http://localhost:{self.port_value}/shutdown?id={self.browser_id}",
-            timeout=1,
-        )
-        if not response.status_code == 200:
-            print(f"Failed to send shutdown request: {response.status_code}")
+        try:
+            response = requests.post(
+                f"http://localhost:{self.port_value}/shutdown?id={self.browser_id}",
+                timeout=1,
+            )
+            if not response.status_code == 200:
+                print(f"Failed to send shutdown request: {response.status_code}")
+        except requests.exceptions.Timeout:
+            print(
+                f"Timeout sending shutdown request on port {self.port_value} "
+                f"browser_id {self.browser_id}"
+            )
