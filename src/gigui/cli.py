@@ -152,7 +152,7 @@ def main() -> None:
         if cli_args.gui:
             PSGUI(settings)
         elif cli_args.dpggui:
-            DPGui(Settings.from_args(args, gui_settings_full_path))
+            DPGui(settings)
         elif namespace.run:
             queues, manager = get_runner_queues(args.multicore)
             gi_runner.start_gi_runner(
