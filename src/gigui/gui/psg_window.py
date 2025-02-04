@@ -449,7 +449,7 @@ def settings_frame() -> sg.Frame:
         "",
         layout=[
             [
-                name_header("Settings file", ""),
+                name_header("Settings", ""),
                 input_box(
                     keys.settings_file,
                     size=15,

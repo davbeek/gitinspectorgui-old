@@ -12,8 +12,8 @@ from gigui._logging import log, set_logging_level_from_verbosity
 from gigui.args_settings import Args, CLIArgs, Settings, SettingsFile
 from gigui.cli_arguments import define_arguments
 from gigui.constants import DEFAULT_EXTENSIONS, NONE
-from gigui.data import RunnerQueues, get_runner_queues
 from gigui.gui.psg import PSGUI
+from gigui.queues_setup import get_runner_queues
 from gigui.tiphelp import Help
 from gigui.typedefs import FileStr
 from gigui.utils import get_dir_matches, strip_quotes
@@ -29,7 +29,6 @@ def main() -> None:
     settings: Settings
     start_time: float = time.time()
     manager: SyncManager | None = None
-    queues: RunnerQueues
 
     parser = ArgumentParser(
         prog="gitinspectorgui",
@@ -155,6 +154,7 @@ def main() -> None:
             DPGui(settings)
         elif namespace.run:
             queues, manager = get_runner_queues(args.multicore)
+
             gi_runner.start_gi_runner(
                 args,
                 start_time,
@@ -188,7 +188,4 @@ def load_settings(save: bool, save_as: str) -> Settings:
 
 if __name__ == "__main__":
     multiprocessing.freeze_support()
-    try:
-        main()
-    except KeyboardInterrupt:
-        os._exit(0)
+    main()

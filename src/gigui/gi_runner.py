@@ -1,4 +1,4 @@
-import os
+import signal
 import threading
 import time
 from concurrent.futures import Future, ProcessPoolExecutor, as_completed
@@ -7,14 +7,16 @@ from dataclasses import dataclass
 from logging import getLogger
 from logging.handlers import QueueListener
 from pathlib import Path
+from queue import Queue
 
 from gigui import _logging, shared
 from gigui._logging import log, start_logging_listener
 from gigui.args_settings import Args
 from gigui.constants import MAX_CORE_WORKERS, NONE
-from gigui.data import IniRepo, RunnerQueues
+from gigui.data import IniRepo
 from gigui.gi_runner_base import GiRunnerBase
 from gigui.messages import CLOSE_OUTPUT_VIEWERS_CLI_MSG, CLOSE_OUTPUT_VIEWERS_MSG
+from gigui.queues_setup import RunnerQueues
 from gigui.repo_runner import RepoRunner
 from gigui.typedefs import FileStr
 from gigui.utils import get_dir_matches, log_end_time, out_profile
@@ -109,11 +111,9 @@ class GIRunner(GiRunnerBase):
             initializer=_logging.ini_worker_for_multiprocessing,
             initargs=(self.queues.logging, self.args.verbosity, shared.gui),
         ) as process_executor:
-            for _ in range(max_workers):
+            for i in range(max_workers):
                 future = process_executor.submit(
-                    multicore_worker,
-                    self.queues,
-                    self.args.verbosity,
+                    multicore_worker, self.queues, self.args.verbosity, i
                 )
                 futures.append(future)
                 nr_workers += 1
@@ -132,6 +132,9 @@ class GIRunner(GiRunnerBase):
 
     def await_tasks(self) -> None:
         task_done_nr: int = 0
+        repo_name: str = ""
+        repo_done_nr: int = 0
+
         while task_done_nr < self.len_repos:
             repo_name = self.queues.task_done.get()
             task_done_nr += 1
@@ -146,7 +149,7 @@ class GIRunner(GiRunnerBase):
             else:
                 log(CLOSE_OUTPUT_VIEWERS_CLI_MSG)
 
-        repo_done_nr = 0
+        repo_name = ""
         while repo_done_nr < self.len_repos:
             repo_name = self.queues.repo_done.get()
             repo_done_nr += 1
@@ -184,9 +187,8 @@ class GIRunner(GiRunnerBase):
             repos = repo_lists.pop(0)
             repo_parent_str = str(repos[0].location.resolve().parent)
             log(
-                "Output in folder "
-                if self.args.file_formats
-                else "Folder " + repo_parent_str
+                ("Output in folder " if self.args.file_formats else "Folder ")
+                + repo_parent_str
             )
             for ini_repo in repos:
                 repo_runner = RepoRunner(
@@ -206,18 +208,57 @@ class GIRunner(GiRunnerBase):
         return sum(len(repo_list) for repo_list in repo_lists)
 
 
+def shutdown_handler_main_multi_core(
+    signum, frame  # pylint: disable=unused-argument
+) -> None:
+    pass
+
+
+def shutdown_handler_main(
+    signum, frame, shutdown_all: Queue[None]  # pylint: disable=unused-argument
+) -> None:
+    shutdown_all.put(None)  # Only used for single core
+
+
 # Main function to run the analysis and create the output
 def start_gi_runner(
     args: Args,
     start_time: float,
     runner_queues: RunnerQueues,
 ) -> None:
+    if args.multicore:
+        signal.signal(signal.SIGINT, shutdown_handler_main_multi_core)
+        signal.signal(signal.SIGTERM, shutdown_handler_main_multi_core)
+    else:  # single core
+        signal.signal(
+            signal.SIGINT,
+            lambda signum, frame: shutdown_handler_main(
+                signum,
+                frame,
+                runner_queues.shutdown_all,
+            ),
+        )
+        signal.signal(
+            signal.SIGTERM,
+            lambda signum, frame: shutdown_handler_main(
+                signum,
+                frame,
+                runner_queues.shutdown_all,
+            ),
+        )
     GIRunner(args, start_time, runner_queues).run_repos()
+
+
+def shutdown_handler_worker(
+    signum, frame, shutdown_all: Queue[None], nr: int  # pylint: disable=unused-argument
+) -> None:
+    if nr == 0:
+        shutdown_all.put(None)  # Only used for multicore
 
 
 # Runs on a separate core, receives tasks one by one and executes each task by a
 # repo_runner instance.
-def multicore_worker(runner_queues: RunnerQueues, verbosity: int) -> None:
+def multicore_worker(runner_queues: RunnerQueues, verbosity: int, nr: int) -> None:
     ini_repo: IniRepo
     repo_runners: list[RepoRunner] = []
 
@@ -225,19 +266,35 @@ def multicore_worker(runner_queues: RunnerQueues, verbosity: int) -> None:
     _logging.set_logging_level_from_verbosity(verbosity)
     logger = getLogger(__name__)
 
+    signal.signal(
+        signal.SIGINT,
+        lambda signum, frame: shutdown_handler_worker(
+            signum,
+            frame,
+            runner_queues.shutdown_all,
+            nr,
+        ),
+    )
+    signal.signal(
+        signal.SIGTERM,
+        lambda signum, frame: shutdown_handler_worker(
+            signum,
+            frame,
+            runner_queues.shutdown_all,
+            nr,
+        ),
+    )
+
     # Take into account that the SyncManager can be shut down in the main process,
     # which will cause subsequent logging to fail.
-    try:
-        while True:
-            ini_repo = runner_queues.task.get()
-            if ini_repo is None:
-                break
-            repo_runner = RepoRunner(ini_repo, runner_queues)
-            repo_runners.append(repo_runner)
-            repo_runner.process_repo()
-            runner_queues.task.task_done()
+    while True:
+        ini_repo = runner_queues.task.get()
+        if ini_repo is None:
+            break
+        repo_runner = RepoRunner(ini_repo, runner_queues)
+        repo_runners.append(repo_runner)
+        repo_runner.process_repo()
+        runner_queues.task.task_done()
 
-        for repo_runner in repo_runners:
-            repo_runner.join_threads()
-    except KeyboardInterrupt:
-        os._exit(0)
+    for repo_runner in repo_runners:
+        repo_runner.join_threads()

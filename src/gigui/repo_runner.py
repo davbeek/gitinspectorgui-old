@@ -3,10 +3,11 @@ from logging import getLogger
 from gigui._logging import log
 from gigui.args_settings import Args
 from gigui.constants import AUTO, NONE
-from gigui.data import FileStat, IniRepo, Person, RunnerQueues
+from gigui.data import FileStat, IniRepo, Person
 from gigui.keys import Keys
 from gigui.output.repo_excel import Book
 from gigui.output.repo_html_server import RepoHTMLServer
+from gigui.queues_setup import RunnerQueues
 from gigui.typedefs import FileStr
 from gigui.utils import get_outfile_name, open_file
 

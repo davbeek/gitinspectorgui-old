@@ -3,8 +3,8 @@ import sys
 
 if sys.platform == "darwin":
     # macOS, Macbook Pro 16
-    MAX_COL_HEIGHT = 505  # height of options column
-    WINDOW_SIZE_Y = 720  # height of GUI window
+    MAX_COL_HEIGHT = 532  # height of options column
+    WINDOW_SIZE_Y = 800  # height of GUI window
     WINDOW_SIZE_X = 660  # width of GUI window
 else:
     # Windows, Linux
