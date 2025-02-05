@@ -96,6 +96,10 @@ class Args:
                 }:
                     clean_list = [to_posix_fstr(fstr) for fstr in clean_list]
                 setattr(self, key, clean_list)  # type: ignore
+            elif value["type"] == "string":
+                setattr(
+                    self, key, getattr(self, key).strip()  # pylint: disable=no-member
+                )
 
 
 @dataclass

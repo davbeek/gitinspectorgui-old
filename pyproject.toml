@@ -32,7 +32,6 @@ classifiers = [
 include = []
 packages = [{ include = "gigui", from = "src" }]
 
-
 [tool.poetry.dependencies]
 beautifulsoup4 = ">=4.12.3"
 colorlog = ">=6.9"
