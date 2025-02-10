@@ -92,3 +92,10 @@ DEBUG_SHOW_MAIN_EVENT_LOOP = False
 DEBUG_MULTIPROCESSING = False
 ALLOW_GITPYTHON_DEBUG = True
 DEBUG_WERKZEUG_SERVER = False
+
+
+PREPOSTFIX_OPTIONS = {
+    PREFIX: "Prefix with repository",
+    POSTFIX: "Postfix with repository",
+    NOFIX: "No prefix or postfix",
+}
