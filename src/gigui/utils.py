@@ -223,6 +223,9 @@ def get_posix_dir_matches_for(pattern: FileStr) -> list[FileStr]:
                 if pattern_path.drive == Path().drive
                 else Path(pattern_path.drive)
             )
+        if no_drive_pattern == "/" and rel_pattern in ".":
+            # Path("/").glob(".") crashes
+            return ["/"]
     else:
         if pattern_path.is_absolute():
             rel_pattern = pattern_path.relative_to(Path("/")).as_posix()
@@ -230,6 +233,9 @@ def get_posix_dir_matches_for(pattern: FileStr) -> list[FileStr]:
         else:
             rel_pattern = pattern
             base_path = Path()
+        if base_path == Path("/") and rel_pattern == ".":
+            # Path("/").glob(".") crashes
+            return ["/"]
 
     if not rel_pattern:
         return []
@@ -251,6 +257,7 @@ def print_threads(message: str):
     print(f"\n{message}:")
     for thread in threading.enumerate():
         print(
-            f"  Thread Name: {thread.name}, Thread State: {'Alive' if thread.is_alive() else 'Dead'}"
+            f"  Thread Name: {thread.name}, Thread State: "
+            f"{'Alive' if thread.is_alive() else 'Dead'}"
         )
     print()

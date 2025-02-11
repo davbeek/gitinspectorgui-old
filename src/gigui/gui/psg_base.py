@@ -382,12 +382,11 @@ def use_single_repo(input_paths: list[Path]) -> bool:
 
 def is_git_repo(path: Path) -> bool:
     try:
-        git_path = path / ".git"
-        if git_path.is_symlink():
-            git_path = git_path.resolve()
-            if not git_path.is_dir():
-                return False
-        elif not git_path.is_dir():
+        if path.stem == ".resolve":
+            # path.resolve() crashes on macOS for path.stem == ".resolve"
+            return False
+        git_path = (path / ".git").resolve()
+        if not git_path.is_dir():
             return False
     except (PermissionError, TimeoutError):  # git_path.is_symlink() may time out
         return False
