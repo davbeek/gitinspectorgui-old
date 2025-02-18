@@ -50,19 +50,36 @@ dependencies = [
 homepage = "https://gitinspectorgui.readthedocs.io/en/latest/index.html"
 repository = "https://github.com/davbeek/gitinspectorgui"
 
-[tool.poetry]
-include = []
-packages = [{ include = "gigui", from = "src" }]
+[project.scripts]
+gigui = "gigui.__main__:main"
+gitinspectorgui = "gigui.__main__:main"
 
-[tool.poetry.group.dev.dependencies]
-black = ">=24.10"
-flake8 = ">=7.1.1"
-mypy = ">=1.13"
-pipdeptree = ">=2.24"
-pre-commit = ">=4.0.1"
-pyinstaller = ">=6.11.1"
-pylint = ">=3.3.2"       # has isort as dependency
+[dependency-groups]
+dev = [
+    "black >= 24.10",
+    "flake8 >= 7.1.1",
+    "mypy >= 1.13",
+    "pipdeptree >= 2.24",
+    "pre-commit >= 4.0.1",
+    "pyinstaller >= 6.11.1",
+    "pylint >= 3.3.2",       # has isort as dependency
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gigui"]
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling >= 1.27"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+index-strategy = "unsafe-best-match"
+
+[[tool.uv.index]]
+url = "https://pypi.org/simple"
+default = true
+
+[[tool.uv.index]]
+name = "testpypi"
+url = "https://test.pypi.org/simple/"
+publish-url = "https://test.pypi.org/legacy/"
