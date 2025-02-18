@@ -55,15 +55,8 @@ gigui-cli = "gigui.cli:main"
 gigui = "gigui.gui.psg:main"
 
 [dependency-groups]
-dev = [
-    "black >= 24.10",
-    "flake8 >= 7.1.1",
-    "mypy >= 1.13",
-    "pipdeptree >= 2.24",
-    "pre-commit >= 4.0.1",
-    "pyinstaller >= 6.11.1",
-    "pylint >= 3.3.2",       # has isort as dependency
-]
+# Use ruff via the vscode extension, which automatically includes a ruff version
+dev = ["pre-commit >= 4.0.1", "pyinstaller >= 6.11.1"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/gigui"]

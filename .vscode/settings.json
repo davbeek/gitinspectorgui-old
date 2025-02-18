@@ -50,14 +50,11 @@
     //
     "github.copilot.editor.enableCodeActions": false,
     //
-    "isort.args": [
-        "--profile",
-        "black"
-    ],
-    //
     "[javascript]": {
         "editor.defaultFormatter": "esbenp.prettier-vscode"
     },
+    //
+    "prettier.tabWidth": 4,
     //
     "[python]": {
         "editor.defaultFormatter": "ms-python.black-formatter",
@@ -70,19 +67,6 @@
         "editor.codeActionsOnSave": {
             "source.organizeImports": "explicit",
         },
-    },
-    //
-    "pylint.args": [
-        "--rcfile=${workspaceFolder}/.pylintrc",
-    ],
-    "pylint.importStrategy": "fromEnvironment",
-    "pylint.severity": {
-        "fatal": "Error",
-        "error": "Error",
-        "warning": "Warning",
-        "refactor": "Information",
-        "convention": "Information",
-        "info": "Information"
     },
     //
     "python.analysis.indexing": true,
@@ -168,5 +152,7 @@
         "worktree",
         "xlsxwriter"
     ],
-    "prettier.tabWidth": 4,
+    "github.copilot.nextEditSuggestions.enabled": true,
+    "github.copilot.chat.editor.temporalContext.enabled": true,
+    "github.copilot.chat.edits.temporalContext.enabled": true,
 }
