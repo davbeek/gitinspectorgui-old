@@ -198,7 +198,7 @@ class GIRunner(GiRunnerBase):
                 repo_runners.append(repo_runner)
                 repo_runner.process_repo()
 
-            self.await_tasks()
+        self.await_tasks()
 
         for repo_runner in repo_runners:
             repo_runner.join_threads()
