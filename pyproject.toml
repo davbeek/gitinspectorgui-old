@@ -51,8 +51,8 @@ homepage = "https://gitinspectorgui.readthedocs.io/en/latest/index.html"
 repository = "https://github.com/davbeek/gitinspectorgui"
 
 [project.scripts]
-gigui = "gigui.__main__:main"
-gitinspectorgui = "gigui.__main__:main"
+gigui-cli = "gigui.cli:main"
+gigui = "gigui.gui.psg:main"
 
 [dependency-groups]
 dev = [

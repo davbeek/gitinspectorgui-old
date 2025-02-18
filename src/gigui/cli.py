@@ -184,5 +184,6 @@ def load_settings(save: bool, save_as: str) -> Settings:
 
 
 if __name__ == "__main__":
+    # Required for pyinstaller to support the use of multiprocessing in gigui
     multiprocessing.freeze_support()
     main()

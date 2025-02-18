@@ -385,12 +385,16 @@ class PSGUI(PSGBase):
             )
 
 
-if __name__ == "__main__":
+def main():
     settings: Settings
     error: str
     settings, error = SettingsFile.load()
-    # Required for pyinstaller to support the use of multiprocessing in gigui
-    multiprocessing.freeze_support()
     _logging.ini_for_gui_base()
     add_cli_handler()
     PSGUI(settings)
+
+
+if __name__ == "__main__":
+    # Required for pyinstaller to support the use of multiprocessing in gigui
+    multiprocessing.freeze_support()
+    main()
