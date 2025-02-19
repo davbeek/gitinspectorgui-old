@@ -62,7 +62,7 @@ dev = ["pre-commit >= 4.0.1", "pyinstaller >= 6.11.1"]
 packages = ["src/gigui"]
 
 [build-system]
-requires = ["hatchling >= 1.27"]
+requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.uv]

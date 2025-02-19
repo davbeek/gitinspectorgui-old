@@ -44,6 +44,11 @@ Download the stand-alone executable `windows-gitinspectorgui-setup.exe` from the
 it, and follow the on-screen installation instructions. The GitinspectorGUI
 executable will be available under the program group GitinspectorGUI.
 
+### Recommended browser
+
+Firefox is recommended to display analysis output. Microsoft Edge works properly
+only when analysis output is generated in html files. We have not tested Chrome.
+
 ## Download and installation: macOS
 
 ### Download and install Git
@@ -117,7 +122,7 @@ First install Git via your Linux distribution's package manager.
 
 There is no executable app binary available for Linux. To only way to run
 gitinspectorgui on Linux is by installing it from PyPI. This can be
-done via:
+done via any Python package manager or directly via `pip`:
 
 `pip install gitinspectorgui`
 
@@ -128,13 +133,20 @@ You can then display the gitinspectorgui help info by executing:
 Note that the program name is `gitinspectorgui` in PyPI, but the name of the
 actually installed Python package is the abbreviated form `gigui`.
 
+The currently available Linux GUI version of `gitinspectorgui` is not
+recommended, as Linux does not display the proper fonts as on Windows or macOS.
+We hope to resolve this issue in a next version.
+
 ## Documentation
 
 Extensive online documentation can be found at the [GitinspectorGUI Read the
 Docs website](https://gitinspectorgui.readthedocs.io/en/latest/index.html).
 
-## Contributors
+## Author
 
 -   Bert van Beek
+
+## Contributors
+
 -   Jingjing Wang
 -   Albert Hofkamp
