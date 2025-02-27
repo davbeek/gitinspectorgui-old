@@ -208,15 +208,11 @@ class GIRunner(GiRunnerBase):
         return sum(len(repo_list) for repo_list in repo_lists)
 
 
-def shutdown_handler_main_multi_core(
-    signum, frame  # pylint: disable=unused-argument
-) -> None:
+def shutdown_handler_main_multi_core(signum, frame) -> None:
     pass
 
 
-def shutdown_handler_main(
-    signum, frame, shutdown_all: Queue[None]  # pylint: disable=unused-argument
-) -> None:
+def shutdown_handler_main(signum, frame, shutdown_all: Queue[None]) -> None:
     shutdown_all.put(None)  # Only used for single core
 
 
@@ -249,9 +245,7 @@ def start_gi_runner(
     GIRunner(args, start_time, runner_queues).run_repos()
 
 
-def shutdown_handler_worker(
-    signum, frame, shutdown_all: Queue[None], nr: int  # pylint: disable=unused-argument
-) -> None:
+def shutdown_handler_worker(signum, frame, shutdown_all: Queue[None], nr: int) -> None:
     if nr == 0:
         shutdown_all.put(None)  # Only used for multicore
 

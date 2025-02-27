@@ -129,8 +129,7 @@ def main() -> None:
         path_str = namespace.save_as
         if not path_str:
             logger.error(
-                "--save-as PATH: PATH is missing. "
-                "Specify a path for the settings file."
+                "--save-as PATH: PATH is missing. Specify a path for the settings file."
             )
             return
         settings = cli_args.create_settings()
