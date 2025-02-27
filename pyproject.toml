@@ -40,10 +40,11 @@ dependencies = [
     "pysimplegui-4-foss == 4.60.4.1",
     "werkzeug >= 3.1.3",
     "xlsxwriter >= 3.2",
-    "requests == 2.32.3",                # fixed version for requests and dependencies
+    "requests == 2.32.3", # fixed version for requests and dependencies
     "types-requests == 2.32.0.20241016", #
-    "urllib3 == 2.3.0",                  # required by requests
-    "charset-normalizer == 3.4.1",       # required by requests
+    "urllib3 == 2.3.0", # required by requests
+    "charset-normalizer == 3.4.1", # required by requests
+    "ruff>=0.9.7",
 ]
 
 [project.urls]
@@ -51,12 +52,11 @@ homepage = "https://gitinspectorgui.readthedocs.io/en/latest/index.html"
 repository = "https://github.com/davbeek/gitinspectorgui"
 
 [project.scripts]
-gigui-cli = "gigui.cli:main"
-gigui = "gigui.gui.psg:main"
+gigui = "gigui.cli:main"
+gitinspectorgui = "gigui.cli:main"
 
 [dependency-groups]
-# Use ruff via the vscode extension, which automatically includes a ruff version
-dev = ["pre-commit >= 4.0.1", "pyinstaller >= 6.11.1"]
+dev = ["pre-commit >= 4.0.1", "pyinstaller >= 6.11.1", "ruff >= 0.9"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/gigui"]

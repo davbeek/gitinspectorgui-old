@@ -48,7 +48,7 @@ def log_end_time(start_time: float):
     Output the amount of passed time since 'start_time'.
     """
     end_time = time.time()
-    log(f"Done in {end_time - start_time:.1f} s")
+    log(f"Analysis done in {end_time - start_time:.1f} s.")
 
 
 def get_outfile_name(fix: str, outfile_base: str, repo_name: str) -> FileStr:

@@ -1,8 +1,9 @@
-# -*- mode: python ; coding: utf-8 -*-
+# type: ignore
+# ruff: noqa: F821  # Do not complain about undefined names
 
 block_cipher = None
 
-a = Analysis(  # type: ignore
+a = Analysis(
     ["src/gigui/gui/psg.py"],
     pathex=["src"],
     binaries=[],
@@ -18,8 +19,10 @@ a = Analysis(  # type: ignore
     excludes=[],
     win_private_assemblies=False,
 )
-pyz = PYZ(a.pure, a.zipped_data)  # type: ignore
-exe = EXE(  # type: ignore
+
+pyz = PYZ(a.pure, a.zipped_data)
+
+exe = EXE(
     pyz,
     a.scripts,
     [],
@@ -32,10 +35,17 @@ exe = EXE(  # type: ignore
     console=False,
     disable_windowed_traceback=False,
 )
-coll = COLLECT(  # type: ignore
-    exe, a.binaries, a.zipfiles, a.datas, strip=False, upx=False, name="bundle"
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    strip=False,
+    upx=False, name="bundle",
 )
-app = BUNDLE(  # type: ignore
+
+app = BUNDLE(
     coll,
     name="GitinspectorGUI.app",
     icon="src/gigui/gui/images/icon.icns",  # Optionally set the path to your .icns icon file
