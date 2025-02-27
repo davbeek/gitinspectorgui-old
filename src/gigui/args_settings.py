@@ -42,7 +42,7 @@ class Args:
     fix: str = PREFIX
     depth: int = SUBDIR_NESTING_DEPTH
     view: str = AUTO
-    file_formats: list[str] = field(default_factory=lambda: [])
+    file_formats: list[str] = field(default_factory=lambda: ["html"])
     scaled_percentages: bool = False
     blame_exclusions: str = BLAME_EXCLUSIONS_DEFAULT
     blame_skip: bool = False
@@ -98,7 +98,9 @@ class Args:
                 setattr(self, key, clean_list)  # type: ignore
             elif value["type"] == "string":
                 setattr(
-                    self, key, getattr(self, key).strip()  # pylint: disable=no-member
+                    self,
+                    key,
+                    getattr(self, key).strip(),  # pylint: disable=no-member
                 )
 
 
