@@ -23,9 +23,10 @@ logger = getLogger(__name__)
 # SHAShortDate object is used to order and number commits by date, starting at 1 for the
 # initial commit.
 @dataclass
-class SHADate:
+class SHADateNr:
     sha: SHA
     date: int
+    nr: int
 
 
 class RepoBase:
@@ -54,10 +55,20 @@ class RepoBase:
         # belong completely to an excluded author.
         self.all_fstrs: list[FileStr]
 
-        # List of the shas of the repo commits starting at the until date parameter (if set),
-        # or else at the first commit of the repo. The list includes merge commits and
-        # is sorted by commit date.
-        self.shas_dated: list[SHADate]
+        # List of the repo commits (shas) from date since to date until, sorted on
+        # commit date. Merge commits are included.
+        #
+        # The list starts with the commit with the smallest date, which is the oldest
+        # date, and which equals the since date or the first commit date. The newest
+        # date is the until date or the head commit, and it is at the end of the list.
+        #
+        # Note that rename commits that do not change the file are not present in the
+        # output of git log --follow --numstat and are therefore not present in
+        # self.shas_dated.
+        self.shas_dated_numbered: list[SHADateNr]
+
+        # List of commit nrs from the commits in self.shas_dated_numbered.
+        self.sha_nrs: list[int]
 
         self.fr2f2a2sha_set: dict[FileStr, dict[FileStr, dict[Author, set[SHA]]]] = {}
 
@@ -125,7 +136,6 @@ class RepoBase:
         self.head_sha = self.oid2sha[self.head_oid]
 
     def run_base(self) -> None:
-
         # Set list top level fstrs (based on until par and allowed file extensions)
         self.fstrs = self._get_worktree_files()
 
@@ -186,10 +196,8 @@ class RepoBase:
     # - are not excluded
     # - are in args.subfolder
     def _get_sorted_worktree_files(self) -> list[FileStr]:
-
         # Get the files with their file sizes
         def _get_worktree_files_sizes() -> list[tuple[FileStr, int]]:
-
             # Get the blobs that are in subfolder
             def _get_subfolder_blobs() -> list:
                 return [
@@ -197,7 +205,10 @@ class RepoBase:
                     for blob in self.head_commit.tree.traverse()
                     if (
                         (blob.type == "blob")  # type: ignore
-                        and fnmatchcase(blob.path.lower(), f"{self.args.subfolder}*".lower())  # type: ignore
+                        and fnmatchcase(
+                            blob.path.lower(),  # type: ignore
+                            f"{self.args.subfolder}*".lower(),  # type: ignore
+                        )  # type: ignore
                     )
                 ]
 
@@ -249,7 +260,7 @@ class RepoBase:
                 self.fstr2line_count["*"] += line_count
 
     def _get_commits_first_pass(self) -> None:
-        shas_dated: list[SHADate] = []
+        shas_dated_numbered: list[SHADateNr] = []
         ex_shas: set[SHA] = set()  # set of excluded shas
         sha: SHA
         oid: OID
@@ -297,12 +308,13 @@ class RepoBase:
             email = lines[i := i + 1]
             self.persons_db.add_person(author, email)
             self.sha2author[sha] = author
-            sha_date = SHADate(sha, timestamp)
-            shas_dated.append(sha_date)
+            sha_date_nr = SHADateNr(sha, timestamp, self.sha2nr[sha])
+            shas_dated_numbered.append(sha_date_nr)
             i += 1
 
-        shas_dated.sort(key=lambda x: x.date)
-        self.shas_dated = shas_dated
+        shas_dated_numbered.sort(key=lambda x: x.date)
+        self.shas_dated_numbered = shas_dated_numbered
+        self.sha_nrs = [sha_date_nr.nr for sha_date_nr in shas_dated_numbered]
         self.ex_shas = ex_shas
 
     def _get_since_until_args(self) -> list[str]:
@@ -386,6 +398,8 @@ class RepoBase:
         reduce_commits()
 
     def _get_commit_lines_for(self, fstr: FileStr) -> tuple[str, FileStr]:
+        # Note  that a rename commit that does not change the file is not shown in the
+        # output of git log --follow --numstat.
         def git_log_args() -> list[str]:
             args = self._get_since_until_args()
             if not self.args.whitespace:
@@ -483,10 +497,10 @@ class RepoBase:
             if fstr_root not in target:
                 target[fstr_root] = {}
                 # Ensure that there is at least one entry for fstr_root in the target
-                # when static or dynamic blame history is used. This is necessary
-                # for when the first commit in the list of commits from the top down, is
-                # a rename without any changes in the file. Such renames are not show in
-                # the output for git log --follow --numstat.
+                # when blame history is used. This is necessary for when the first
+                # commit in the list of commits from the top down is a rename without
+                # any changes in the file. Such renames are not shown in the output for
+                # git log --follow --numstat.
                 target[fstr_root][fstr_root] = {}
                 target[fstr_root][fstr_root][author] = set()
                 target[fstr_root][fstr_root][author].add(sha)

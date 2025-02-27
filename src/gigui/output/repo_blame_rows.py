@@ -36,15 +36,16 @@ class RepoBlameRows(RepoStatRows):
                 exclude_comment = is_comment and not self.args.comments
                 exclude_empty = line.strip() == "" and not self.args.empty_lines
                 exclude_author = author in self.args.ex_authors
+                exclude_nr = b.commit_nr not in self.sha_nrs
                 if self.args.blame_exclusions == REMOVE and (
-                    exclude_comment or exclude_empty or exclude_author
+                    exclude_comment or exclude_empty or exclude_author or exclude_nr
                 ):
                     line_nr += 1
                 else:
                     row: Row = [
                         (
                             0
-                            if exclude_comment or exclude_empty
+                            if exclude_comment or exclude_empty or exclude_nr
                             else self.author2nr[author]
                         ),
                         author,
@@ -75,7 +76,6 @@ class RepoBlameRows(RepoStatRows):
 
     @staticmethod
     def string2truncated(orgs: list[str], max_length: int) -> dict[str, str]:
-
         def get_trunc2digits(org2trunc: dict[str, str]) -> dict[str, int]:
             count: Counter[str] = Counter(org2trunc.values())
 

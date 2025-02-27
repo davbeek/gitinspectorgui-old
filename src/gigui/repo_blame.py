@@ -75,14 +75,10 @@ class RepoBlameBase(RepoBase):
         try:
             if self.args.multithread:
                 git_repo = GitRepo(self.location)
-                git_blames = git_repo.blame(
-                    start_oid, fstr, rev_opts=blame_opts
-                )  # type: ignore
+                git_blames = git_repo.blame(start_oid, fstr, rev_opts=blame_opts)  # type: ignore
                 git_repo.close()
             else:
-                git_blames = self.git_repo.blame(
-                    start_oid, fstr, rev_opts=blame_opts
-                )  # type: ignore
+                git_blames = self.git_repo.blame(start_oid, fstr, rev_opts=blame_opts)  # type: ignore
             return git_blames
         except GitCommandError as e:
             logger.warning(f"GitCommandError: {e}")
@@ -124,10 +120,9 @@ class RepoBlameBase(RepoBase):
 
 
 class RepoBlame(RepoBlameBase):
-
-    # Set the fstr2blames dictionary, but also add the author and email of each
-    # blame to the persons list. This is necessary, because the blame functionality
-    # can have another way to set/get the author and email of a commit.
+    # Set the fstr2blames dictionary, but also add the author and email of each blame to
+    # the persons list. This is necessary, because the blame functionality can have
+    # another way to set/get the author and email of a commit.
     def run_blame(self) -> None:
         git_blames: GitBlames
         blames: list[Blame]
@@ -237,12 +232,21 @@ class RepoBlameHistory(RepoBlame):
         blames: list[Blame]
 
         for root_fstr in self.fstrs:
-            head_sha = self.fr2f2shas[root_fstr][root_fstr][0]
             self.fstr2sha2blames[root_fstr] = {}
-            self.fstr2sha2blames[root_fstr][head_sha] = self.fstr2blames[root_fstr]
+            if self.fr2f2shas[root_fstr] == {}:
+                continue
+            if (
+                root_fstr in self.fr2f2shas
+                and root_fstr in self.fr2f2shas[root_fstr]
+                and self.fr2f2shas[root_fstr][root_fstr]
+            ):
+                head_sha = self.fr2f2shas[root_fstr][root_fstr][0]
+                self.fstr2sha2blames[root_fstr][head_sha] = self.fstr2blames[root_fstr]
+            else:
+                head_sha = None
             for fstr, shas in self.fr2f2shas[root_fstr].items():
                 for sha in shas:
-                    if fstr == root_fstr and sha == head_sha:
+                    if fstr == root_fstr and head_sha is not None and sha == head_sha:
                         continue
                     git_blames, _ = self._get_git_blames_for(fstr, sha)
                     # root_str needed only for file extension to determine

@@ -148,6 +148,18 @@ class RepoData(RepoBlameHistory):
         )
 
         for fstr in self.fstrs:
+
+            # When no commit lines are found in _process_commit_lines_for(fstr. lines),
+            # self.fr2f2shas will not have an entry for fstr.
+            # In such as case, we must ensure that there is at least one entry for fstr
+            # in self.fr2f2shas. This entry will be used to calculate blame history when
+            # the first commit in the list of commits from the top down, is a rename
+            # without any changes in the file. Such renames are not shown in the output
+            # for git log --follow --numstat.
+            if fstr not in self.fr2f2shas:
+                self.fr2f2shas[fstr] = {}
+                self.fr2f2shas[fstr][fstr] = []
+
             shas_fr = set()
             for shas in self.fr2f2shas[fstr].values():
                 shas_fr.update(shas)
