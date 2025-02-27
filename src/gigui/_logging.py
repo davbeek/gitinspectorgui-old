@@ -192,12 +192,14 @@ class GUIOutputHandler(Handler):
 
 
 def log(arg: Any, text_color: str | None = None, end: str = "\n", flush: bool = False):
-    if gui_multicore:
+    if gui_multicore:  # true for multiprocessing process started via GUI
         logger.log(ALWAYS_LOG_LEVEL, arg)
     elif shared.gui and not shared.gui_window_closed:
         shared.gui_window.write_event_value(  # type: ignore
             "log", (str(arg) + end, (text_color if text_color else "black"))
         )
+        if shared.cli:
+            print(arg, end=end, flush=flush)
     else:
         print(arg, end=end, flush=flush)
 

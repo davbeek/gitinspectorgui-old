@@ -7,7 +7,7 @@ from logging import getLogger
 from multiprocessing.managers import SyncManager
 from pathlib import Path
 
-from gigui import _logging, gi_runner
+from gigui import _logging, gi_runner, shared
 from gigui._logging import log, set_logging_level_from_verbosity
 from gigui.args_settings import Args, CLIArgs, Settings, SettingsFile
 from gigui.cli_arguments import define_arguments
@@ -29,6 +29,7 @@ def main() -> None:
     start_time: float = time.time()
     manager: SyncManager | None = None
 
+    shared.cli = True
     parser = ArgumentParser(
         prog="gitinspectorgui",
         description="".join(Help.help_doc),
