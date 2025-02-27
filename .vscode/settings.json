@@ -57,7 +57,7 @@
     "prettier.tabWidth": 4,
     //
     "[python]": {
-        "editor.defaultFormatter": "ms-python.black-formatter",
+        "editor.defaultFormatter": "charliermarsh.ruff",
         "editor.formatOnSave": true,
         "editor.rulers": [
             88
