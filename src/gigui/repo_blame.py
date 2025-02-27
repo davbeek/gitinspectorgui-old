@@ -50,8 +50,6 @@ class RepoBlameBase(RepoBase):
             4: ["-C", "-C", "-C"],
         }
         blame_opts: list[str] = copy_move_int2opts[self.args.copy_move]
-        if self.args.since:
-            blame_opts.append(f"--since={self.args.since}")
         if not self.args.whitespace:
             blame_opts.append("-w")
         for rev in self.ex_shas:
