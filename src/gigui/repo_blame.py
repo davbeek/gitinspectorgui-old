@@ -190,8 +190,10 @@ class RepoBlame(RepoBlameBase):
         author2line_count: dict[Author, int] = {}
         target = author2fstr2fstat
         for fstr in self.all_fstrs:
-            blames = self.fstr2blames[fstr]
+            blames: list[Blame] = self.fstr2blames[fstr]
             for b in blames:
+                if b.commit_nr not in self.sha_nrs:
+                    continue
                 person = self.persons_db[b.author]
                 author = person.author
                 if author not in author2line_count:

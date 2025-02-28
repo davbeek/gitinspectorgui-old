@@ -65,10 +65,10 @@ class RepoBase:
         # Note that rename commits that do not change the file are not present in the
         # output of git log --follow --numstat and are therefore not present in
         # self.shas_dated.
-        self.shas_dated_numbered: list[SHADateNr]
+        self.shas_date_number: list[SHADateNr]
 
-        # List of commit nrs from the commits in self.shas_dated_numbered.
-        self.sha_nrs: list[int]
+        # List of commit nrs from the commits in self.shas_date_number.
+        self.sha_nrs: list[int] = []
 
         self.fr2f2a2sha_set: dict[FileStr, dict[FileStr, dict[Author, set[SHA]]]] = {}
 
@@ -313,7 +313,7 @@ class RepoBase:
             i += 1
 
         shas_dated_numbered.sort(key=lambda x: x.date)
-        self.shas_dated_numbered = shas_dated_numbered
+        self.shas_date_number = shas_dated_numbered
         self.sha_nrs = [sha_date_nr.nr for sha_date_nr in shas_dated_numbered]
         self.ex_shas = ex_shas
 
