@@ -64,10 +64,10 @@ class RepoBase:
         #
         # Note that rename commits that do not change the file are not present in the
         # output of git log --follow --numstat and are therefore not present in
-        # self.shas_dated.
-        self.shas_date_number: list[SHADateNr]
+        # self.sha_date_nrs.
+        self.sha_date_nrs: list[SHADateNr]
 
-        # List of commit nrs from the commits in self.shas_date_number.
+        # List of commit nrs from the commits in self.shas_date_nr.
         self.sha_nrs: list[int] = []
 
         self.fr2f2a2sha_set: dict[FileStr, dict[FileStr, dict[Author, set[SHA]]]] = {}
@@ -260,7 +260,7 @@ class RepoBase:
                 self.fstr2line_count["*"] += line_count
 
     def _get_commits_first_pass(self) -> None:
-        shas_dated_numbered: list[SHADateNr] = []
+        sha_date_nrs: list[SHADateNr] = []
         ex_shas: set[SHA] = set()  # set of excluded shas
         sha: SHA
         oid: OID
@@ -309,12 +309,12 @@ class RepoBase:
             self.persons_db.add_person(author, email)
             self.sha2author[sha] = author
             sha_date_nr = SHADateNr(sha, timestamp, self.sha2nr[sha])
-            shas_dated_numbered.append(sha_date_nr)
+            sha_date_nrs.append(sha_date_nr)
             i += 1
 
-        shas_dated_numbered.sort(key=lambda x: x.date)
-        self.shas_date_number = shas_dated_numbered
-        self.sha_nrs = [sha_date_nr.nr for sha_date_nr in shas_dated_numbered]
+        sha_date_nrs.sort(key=lambda x: x.date)
+        self.sha_date_nrs = sha_date_nrs
+        self.sha_nrs = [sha_date_nr.nr for sha_date_nr in sha_date_nrs]
         self.ex_shas = ex_shas
 
     def _get_since_until_args(self) -> list[str]:
