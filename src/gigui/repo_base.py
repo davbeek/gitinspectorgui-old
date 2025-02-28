@@ -463,7 +463,9 @@ class RepoBase:
             timestamp = int(lines[i := i + 1])
             author = lines[i := i + 1]
             person = self.persons_db[author]
-            if not i < len(lines):
+            if not i + 1 < len(lines):
+                # No stat line. This can happen eg when the only changes were in
+                # whitespace
                 break
             stat_line = lines[i := i + 1]
             if not stat_line:
