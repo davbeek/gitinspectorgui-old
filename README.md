@@ -22,9 +22,9 @@ of the contribution of each author to selected repositories.
     Additionally, a Python package can be installed from PyPI. This solution
     works on all platforms that support Python, including Linux.
 
-## Download and installation: Windows
+## Installation of GitinspectorGUI for Windows
 
-### Install Git for Windows
+### Installation of Git for Windows
 
 The GitinspectorGUI app is only about 18MB in size, but it requires Git for
 Windows to be available on your system. Git for Windows is around 375MB in
@@ -37,7 +37,7 @@ all options at their default settings will ensure proper functionality. A
 drawback of using the default settings is that it may add extra context menu
 items in File Explorer.
 
-### Download and install the GitinspectorGUI executable
+### Installation of the GitinspectorGUI executable
 
 Download the stand-alone executable `windows-gitinspectorgui-setup.exe` from the
 [releases page](https://github.com/davbeek/gitinspectorgui/releases). Execute
@@ -49,22 +49,22 @@ executable will be available under the program group GitinspectorGUI.
 Firefox is recommended to display analysis output. Microsoft Edge works properly
 only when analysis output is generated in html files. We have not tested Chrome.
 
-## Download and installation: macOS
+## Installation of GitinspectorGUI for macOS
 
-### Download and install Git
+### Installation of Git
 
 There are multiple ways to install Git for macOS, but they all require the
-command line. The easiest way to do this is if you use Miniconda or Anaconda,
-Homebrew or MacPorts as package manager:
+command line. The easiest way to do this is by using the Miniconda or Anaconda,
+Homebrew or MacPorts package manager:
 
-Via conda:
-`conda install git`
+-   Conda:
+    `conda install git`
 
-Via Homebrew:
-`brew install git`
+-   Homebrew:
+    `brew install git`
 
-Via MacPorts:
-`sudo port install git`
+-   MacPorts:
+    `sudo port install git`
 
 If you do not use a package manager, Git can be installed as part of the XCode
 Command Line Tools via:
@@ -73,9 +73,10 @@ Command Line Tools via:
 
 This does not install the complete XCode IDE and takes about 1GB.
 
-### Install the GitinspectorGUI app
+### Installation of the GitinspectorGUI app
 
-Download the appropriate dmg file for your hardware. There are two versions for macOS:
+Download the appropriate dmg file for your hardware. There are two versions for
+macOS:
 
 -   **macOS Intel**: This version is for the old Intel MacBooks.
 
@@ -84,8 +85,8 @@ Download the appropriate dmg file for your hardware. There are two versions for 
 
 Open the downloaded file by double clicking. This opens a window with the
 GitinspectorGUI app. Drag the icon onto the Applications folder or to a
-temporary location, from where it can be moved to the Applications folder. You can
-then open the GitinspectorGUI app from the Applications folder.
+temporary location, from where it can be moved to the Applications folder. You
+can then open the GitinspectorGUI app from the Applications folder.
 
 The first time you open the GitinspectorGUI app, you will get an error message
 saying either _"GitinspectorGUI" can't be opened because Apple cannot check it
@@ -99,30 +100,18 @@ _"GitinspectorGUI.app"_ was blocked from use because it is not from an
 identified developer, and after that, a button `Open Anyway`. Clicking that
 button will allow the GitinspectorGUI app to be executed.
 
-### CLI
+## Installation of GitinspectorGUI for Linux
 
-For the CLI version, you need to have a working Python installation so that you
-can install GitinspectorGUI from PyPI via:
+We do not yet have binary versions of the GUI for Linux, but we aim to provide
+binaries for some of the biggest Linux distros in the future. Currently, for
+Linux only the CLI version is available.
 
-`pip install gitinspectorgui`
+# Installation of the GitinspectorGUI CLI for Windows, macOS and Linux
 
-You can then display the gitinspectorgui help info by executing:
+## Via existing versions of Python and pip
 
-`python -m gigui -h`
-
-This displays the help info in the CLI. Like the GUI app, the CLI version also
-requires Git to be installed.
-
-Note that the program name is `gitinspectorgui` in PyPI, but the name of the
-actually installed Python package is the abbreviated form `gigui`.
-
-## Installation: Linux
-
-First install Git via your Linux distribution's package manager.
-
-There is no executable app binary available for Linux. To only way to run
-gitinspectorgui on Linux is by installing it from PyPI. This can be
-done via any Python package manager or directly via `pip`:
+If you already have a working Python installation with `pip`, you can install
+the GitinspectorGUI CLI from PyPI via:
 
 `pip install gitinspectorgui`
 
@@ -130,12 +119,39 @@ You can then display the gitinspectorgui help info by executing:
 
 `python -m gigui -h`
 
+Like the GUI app, the CLI version also requires Git to be installed.
+
 Note that the program name is `gitinspectorgui` in PyPI, but the name of the
 actually installed Python package is the abbreviated form `gigui`.
 
-The currently available Linux GUI version of `gitinspectorgui` is not
-recommended, as Linux does not display the proper fonts as on Windows or macOS.
-We hope to resolve this issue in a next version.
+## Via the UV Python package manager
+
+If you do not already have operational versions of Python and `pip`, we
+recommend using the advanced and user-friendly new Python package manager `uv`
+to install GitinspectorGUI. See the `uv` website for [installation
+instructions](https://docs.astral.sh/uv/getting-started/installation/).
+
+Once you have installed `uv`, you can run the GitinspectorGUI CLI via:
+
+`uvx gitinspectorgui`
+
+UV will automatically install Python if it is not already avaiable on your
+system. It will also automatically download and cache
+the latest `gitinspectorgui` version and execute it. When a new version of
+`gitinspectorgui` is released, all you need to do is execute:
+
+`uvx gitinspectorgui@latest`
+
+This will download, cache and execute the latest `gitinspectorgui` version.
+Subsequent invocations of `uvx gitinspectorgui` will then use this new
+`gitinspectorgui` version.
+
+## Using the CLI
+
+-   `uvx gitinspectorgui -h` show the help info.
+-   `uvx gitinspectorgui -g` opens the GUI.
+-   `uvx gitinspectorgui -r repodir` runs the program on the repodir repository
+    and shows the result in the default system browser.
 
 ## Documentation
 
