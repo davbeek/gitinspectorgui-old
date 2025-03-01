@@ -51,7 +51,7 @@ only when analysis output is generated in html files. We have not tested Chrome.
 
 ## Installation of GitinspectorGUI for macOS
 
-### Installation of Git
+### Installation of Git for macOS
 
 There are multiple ways to install Git for macOS, but they all require the
 command line. The easiest way to do this is by using the Miniconda or Anaconda,
@@ -108,7 +108,14 @@ Linux only the CLI version is available.
 
 # Installation of the GitinspectorGUI CLI for Windows, macOS and Linux
 
-## Via existing versions of Python and pip
+## Installation of Git
+
+Like the GUI app, the CLI version also requires Git to be installed. See the
+section [Installation of Git for Windows](#installation-of-git-for-windows) or
+[Installation of Git for macOS](#installation-of-git-for-macos). On Linux, use
+the package manager of your distribution to install git.
+
+## Installation of the app via existing versions of Python and pip
 
 If you already have a working Python installation with `pip`, you can install
 the GitinspectorGUI CLI from PyPI via:
@@ -119,12 +126,10 @@ You can then display the gitinspectorgui help info by executing:
 
 `python -m gigui -h`
 
-Like the GUI app, the CLI version also requires Git to be installed.
-
 Note that the program name is `gitinspectorgui` in PyPI, but the name of the
 actually installed Python package is the abbreviated form `gigui`.
 
-## Via the UV Python package manager
+## Installation of the app via the UV Python package manager
 
 If you do not already have operational versions of Python and `pip`, we
 recommend using the advanced and user-friendly new Python package manager `uv`
