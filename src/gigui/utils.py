@@ -16,20 +16,6 @@ STDOUT = True
 DEFAULT_WRAP_WIDTH = 88
 
 
-def open_files(fstrs: list[str]):
-    if fstrs:
-        match platform.system():
-            case "Darwin":
-                subprocess.run(["open"] + fstrs, check=True)
-            case "Linux":
-                subprocess.run(["xdg-open"] + fstrs, check=True)
-            case "Windows":
-                for fstr in fstrs:
-                    subprocess.run(["start", "", fstr], check=True, shell=True)
-            case _:
-                raise RuntimeError(f"Unknown platform {platform.system()}")
-
-
 def open_file(fstr: FileStr):
     if fstr:
         match platform.system():

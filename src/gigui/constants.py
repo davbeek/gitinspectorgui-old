@@ -58,7 +58,7 @@ FILE_FORMATS = [HTML, HTML_BLAME_HISTORY, EXCEL]
 
 # Output settings web browser
 MAX_BROWSER_TABS = 20
-FIRST_PORT = 8080
+PORT_VALUE = 8080
 
 # Output settings Excel
 ABBREV_CNT = 30

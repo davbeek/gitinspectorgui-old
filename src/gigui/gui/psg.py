@@ -8,6 +8,7 @@ from datetime import datetime
 from logging import getLogger
 from multiprocessing.managers import SyncManager
 from pathlib import Path
+from queue import Queue
 from typing import Any
 
 import PySimpleGUI as sg  # type: ignore
@@ -28,9 +29,10 @@ from gigui.gi_runner import GIRunner
 from gigui.gui.psg_base import PSGBase, help_window, log, popup
 from gigui.gui.psg_window import make_window
 from gigui.keys import Keys
-from gigui.queues_setup import RunnerQueues, get_runner_queues
+from gigui.messages import CLOSE_OUTPUT_VIEWERS_MSG
+from gigui.queues_events import RunnerQueues, get_runner_queues
 from gigui.tiphelp import Help, Tip
-from gigui.utils import to_posix_fstr
+from gigui.utils import open_file, to_posix_fstr
 
 logger = getLogger(__name__)
 
@@ -49,6 +51,7 @@ class PSGUI(PSGBase):
         self.manager: SyncManager | None = (
             None  # defined when the event keys.run is triggered
         )
+        self.logging_queue: Queue  # defined when the event keys.run is triggered
         self.gi_runner_thread: threading.Thread | None = None
         self.recreate_window: bool = True
 
@@ -58,6 +61,7 @@ class PSGUI(PSGBase):
 
     # pylint: disable=too-many-locals disable=too-many-branches disable=too-many-statements
     def run_inner(self) -> bool:
+        gi_runner: GIRunner
         logger.debug(f"{self.settings = }")  # type: ignore
 
         shared.gui = True
@@ -115,6 +119,21 @@ class PSGUI(PSGBase):
                     message, color = values[event]
                     sg.cprint(message, text_color=color, end="")
 
+                # Output
+                case keys.open_file:
+                    open_file(values[event])
+
+                case keys.start_server_threads:
+                    gi_runner = values[event]
+                    gi_runner.start_server_threads()
+
+                case keys.gui_open_new_tabs:
+                    gi_runner = values[event]
+                    gi_runner.gui_open_new_tabs()
+                    time.sleep(0.1)
+                    log(CLOSE_OUTPUT_VIEWERS_MSG)
+                    gi_runner.events.server_shutdown_done.wait()
+
                 # Top level buttons
                 ###########################
                 case keys.col_percent:
@@ -123,7 +142,7 @@ class PSGUI(PSGBase):
                 case keys.run:
                     # Update processing of input patterns because dir state may have changed
                     self.process_inputs()  # type: ignore
-                    self.queues, self.manager = get_runner_queues(
+                    self.queues, self.logging_queue, self.manager = get_runner_queues(
                         self.settings.multicore
                     )
                     self.run(values)
@@ -132,10 +151,6 @@ class PSGUI(PSGBase):
                 case keys.end:
                     if self.gi_runner_thread:
                         self.gi_runner_thread.join()
-                        # Cleanup resources
-                        if self.queues.host_port:
-                            # Need to remove the last port value to avoid a deadlock
-                            self.queues.host_port.get()
                         if self.manager:
                             self.manager.shutdown()
                     self.gi_runner_thread = None
@@ -158,12 +173,7 @@ class PSGUI(PSGBase):
                 case sg.WIN_CLOSED:
                     if self.gi_runner_thread:
                         shared.gui_window_closed = True
-                        self.queues.shutdown_all.put(None)
                         self.gi_runner_thread.join()
-                        # Cleanup resources
-                        if self.queues.host_port:
-                            # Need to remove the last port value to avoid a deadlock
-                            self.queues.host_port.get()
                         if self.manager:
                             self.manager.shutdown()
                     break
@@ -258,7 +268,6 @@ class PSGUI(PSGBase):
         self,
         values: dict,
     ) -> None:
-
         start_time = time.time()
         logger.debug(f"{values = }")  # type: ignore
 
@@ -349,15 +358,20 @@ class PSGUI(PSGBase):
 
         self.gi_runner_thread = threading.Thread(
             target=self.start_gi_runner,
-            args=(args, start_time, self.queues),
+            args=(args, start_time, self.queues, self.logging_queue),
             name="GI Runner",
         )
         self.gi_runner_thread.start()
 
     def start_gi_runner(
-        self, args: Args, start_time: float, queues: RunnerQueues
+        self, args: Args, start_time: float, queues: RunnerQueues, logging_queue: Queue
     ) -> None:
-        GIRunner(args, start_time, queues).run_repos()
+        GIRunner(
+            args,
+            start_time,
+            queues,
+            logging_queue,
+        ).run_repos()
         if not shared.gui_window_closed:
             self.window.write_event_value(keys.end, None)
 
@@ -387,8 +401,7 @@ class PSGUI(PSGBase):
 
 def main():
     settings: Settings
-    error: str
-    settings, error = SettingsFile.load()
+    settings, _ = SettingsFile.load()
     _logging.ini_for_gui_base()
     add_cli_handler()
     PSGUI(settings)

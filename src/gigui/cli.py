@@ -13,7 +13,7 @@ from gigui.args_settings import Args, CLIArgs, Settings, SettingsFile
 from gigui.cli_arguments import define_arguments
 from gigui.constants import DEFAULT_EXTENSIONS, NONE
 from gigui.gui.psg import PSGUI
-from gigui.queues_setup import get_runner_queues
+from gigui.queues_events import get_runner_queues
 from gigui.tiphelp import Help
 from gigui.typedefs import FileStr
 from gigui.utils import get_dir_matches, strip_quotes
@@ -147,20 +147,18 @@ def main() -> None:
 
     if cli_args.gui or cli_args.run:
         if cli_args.gui:
+            # GUI
             settings = Settings.from_args(args, gui_settings_full_path)
             PSGUI(settings)
         elif namespace.run:
-            queues, manager = get_runner_queues(args.multicore)
-
+            # CLI
+            queues, logging_queue, manager = get_runner_queues(args.multicore)
             gi_runner.start_gi_runner(
                 args,
                 start_time,
                 queues,
+                logging_queue,
             )
-            # Cleanup resources
-            if queues.host_port:
-                # Need to remove the last port value to avoid a deadlock
-                queues.host_port.get()
             if manager:
                 manager.shutdown()
     elif not namespace.save and not namespace.save_as and not namespace.show:

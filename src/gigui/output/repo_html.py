@@ -5,6 +5,7 @@ from pathlib import Path
 from bs4 import BeautifulSoup, Tag
 
 from gigui._logging import log
+from gigui.args_settings import Args
 from gigui.constants import HIDE, SHOW
 from gigui.data import IniRepo
 from gigui.keys import Keys
@@ -448,56 +449,13 @@ class RepoBlameTablesSoup(RepoBlameTableSoup):
 
 
 # pylint: disable=too-many-locals
-class RepoHTML(RepoBlameTablesSoup):
+class RepoHTML:
     """
     Generate html with complete analysis results of the provided repository.
     """
 
-    blame_skip: bool
-
-    def get_html(self) -> HtmlStr:
-
-        # Load the template file.
-        module_dir = Path(__file__).resolve().parent
-        html_path = module_dir / "static" / "template.html"
-        with open(html_path, "r", encoding="utf-8") as f:
-            html_template = f.read()
-
-        if (
-            Keys.html in self.args.file_formats
-            or Keys.html_blame_history in self.args.file_formats
-        ):
-            # If blame_history_dynamic, create_html_document is called in repo_html_server.py
-            html_template = self.create_html_document(html_template, self.load_css())
-
-        self.global_soup = BeautifulSoup(html_template, "html.parser")
-        soup = self.global_soup
-
-        title_tag: Tag = soup.find(name="title")  # type: ignore
-        title_tag.string = f"{self.name} viewer"
-
-        authors_tag: Tag = soup.find(id="authors")  # type: ignore
-        authors_tag.append(self.get_authors_soup())
-
-        authors_files_tag: Tag = soup.find(id="authors-files")  # type: ignore
-        authors_files_tag.append(self.get_authors_files_soup())
-
-        files_authors_tag: Tag = soup.find(id="files-authors")  # type: ignore
-        files_authors_tag.append(self.get_files_authors_soup())
-
-        files_tag: Tag = soup.find(id="files")  # type: ignore
-        files_tag.append(self.get_files_soup())
-
-        # Add blame output if not skipped.
-        if not self.args.blame_skip:
-            self.add_blame_tables_soup()
-
-        html: HtmlStr = str(soup)
-        html = html.replace("&amp;nbsp;", "&nbsp;")
-        html = html.replace("&amp;lt;", "&lt;")
-        html = html.replace("&amp;gt;", "&gt;")
-        html = html.replace("&amp;quot;", "&quot;")
-        return html
+    def __init__(self, args: Args) -> None:
+        self.args: Args = args
 
     # Is called by gitinspector module
     def load_css(self) -> str:
@@ -508,7 +466,6 @@ class RepoHTML(RepoBlameTablesSoup):
     def create_html_document(
         self, html_code: HtmlStr, css_code: str, browser_id: str | None = None
     ) -> HtmlStr:
-
         # Insert CSS code
         html_code = html_code.replace(
             "</head>",
@@ -545,9 +502,7 @@ class RepoHTML(RepoBlameTablesSoup):
                     # Insert the value of --blame-exclusions=hide in the js code
                     js_code = js_code.replace(
                         '"<%= blame_exclusions_hide %>"',
-                        (
-                            "true" if self.args.blame_exclusions == HIDE else "false"
-                        ),  # noqa: F821
+                        ("true" if self.args.blame_exclusions == HIDE else "false"),  # noqa: F821
                     )
                 case "browser-id.js":
                     # Insert the browser ID option in the js code

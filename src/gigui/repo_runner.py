@@ -1,31 +1,34 @@
 from logging import getLogger
+from pathlib import Path
+
+from bs4 import BeautifulSoup, Tag
 
 from gigui._logging import log
 from gigui.args_settings import Args
-from gigui.constants import AUTO, NONE
+from gigui.constants import AUTO, DYNAMIC_BLAME_HISTORY
 from gigui.data import FileStat, IniRepo, Person
 from gigui.keys import Keys
 from gigui.output.repo_excel import Book
-from gigui.output.repo_html_server import RepoHTMLServer
-from gigui.queues_setup import RunnerQueues
-from gigui.typedefs import FileStr
-from gigui.utils import get_outfile_name, open_file
+from gigui.output.repo_html import RepoBlameTablesSoup, RepoHTML
+from gigui.queues_events import RunnerQueues
+from gigui.typedefs import FileStr, HtmlStr
+from gigui.utils import get_outfile_name
 
 # For multicore, logger is set in process_repo_multicore().
 logger = getLogger(__name__)
 
 
-class RepoRunner(RepoHTMLServer, Book):
+class RepoRunner(RepoBlameTablesSoup, RepoHTML, Book):
     def __init__(
         self,
         ini_repo: IniRepo,
         queues: RunnerQueues,
     ) -> None:
-        super().__init__(
-            ini_repo,
-            queues,
-        )
+        RepoBlameTablesSoup.__init__(self, ini_repo)
+        Book.__init__(self, ini_repo)
         assert ini_repo.args is not None
+        self.browser_id: str = ""  # used only for localhost server
+        self.queues: RunnerQueues = queues
         self.init_class_options(ini_repo.args)
 
     def init_class_options(self, args: Args) -> None:
@@ -41,7 +44,12 @@ class RepoRunner(RepoHTMLServer, Book):
             if self.args.dry_run <= 1:
                 log(" " * 8 + "No statistics matching filters found")
             self.queues.task_done.put(self.name)
-            self.queues.repo_done.put(self.name)
+            if self.args.view == AUTO and self.args.file_formats:
+                self.queues.open_file.put((self.name, None))  # type: ignore
+            elif self.args.view == AUTO:
+                self.queues.html.put((self.name, None))  # type: ignore
+            elif self.args.view == DYNAMIC_BLAME_HISTORY:
+                self.queues.html.put((self, None))  # type: ignore
         else:
             if self.args.dry_run == 0:
                 self.generate_output()
@@ -85,20 +93,64 @@ class RepoRunner(RepoHTMLServer, Book):
 
         if self.args.view == AUTO and self.args.file_formats:
             if Keys.excel in self.args.file_formats:
-                open_file(outfilestr + ".xlsx")
+                self.queues.open_file.put((self.name, outfilestr + ".xlsx"))
             if (
                 Keys.html in self.args.file_formats
                 or Keys.html_blame_history in self.args.file_formats
             ):
-                open_file(outfilestr + ".html")
-            self.queues.repo_done.put(self.name)
-        elif not self.args.view == NONE:
+                self.queues.open_file.put((self.name, outfilestr + ".html"))
+        elif self.args.view == AUTO:
+            self.queues.task_done.put(self.name)
             html_code = self.get_html()
-            self.start_werkzeug_server_with_html(html_code)
-        else:
-            self.queues.repo_done.put(self.name)
+            self.queues.html.put((self.name, html_code))  # type: ignore
+        elif self.args.view == DYNAMIC_BLAME_HISTORY:
+            self.queues.task_done.put(self.name)
+            html_code = self.get_html()
+            self.queues.html.put((self, html_code))  # type: ignore
+        else:  # self.args.view == NONE
+            # Assume that self.args.file_formats is not empty here otherwise this method
+            # would not have been called.
+            pass
 
-    def join_threads(self) -> None:
-        # server thread is joined in monitor_events()
-        if self.monitor_thread is not None:
-            self.monitor_thread.join()
+    def get_html(self) -> HtmlStr:
+        # Load the template file.
+        module_dir = Path(__file__).resolve().parent
+        html_path = module_dir / "output" / "static" / "template.html"
+        with open(html_path, "r", encoding="utf-8") as f:
+            html_template = f.read()
+
+        if (
+            Keys.html in self.args.file_formats
+            or Keys.html_blame_history in self.args.file_formats
+        ):
+            # If blame_history_dynamic, create_html_document is called in repo_html_server.py
+            html_template = self.create_html_document(html_template, self.load_css())
+
+        self.global_soup = BeautifulSoup(html_template, "html.parser")
+        soup = self.global_soup
+
+        title_tag: Tag = soup.find(name="title")  # type: ignore
+        title_tag.string = f"{self.name} viewer"
+
+        authors_tag: Tag = soup.find(id="authors")  # type: ignore
+        authors_tag.append(self.get_authors_soup())
+
+        authors_files_tag: Tag = soup.find(id="authors-files")  # type: ignore
+        authors_files_tag.append(self.get_authors_files_soup())
+
+        files_authors_tag: Tag = soup.find(id="files-authors")  # type: ignore
+        files_authors_tag.append(self.get_files_authors_soup())
+
+        files_tag: Tag = soup.find(id="files")  # type: ignore
+        files_tag.append(self.get_files_soup())
+
+        # Add blame output if not skipped.
+        if not self.args.blame_skip:
+            self.add_blame_tables_soup()
+
+        html: HtmlStr = str(soup)
+        html = html.replace("&amp;nbsp;", "&nbsp;")
+        html = html.replace("&amp;lt;", "&lt;")
+        html = html.replace("&amp;gt;", "&gt;")
+        html = html.replace("&amp;quot;", "&quot;")
+        return html

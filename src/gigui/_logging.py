@@ -116,7 +116,7 @@ def get_gui_handler() -> "GUIOutputHandler":
 # Executed by a new python interpreter in a worker process, which does not share memory
 # with the main process. The worker process is created by the multiprocessing module.
 def ini_worker_for_multiprocessing(
-    logging_queue: queue.Queue, verbosity: int = DEFAULT_VERBOSITY, gui: bool = False
+    logging_queue: queue.Queue, gui: bool = False
 ) -> None:
     global gui_multicore
     getLogger().addHandler(QueueHandler(logging_queue))

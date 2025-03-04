@@ -1,10 +1,15 @@
 import signal
+import threading
 from dataclasses import dataclass
 from multiprocessing.managers import SyncManager
 from queue import Queue
+from typing import TYPE_CHECKING
 
-from gigui.constants import FIRST_PORT
 from gigui.data import IniRepo
+from gigui.typedefs import HtmlStr
+
+if TYPE_CHECKING:
+    from gigui.repo_runner import RepoRunner
 
 
 class CustomSyncManager(SyncManager):
@@ -20,44 +25,48 @@ class CustomSyncManager(SyncManager):
 
 @dataclass
 class RunnerQueues:
-    host_port: Queue[int]
     task: Queue[IniRepo]
     task_done: Queue[str]
-    repo_done: Queue[str]
-    logging: Queue[str]
-    shutdown_all: Queue[None]
+    open_file: Queue[tuple[str, str]]
+    html: (
+        Queue[tuple[str, HtmlStr]]
+        | Queue[tuple["RepoRunner", HtmlStr]]  # for dynamic blame history
+    )
 
 
-def get_runner_queues(multicore: bool) -> tuple[RunnerQueues, SyncManager | None]:
+@dataclass
+class RunnerEvents:
+    server_shutdown_done: threading.Event = threading.Event()
+    server_shutdown_request: threading.Event = threading.Event()
+
+
+def get_runner_queues(
+    multicore: bool,
+) -> tuple[RunnerQueues, Queue, SyncManager | None]:
     manager: SyncManager | None
     if multicore:
         manager = CustomSyncManager()
         manager.start()
-        host_port = manager.Queue()
         task = manager.Queue()
         task_done_nr = manager.Queue()
-        repo_done_nr = manager.Queue()
+        open_file = manager.Queue()
+        html = manager.Queue()  # type: ignore
         logging = manager.Queue()  # type: ignore
-        shutdown_all = manager.Queue()
     else:
         manager = None
-        host_port = Queue()
         task = Queue()
         task_done_nr = Queue()
-        repo_done_nr = Queue()
+        open_file = Queue()
+        html = Queue()
         logging = Queue()
-        shutdown_all = Queue()
-    if host_port:
-        host_port.put(FIRST_PORT)
 
     return (
         RunnerQueues(
-            host_port,
             task,
             task_done_nr,
-            repo_done_nr,
-            logging,
-            shutdown_all,
+            open_file,
+            html,
         ),
+        logging,
         manager,
     )

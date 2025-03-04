@@ -18,8 +18,8 @@ def close_browser_key():
 
 
 CLOSE_OUTPUT_VIEWERS_MSG = (
-    f"When you are done with the output, please close the browser window ({close_browser_key()}) or browser "
-    f"tab(s) ({close_tab_key()}), but not before the pages have fully loaded. "
+    f"Close the browser window ({close_browser_key()}) or one or more browser "
+    f"tabs ({close_tab_key()}) to continue."
 )
 
 CONTROL_C = (
@@ -28,4 +28,5 @@ CONTROL_C = (
     + " on the command line."
 )
 
-CLOSE_OUTPUT_VIEWERS_CLI_MSG = CLOSE_OUTPUT_VIEWERS_MSG + CONTROL_C
+CLOSE_OUTPUT_VIEWERS_CLI_MSG = CLOSE_OUTPUT_VIEWERS_MSG
+# CLOSE_OUTPUT_VIEWERS_CLI_MSG = CLOSE_OUTPUT_VIEWERS_MSG + CONTROL_C
