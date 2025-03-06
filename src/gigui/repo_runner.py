@@ -124,7 +124,9 @@ class RepoRunner(RepoBlameTablesSoup, RepoHTML, Book):
             or Keys.html_blame_history in self.args.file_formats
         ):
             # If blame_history_dynamic, create_html_document is called in repo_html_server.py
-            html_template = self.create_html_document(html_template, self.load_css())
+            html_template = RepoHTML.create_html_document(
+                self.args, html_template, RepoHTML.load_css()
+            )
 
         self.global_soup = BeautifulSoup(html_template, "html.parser")
         soup = self.global_soup

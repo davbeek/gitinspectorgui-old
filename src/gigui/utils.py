@@ -1,10 +1,12 @@
 import argparse
 import platform
+import signal
 import subprocess
 import threading
 import time
 from cProfile import Profile
 from io import StringIO
+from multiprocessing.synchronize import Event as multiprocessingEvent
 from pathlib import Path
 from pstats import Stats
 
@@ -247,3 +249,28 @@ def print_threads(message: str):
             f"{'Alive' if thread.is_alive() else 'Dead'}"
         )
     print()
+
+
+def sigint_handler(
+    signum, frame, sigint_event: multiprocessingEvent | threading.Event
+) -> None:
+    sigint_event.set()  # Only used for single core in this main process
+
+
+def setup_sigint_handler(sigint_event: multiprocessingEvent | threading.Event):
+    signal.signal(
+        signal.SIGINT,
+        lambda signum, frame: sigint_handler(
+            signum,
+            frame,
+            sigint_event,  # type: ignore
+        ),
+    )
+    signal.signal(
+        signal.SIGTERM,
+        lambda signum, frame: sigint_handler(
+            signum,
+            frame,
+            sigint_event,  # type: ignore
+        ),
+    )

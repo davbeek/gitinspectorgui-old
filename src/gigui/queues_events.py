@@ -1,4 +1,3 @@
-import signal
 import threading
 from dataclasses import dataclass
 from multiprocessing.managers import SyncManager
@@ -10,17 +9,6 @@ from gigui.typedefs import HtmlStr
 
 if TYPE_CHECKING:
     from gigui.repo_runner import RepoRunner
-
-
-class CustomSyncManager(SyncManager):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        signal.signal(signal.SIGINT, self.shutdown_handler)
-        signal.signal(signal.SIGTERM, self.shutdown_handler)
-
-    def shutdown_handler(self, signum, frame):  # pylint: disable=unused-argument
-        print("SyncManager received SIGINT")
 
 
 @dataclass
@@ -45,7 +33,7 @@ def get_runner_queues(
 ) -> tuple[RunnerQueues, Queue, SyncManager | None]:
     manager: SyncManager | None
     if multicore:
-        manager = CustomSyncManager()
+        manager = SyncManager()
         manager.start()
         task = manager.Queue()
         task_done_nr = manager.Queue()

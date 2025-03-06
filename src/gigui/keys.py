@@ -53,9 +53,6 @@ class Keys(KeysArgs):
     # Output
     open_file: str = "open_file"
     open_server: str = "open_server"
-    start_server_threads: str = "start_server_threads"
-    delay: str = "delay"
-    gui_open_new_tabs: str = "gui_open_new_tabs"
 
     # Complete settings column
     config_column: str = "config_column"

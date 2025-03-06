@@ -4,35 +4,30 @@ import multiprocessing
 import sys
 import threading
 import time
-from datetime import datetime
 from logging import getLogger
 from multiprocessing.managers import SyncManager
+from multiprocessing.synchronize import Event as multiprocessingEvent
 from pathlib import Path
 from queue import Queue
-from typing import Any
 
 import PySimpleGUI as sg  # type: ignore
 
 from gigui import _logging, shared
-from gigui._logging import add_cli_handler, set_logging_level_from_verbosity
+from gigui._logging import set_logging_level_from_verbosity
 from gigui.args_settings import Args, Settings, SettingsFile
 from gigui.constants import (
-    AUTO,
     DEBUG_SHOW_MAIN_EVENT_LOOP,
-    DYNAMIC_BLAME_HISTORY,
-    FILE_FORMATS,
     MAX_COL_HEIGHT,
-    NONE,
     WINDOW_HEIGHT_CORR,
 )
 from gigui.gi_runner import GIRunner
 from gigui.gui.psg_base import PSGBase, help_window, log, popup
 from gigui.gui.psg_window import make_window
 from gigui.keys import Keys
-from gigui.messages import CLOSE_OUTPUT_VIEWERS_MSG
+from gigui.output.repo_html_server import HTMLServer, require_server
 from gigui.queues_events import RunnerQueues, get_runner_queues
 from gigui.tiphelp import Help, Tip
-from gigui.utils import open_file, to_posix_fstr
+from gigui.utils import open_file, print_threads, to_posix_fstr
 
 logger = getLogger(__name__)
 
@@ -47,12 +42,13 @@ class PSGUI(PSGBase):
     ) -> None:
         super().__init__(settings)
 
-        self.queues: RunnerQueues  # defined when the event keys.run is triggered
-        self.manager: SyncManager | None = (
-            None  # defined when the event keys.run is triggered
-        )
-        self.logging_queue: Queue  # defined when the event keys.run is triggered
+        # THe following 5 vars are defined when the event keys.run is triggered
+        self.queues: RunnerQueues
+        self.manager: SyncManager | None = None
+        self.logging_queue: Queue
         self.gi_runner_thread: threading.Thread | None = None
+        self.html_server: HTMLServer = HTMLServer()
+
         self.recreate_window: bool = True
 
         while self.recreate_window:
@@ -61,7 +57,6 @@ class PSGUI(PSGBase):
 
     # pylint: disable=too-many-locals disable=too-many-branches disable=too-many-statements
     def run_inner(self) -> bool:
-        gi_runner: GIRunner
         logger.debug(f"{self.settings = }")  # type: ignore
 
         shared.gui = True
@@ -123,17 +118,6 @@ class PSGUI(PSGBase):
                 case keys.open_file:
                     open_file(values[event])
 
-                case keys.start_server_threads:
-                    gi_runner = values[event]
-                    gi_runner.start_server_threads()
-
-                case keys.gui_open_new_tabs:
-                    gi_runner = values[event]
-                    gi_runner.gui_open_new_tabs()
-                    time.sleep(0.1)
-                    log(CLOSE_OUTPUT_VIEWERS_MSG)
-                    gi_runner.events.server_shutdown_done.wait()
-
                 # Top level buttons
                 ###########################
                 case keys.col_percent:
@@ -169,7 +153,7 @@ class PSGUI(PSGBase):
                 case keys.exit:
                     break
 
-                # Window closed, or
+                # Window closed
                 case sg.WIN_CLOSED:
                     if self.gi_runner_thread:
                         shared.gui_window_closed = True
@@ -274,15 +258,12 @@ class PSGUI(PSGBase):
         if self.input_fstrs and not self.input_fstr_matches:
             popup("Error", "Input folder path invalid")
             return
-
         if not self.input_fstrs:
             popup("Error", "Input folder path empty")
             return
-
         if not self.outfile_base:
             popup("Error", "Output file base empty")
             return
-
         if not self.subfolder_valid:
             popup(
                 "Error",
@@ -291,87 +272,49 @@ class PSGUI(PSGBase):
             )
             return
 
-        args = Args()
-        settings_schema: dict[str, Any] = SettingsFile.SETTINGS_SCHEMA["properties"]
-        for schema_key, schema_value in settings_schema.items():
-            if schema_key not in {
-                keys.profile,
-                keys.fix,
-                keys.n_files,
-                keys.view,
-                keys.file_formats,
-                keys.since,
-                keys.until,
-                keys.multithread,
-                keys.gui_settings_full_path,
-            }:
-                if schema_value["type"] == "array":
-                    setattr(args, schema_key, values[schema_key].split(","))  # type: ignore
-                else:
-                    setattr(args, schema_key, values[schema_key])
-
-        args.multithread = self.multithread
-
-        if values[keys.prefix]:
-            args.fix = keys.prefix
-        elif values[keys.postfix]:
-            args.fix = keys.postfix
-        else:
-            args.fix = keys.nofix
-
-        if values[keys.auto]:
-            args.view = AUTO
-        elif values[keys.dynamic_blame_history]:
-            args.view = DYNAMIC_BLAME_HISTORY
-        else:
-            args.view = NONE
-
-        args.n_files = 0 if not values[keys.n_files] else int(values[keys.n_files])
-
-        file_formats = []
-        for schema_key in FILE_FORMATS:
-            if values[schema_key]:
-                file_formats.append(schema_key)
-        args.file_formats = file_formats
-
+        self.set_args(values)
         self.disable_buttons()
+        self.queues, self.logging_queue, self.manager = get_runner_queues(
+            self.args.multicore
+        )
+        logger.debug(f"{self.args = }")  # type: ignore
 
-        for schema_key in keys.since, keys.until:
-            val = values[schema_key]
-            if not val or val == "":
-                continue
-            try:
-                val = datetime.strptime(values[schema_key], "%Y-%m-%d").strftime(
-                    "%Y-%m-%d"
-                )
-            except (TypeError, ValueError):
-                popup(
-                    "Reminder",
-                    "Invalid date format. Correct format is YYYY-MM-DD. Please try again.",
-                )
-                return
-            setattr(args, schema_key, str(val))
-
-        args.normalize()
-
-        logger.debug(f"{args = }")  # type: ignore
+        if require_server(self.args):
+            if not self.html_server:
+                self.html_server = HTMLServer()
+            self.html_server.set_args(self.args)
 
         self.gi_runner_thread = threading.Thread(
             target=self.start_gi_runner,
-            args=(args, start_time, self.queues, self.logging_queue),
+            args=(
+                self.args,
+                start_time,
+                self.queues,
+                self.logging_queue,
+                multiprocessing.Event() if self.args.multicore else threading.Event(),
+                self.html_server,
+            ),
             name="GI Runner",
         )
         self.gi_runner_thread.start()
 
     def start_gi_runner(
-        self, args: Args, start_time: float, queues: RunnerQueues, logging_queue: Queue
+        self,
+        args: Args,
+        start_time: float,
+        queues: RunnerQueues,
+        logging_queue: Queue,
+        sync_event: multiprocessingEvent | threading.Event,
+        html_server: HTMLServer | None = None,
     ) -> None:
         GIRunner(
             args,
             start_time,
             queues,
             logging_queue,
-        ).run_repos()
+            sync_event,
+            html_server,
+        )
         if not shared.gui_window_closed:
             self.window.write_event_value(keys.end, None)
 
@@ -403,7 +346,7 @@ def main():
     settings: Settings
     settings, _ = SettingsFile.load()
     _logging.ini_for_gui_base()
-    add_cli_handler()
+    _logging.add_cli_handler()
     PSGUI(settings)
 
 

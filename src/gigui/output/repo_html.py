@@ -448,23 +448,16 @@ class RepoBlameTablesSoup(RepoBlameTableSoup):
         parent.append(container)
 
 
-# pylint: disable=too-many-locals
 class RepoHTML:
-    """
-    Generate html with complete analysis results of the provided repository.
-    """
-
-    def __init__(self, args: Args) -> None:
-        self.args: Args = args
-
-    # Is called by gitinspector module
-    def load_css(self) -> str:
+    @staticmethod
+    def load_css() -> str:
         css_file = Path(__file__).parent / "static" / "styles.css"
         with open(css_file, "r", encoding="utf-8") as f:
             return f.read()
 
+    @staticmethod
     def create_html_document(
-        self, html_code: HtmlStr, css_code: str, browser_id: str | None = None
+        args: Args, html_code: HtmlStr, css_code: str, browser_id: str | None = None
     ) -> HtmlStr:
         # Insert CSS code
         html_code = html_code.replace(
@@ -502,7 +495,7 @@ class RepoHTML:
                     # Insert the value of --blame-exclusions=hide in the js code
                     js_code = js_code.replace(
                         '"<%= blame_exclusions_hide %>"',
-                        ("true" if self.args.blame_exclusions == HIDE else "false"),  # noqa: F821
+                        ("true" if args.blame_exclusions == HIDE else "false"),  # noqa: F821
                     )
                 case "browser-id.js":
                     # Insert the browser ID option in the js code

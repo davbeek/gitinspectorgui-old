@@ -1,10 +1,12 @@
 import multiprocessing
 import os
 import sys
+import threading
 import time
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from logging import getLogger
 from multiprocessing.managers import SyncManager
+from multiprocessing.synchronize import Event as multiprocessingEvent
 from pathlib import Path
 
 from gigui import _logging, gi_runner, shared
@@ -13,6 +15,7 @@ from gigui.args_settings import Args, CLIArgs, Settings, SettingsFile
 from gigui.cli_arguments import define_arguments
 from gigui.constants import DEFAULT_EXTENSIONS, NONE
 from gigui.gui.psg import PSGUI
+from gigui.output.repo_html_server import HTMLServer, require_server
 from gigui.queues_events import get_runner_queues
 from gigui.tiphelp import Help
 from gigui.typedefs import FileStr
@@ -153,11 +156,25 @@ def main() -> None:
         elif namespace.run:
             # CLI
             queues, logging_queue, manager = get_runner_queues(args.multicore)
+            # sigint_event: Union[multiprocessing.Event, threading.Event] = (
+            #     multiprocessing.Event() if args.multicore else threading.Event()
+            # )
+            sigint_event: multiprocessingEvent | threading.Event = (
+                multiprocessing.Event() if args.multicore else threading.Event()
+            )
+            if require_server(args):
+                html_server = HTMLServer()
+                html_server.set_args(args)
+            else:
+                html_server = None
+
             gi_runner.start_gi_runner(
                 args,
                 start_time,
                 queues,
                 logging_queue,
+                sigint_event=sigint_event,
+                html_server=html_server,
             )
             if manager:
                 manager.shutdown()

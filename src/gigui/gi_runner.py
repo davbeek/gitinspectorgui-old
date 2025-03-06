@@ -1,32 +1,39 @@
-import signal
 import threading
 from concurrent.futures import Future, ProcessPoolExecutor, as_completed
 from cProfile import Profile
 from logging import getLogger
 from logging.handlers import QueueListener
+from multiprocessing.synchronize import Event as multiprocessingEvent
 from pathlib import Path
 from queue import Queue
 
 from gigui import _logging, shared
 from gigui._logging import log, start_logging_listener
 from gigui.args_settings import Args
-from gigui.constants import AUTO, DYNAMIC_BLAME_HISTORY, MAX_CORE_WORKERS, NONE
+from gigui.constants import AUTO, DYNAMIC_BLAME_HISTORY, MAX_CORE_WORKERS
 from gigui.data import IniRepo
 from gigui.gi_runner_base import GiRunnerBase
 from gigui.keys import Keys
-from gigui.messages import CLOSE_OUTPUT_VIEWERS_CLI_MSG
-from gigui.output.repo_html_server import HTMLServer
+from gigui.messages import CLOSE_OUTPUT_VIEWERS_MSG
+from gigui.output.repo_html_server import HTMLServer, require_server
 from gigui.queues_events import RunnerQueues
 from gigui.repo_runner import RepoRunner
 from gigui.typedefs import FileStr
-from gigui.utils import get_dir_matches, log_end_time, open_file, out_profile
+from gigui.utils import (
+    get_dir_matches,
+    log_end_time,
+    open_file,
+    out_profile,
+    print_threads,
+    setup_sigint_handler,
+)
 
 # pylint: disable=too-many-arguments disable=too-many-positional-arguments
 
 logger = getLogger(__name__)
 
 
-class GIRunner(GiRunnerBase, HTMLServer):
+class GIRunner(GiRunnerBase):
     args: Args
 
     def __init__(
@@ -35,16 +42,19 @@ class GIRunner(GiRunnerBase, HTMLServer):
         start_time: float,
         queues: RunnerQueues,
         logging_queue: Queue,
+        sigint_event: multiprocessingEvent | threading.Event,
+        html_server: HTMLServer | None = None,
     ) -> None:
         GiRunnerBase.__init__(self, args)
-        HTMLServer.__init__(self, args, queues)
+        self.queues: RunnerQueues = queues
         self.logging_queue: Queue = logging_queue
+        self.sigint_event: multiprocessingEvent | threading.Event = sigint_event
+        self.html_server: HTMLServer | None = html_server
+        if self.html_server:
+            self.html_server.set_runner_queues(queues)
 
         self.start_time: float = start_time
         self.queue_listener: QueueListener | None = None
-        self.requires_server: bool = (
-            not self.args.file_formats and not self.args.view == NONE
-        )
         self.future_to_ini_repo: dict[Future, IniRepo] = {}
         self.nr_workers: int = 0
         self.nr_started_prev: int = -1
@@ -57,29 +67,6 @@ class GIRunner(GiRunnerBase, HTMLServer):
             )
             self.args.multicore = False
 
-        if not shared.gui:
-            if args.multicore and not shared.gui:
-                signal.signal(signal.SIGINT, shutdown_handler_main_multi_core)
-                signal.signal(signal.SIGTERM, shutdown_handler_main_multi_core)
-            else:  # single core
-                signal.signal(
-                    signal.SIGINT,
-                    lambda signum, frame: shutdown_handler_main(
-                        signum,
-                        frame,
-                        self.sigint_event,
-                    ),
-                )
-                signal.signal(
-                    signal.SIGTERM,
-                    lambda signum, frame: shutdown_handler_main(
-                        signum,
-                        frame,
-                        self.sigint_event,
-                    ),
-                )
-
-    def run_repos(self) -> None:
         profiler: Profile | None = None
         repo_lists: list[list[IniRepo]] = []
         dir_strs: list[FileStr]
@@ -92,6 +79,8 @@ class GIRunner(GiRunnerBase, HTMLServer):
         for dir_str in dirs_sorted:
             repo_lists.extend(self.get_repos(Path(dir_str), self.args.depth))
         self.len_repos = self.total_len(repo_lists)
+        if self.html_server:
+            self.html_server.len_repos = self.len_repos
 
         if self.len_repos == 0:
             logger.warning("No repositories found, exiting.")
@@ -110,7 +99,7 @@ class GIRunner(GiRunnerBase, HTMLServer):
         else:  # single core
             self.process_repos_singlecore(repo_lists)
 
-        if self.requires_server and not shared.gui:
+        if require_server(self.args):
             log("Done")
         out_profile(profiler, self.args.profile)
 
@@ -148,7 +137,6 @@ class GIRunner(GiRunnerBase, HTMLServer):
     def await_tasks_process_output(self) -> None:
         i: int = 0
         repo_name: str = ""
-
         while i < self.len_repos:
             repo_name = self.queues.task_done.get()
             i += 1
@@ -175,39 +163,41 @@ class GIRunner(GiRunnerBase, HTMLServer):
                     f"{repo_name}:    {out_file_name}: output done "
                     + (f" {i} of {self.len_repos}" if self.len_repos > 1 else "")
                 )
-
-        elif self.requires_server and not shared.gui:
-            self.start_server_threads()
+        elif require_server(self.args) and not shared.gui:
+            # CLI
+            assert self.html_server is not None
+            self.html_server.start_server()
+            self.html_server.start_monitor()
             if self.args.view == AUTO and not self.args.file_formats:
-                self.set_localhost_data()
-                for i, data in enumerate(self.id2host_data.values()):
-                    self.open_new_tab(
+                self.html_server.set_localhost_data()
+                for i, data in enumerate(self.html_server.id2host_data.values()):
+                    self.html_server.open_new_tab(
                         data.name,
                         data.browser_id,
                         data.html_doc,
                         i + 1,
                     )
             elif self.args.view == DYNAMIC_BLAME_HISTORY:
-                self.set_localhost_repo_data()
-                for i, data in enumerate(self.id2host_repo_data.values()):
-                    self.open_new_tab(
+                self.html_server.set_localhost_repo_data()
+                for i, data in enumerate(self.html_server.id2host_repo_data.values()):
+                    self.html_server.open_new_tab(
                         data.name,
                         data.browser_id,
                         data.html_doc,
                         i + 1,
                     )
-            log(CLOSE_OUTPUT_VIEWERS_CLI_MSG)
-            self.events.server_shutdown_done.wait()
-
-        elif self.requires_server and shared.gui:
-            shared.gui_window.write_event_value(Keys.start_server_threads, self)  # type: ignore
+            log(CLOSE_OUTPUT_VIEWERS_MSG)
+            self.html_server.events.server_shutdown_done.wait()
+        elif require_server(self.args) and shared.gui:
+            # GUI
+            assert self.html_server is not None
+            if not self.html_server.server:
+                self.html_server.start_server()
             if self.args.view == AUTO and not self.args.file_formats:
-                self.set_localhost_data()
+                self.html_server.set_localhost_data()
             elif self.args.view == DYNAMIC_BLAME_HISTORY:
-                self.set_localhost_repo_data()
-            shared.gui_window.write_event_value(Keys.delay, self)  # type: ignore
-            shared.gui_window.write_event_value(Keys.gui_open_new_tabs, self)  # type: ignore
-            self.events.server_shutdown_done.wait()
+                self.html_server.set_localhost_repo_data()
+            self.html_server.gui_open_new_tabs()
 
     def process_repos_singlecore(
         self,
@@ -243,20 +233,11 @@ class GIRunner(GiRunnerBase, HTMLServer):
                 )
                 repo_runners.append(repo_runner)
                 repo_runner.process_repo()
-
         self.await_tasks_process_output()
 
     @staticmethod
     def total_len(repo_lists: list[list[IniRepo]]) -> int:
         return sum(len(repo_list) for repo_list in repo_lists)
-
-
-def shutdown_handler_main_multi_core(signum, frame) -> None:
-    pass
-
-
-def shutdown_handler_main(signum, frame, sigint_event: threading.Event) -> None:
-    sigint_event.set()  # Only used for single core
 
 
 # Main function to run the analysis and create the output
@@ -265,12 +246,11 @@ def start_gi_runner(
     start_time: float,
     queues: RunnerQueues,
     logging_queue: Queue,
+    sigint_event: multiprocessingEvent | threading.Event,
+    html_server: HTMLServer | None = None,
 ) -> None:
-    GIRunner(args, start_time, queues, logging_queue).run_repos()
-
-
-def shutdown_handler_worker(signum, frame, sigint_event: threading.Event) -> None:
-    sigint_event.set()  # Only used for multicore
+    setup_sigint_handler(sigint_event)
+    GIRunner(args, start_time, queues, logging_queue, sigint_event, html_server)
 
 
 # Runs on a separate core, receives tasks one by one and executes each task by a

@@ -8,6 +8,7 @@ from logging import getLogger
 from threading import Thread
 from typing import Iterable
 from uuid import uuid4
+from webbrowser import BaseBrowser
 from wsgiref.types import StartResponse, WSGIEnvironment
 
 import requests
@@ -16,8 +17,9 @@ from werkzeug.serving import BaseWSGIServer, make_server
 from werkzeug.wrappers import Request, Response
 
 from gigui import shared
+from gigui._logging import log
 from gigui.args_settings import Args
-from gigui.constants import AUTO, DEBUG_WERKZEUG_SERVER, DYNAMIC_BLAME_HISTORY
+from gigui.constants import AUTO, DEBUG_WERKZEUG_SERVER, DYNAMIC_BLAME_HISTORY, NONE
 from gigui.output.repo_html import RepoHTML
 from gigui.queues_events import RunnerEvents, RunnerQueues
 from gigui.repo_runner import RepoRunner
@@ -51,26 +53,30 @@ class HostRepoData(HostData):
 
 
 class HTMLServer(RepoHTML):
-    def __init__(
-        self,
-        args: Args,
-        queues: RunnerQueues,
-    ) -> None:
-        super().__init__(args)
-
-        self.queues: RunnerQueues = queues
+    def __init__(self) -> None:
+        self.args: Args
+        self.queues: RunnerQueues
         self.events: RunnerEvents = RunnerEvents()
         self.sigint_event: threading.Event = threading.Event()
+        self.browser: BaseBrowser = webbrowser.get()
 
         self.len_repos: int = 0
         self.id2host_data: dict[str, HostData] = {}
+        self.id2new_data: dict[str, HostData] = {}
         self.id2host_repo_data: dict[str, HostRepoData] = {}
+        self.id2new_repo_data: dict[str, HostRepoData] = {}
         self.browser_ids: list[str] = []
 
         self.server_thread: Thread | None = None
         self.monitor_thread: Thread | None = None
 
-        self.server: BaseWSGIServer
+        self.server: BaseWSGIServer | None = None
+
+    def set_args(self, args: Args) -> None:
+        self.args = args
+
+    def set_runner_queues(self, queues: RunnerQueues) -> None:
+        self.queues = queues
 
     def open_new_tab(
         self, name: str, browser_id: str, html_doc_code: HtmlStr | None, i: int
@@ -98,6 +104,7 @@ class HTMLServer(RepoHTML):
 
     def monitor_events(self) -> None:
         assert self.server_thread is not None
+        assert self.server is not None
         while True:
             if self.args.multicore:
                 # no sigint_event
@@ -140,9 +147,6 @@ class HTMLServer(RepoHTML):
                     self.events.server_shutdown_request.set()
                     response = Response(content_type="text/plain")
                 else:
-                    logger.info(
-                        f"Invalid shutdown: {shutdown_id} not in {self.browser_ids}"
-                    )
                     response = Response("Invalid shutdown ID", status=403)
             elif request.path.startswith("/load-table/"):
                 load_table_request = request.path.split("/")[-1]
@@ -154,7 +158,8 @@ class HTMLServer(RepoHTML):
                     )
                     response = Response(table_html, content_type="text/html")
                 else:
-                    response = Response("Invalid browser ID", status=403)
+                    # Ignore invalid load-table requests from old cache pages
+                    response = Response("Not found", status=404)
             elif request.path == "/favicon.ico":
                 response = Response(status=404)  # Ignore favicon requests
             else:
@@ -172,7 +177,7 @@ class HTMLServer(RepoHTML):
         elif browser_id in self.id2host_repo_data:
             return self.id2host_repo_data[browser_id].html_doc
         else:
-            raise ValueError(f"Invalid browser ID: {browser_id}")
+            logger.info(f"Invalid browser ID: {browser_id}")
 
     def handle_load_table(
         self, repo: RepoRunner, table_id: str, dynamic_blame_history_enabled: bool
@@ -225,13 +230,8 @@ class HTMLServer(RepoHTML):
                 f"browser_id {browser_id}"  # type: ignore
             )
 
-    def join_threads(self) -> None:
-        # server thread is joined in monitor_events()
-        if self.monitor_thread is not None:
-            self.monitor_thread.join()
-
     def set_localhost_data(self) -> None:
-        # self.args.view == AUTO and not elf.args.file_formats
+        # self.args.view == AUTO and not self.args.file_formats
         i: int = 0
         name: str
         browser_id: str
@@ -241,11 +241,13 @@ class HTMLServer(RepoHTML):
             name, html_code = self.queues.html.get()  # type: ignore
             browser_id = f"{name}-{str(uuid4())[-12:]}"
             html_doc_code = (
-                self.create_html_document(html_code, self.load_css(), browser_id)
+                RepoHTML.create_html_document(
+                    self.args, html_code, RepoHTML.load_css(), browser_id
+                )
                 if html_code is not None
                 else None
             )
-            self.id2host_data[browser_id] = HostData(
+            self.id2host_data[browser_id] = self.id2new_data[browser_id] = HostData(
                 name=name,
                 browser_id=browser_id,
                 html_doc=html_doc_code,
@@ -265,45 +267,48 @@ class HTMLServer(RepoHTML):
             name = repo.name
             browser_id = f"{name}-{str(uuid4())[-12:]}"
             html_doc_code = (
-                self.create_html_document(html_code, self.load_css(), browser_id)
+                RepoHTML.create_html_document(
+                    self.args, html_code, RepoHTML.load_css(), browser_id
+                )
                 if html_code is not None
                 else None
             )
-            self.id2host_repo_data[browser_id] = HostRepoData(
-                name=name,
-                browser_id=browser_id,
-                html_doc=html_doc_code,
-                repo=repo,
+            self.id2host_repo_data[browser_id] = self.id2new_repo_data[browser_id] = (
+                HostRepoData(
+                    name=name,
+                    browser_id=browser_id,
+                    html_doc=html_doc_code,
+                    repo=repo,
+                )
             )
             self.browser_ids = list(self.id2host_repo_data.keys())
 
-    def start_server_threads(self) -> None:
-        self.browser = webbrowser.get()
-        self.server = make_server(
-            "localhost",
-            shared.port_value,
-            self.server_app,
-            threaded=False,
-            processes=0,
-        )
-        self.server_thread = Thread(
-            target=self.server.serve_forever,
-            args=(0.1,),  # 0.1 is the poll interval
-            name=f"Werkzeug server on port {shared.port_value}",
-        )
-        self.server_thread.start()
+    def start_server(self) -> None:
+        if not self.server_thread:
+            self.server = make_server(
+                "localhost",
+                shared.port_value,
+                self.server_app,
+                threaded=False,
+                processes=0,
+            )
+            self.server_thread = Thread(
+                target=self.server.serve_forever,
+                args=(0.1,),  # 0.1 is the poll interval
+                name=f"Werkzeug server on port {shared.port_value}",
+            )
+            self.server_thread.start()
+
+    def start_monitor(self) -> None:
         self.monitor_thread = Thread(
             target=self.monitor_events,
             name=f"Event monitor for server on port {shared.port_value}",
         )
         self.monitor_thread.start()
 
-    def delay(self) -> None:
-        time.sleep(0.1)
-
-    def gui_open_new_tabs(self) -> None:
+    def open_new_tabs(self) -> None:
         if self.args.view == AUTO and not self.args.file_formats:
-            for i, data in enumerate(self.id2host_data.values()):
+            for i, data in enumerate(self.id2new_data.values()):
                 self.open_new_tab(
                     data.name,
                     data.browser_id,
@@ -311,10 +316,34 @@ class HTMLServer(RepoHTML):
                     i + 1,
                 )
         elif self.args.view == DYNAMIC_BLAME_HISTORY:
-            for i, data in enumerate(self.id2host_repo_data.values()):
+            for i, data in enumerate(self.id2new_repo_data.values()):
                 self.open_new_tab(
                     data.name,
                     data.browser_id,
                     data.html_doc,
                     i + 1,
                 )
+
+    def gui_open_new_tabs(self) -> None:
+        if self.args.view == AUTO and not self.args.file_formats:
+            for i, data in enumerate(self.id2new_data.values()):
+                self.open_new_tab(
+                    data.name,
+                    data.browser_id,
+                    data.html_doc,
+                    i + 1,
+                )
+            self.id2new_data.clear()
+        elif self.args.view == DYNAMIC_BLAME_HISTORY:
+            for i, data in enumerate(self.id2new_repo_data.values()):
+                self.open_new_tab(
+                    data.name,
+                    data.browser_id,
+                    data.html_doc,
+                    i + 1,
+                )
+            self.id2new_repo_data.clear()
+
+
+def require_server(args: Args) -> bool:
+    return not args.file_formats and args.view != NONE
