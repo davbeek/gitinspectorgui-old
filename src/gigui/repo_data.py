@@ -3,7 +3,6 @@ from pathlib import Path
 from typing import TypeVar
 
 from gigui.data import CommitGroup, FileStat, IniRepo, Person, PersonsDB, PersonStat
-from gigui.keys import Keys
 from gigui.repo_blame import RepoBlameHistory
 from gigui.typedefs import SHA, Author, FileStr
 from gigui.utils import divide_to_percentage
@@ -60,13 +59,7 @@ class RepoData(RepoBlameHistory):
             success = self._run_no_history()
             if not success:
                 return False
-
             self._set_final_data()
-            if (
-                Keys.html_blame_history in self.args.file_formats
-                and not self.args.blame_skip
-            ):
-                super().run_blame_history_static()
             return True
         finally:
             if self.args.dry_run <= 1:
@@ -133,7 +126,6 @@ class RepoData(RepoBlameHistory):
         return True
 
     def _set_final_data(self) -> None:
-
         # update self.sha2author with new author definitions in person database
         sha2author: dict[SHA, Author] = {}
         for sha, author in self.sha2author.items():
@@ -148,7 +140,6 @@ class RepoData(RepoBlameHistory):
         )
 
         for fstr in self.fstrs:
-
             # When no commit lines are found in _process_commit_lines_for(fstr. lines),
             # self.fr2f2shas will not have an entry for fstr.
             # In such as case, we must ensure that there is at least one entry for fstr

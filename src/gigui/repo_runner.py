@@ -55,20 +55,10 @@ class RepoRunner(RepoBlameTablesSoup, RepoHTML, Book):
                 self.generate_output()
 
     def generate_output(self) -> None:  # pylint: disable=too-many-locals
-        """
-        Generate result file(s) for the analysis of the given repository.
-
-        :return: Files that should be logged
-        """
-
         def logfile(fname: FileStr):
             log(" " * 8 + fname)
 
         if not self.authors_included:
-            return
-
-        # In dry-run, there is nothing to show.
-        if not self.args.dry_run == 0:
             return
 
         outfile_name = get_outfile_name(
@@ -81,10 +71,7 @@ class RepoRunner(RepoBlameTablesSoup, RepoHTML, Book):
                 logfile(f"{outfile_name}.xlsx")
                 self.run_excel(outfilestr)
             # Write the HTML file if requested.
-            if (
-                Keys.html in self.args.file_formats
-                or Keys.html_blame_history in self.args.file_formats
-            ):
+            if Keys.html in self.args.file_formats:
                 logfile(f"{outfile_name}.html")
                 html_code = self.get_html()
                 with open(outfilestr + ".html", "w", encoding="utf-8") as f:
@@ -94,12 +81,9 @@ class RepoRunner(RepoBlameTablesSoup, RepoHTML, Book):
         if self.args.view == AUTO and self.args.file_formats:
             if Keys.excel in self.args.file_formats:
                 self.queues.open_file.put((self.name, outfilestr + ".xlsx"))
-            if (
-                Keys.html in self.args.file_formats
-                or Keys.html_blame_history in self.args.file_formats
-            ):
+            if Keys.html in self.args.file_formats:
                 self.queues.open_file.put((self.name, outfilestr + ".html"))
-        elif self.args.view == AUTO:
+        elif self.args.view == AUTO:  # not self.args.file_formats
             self.queues.task_done.put(self.name)
             html_code = self.get_html()
             self.queues.html.put((self.name, html_code))  # type: ignore
@@ -119,10 +103,7 @@ class RepoRunner(RepoBlameTablesSoup, RepoHTML, Book):
         with open(html_path, "r", encoding="utf-8") as f:
             html_template = f.read()
 
-        if (
-            Keys.html in self.args.file_formats
-            or Keys.html_blame_history in self.args.file_formats
-        ):
+        if Keys.html in self.args.file_formats:
             # If blame_history_dynamic, create_html_document is called in repo_html_server.py
             html_template = RepoHTML.create_html_document(
                 self.args, html_template, RepoHTML.load_css()

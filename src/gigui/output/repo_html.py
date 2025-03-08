@@ -8,7 +8,6 @@ from gigui._logging import log
 from gigui.args_settings import Args
 from gigui.constants import HIDE, SHOW
 from gigui.data import IniRepo
-from gigui.keys import Keys
 from gigui.output.repo_blame_rows import RepoBlameRows
 from gigui.typedefs import SHA, Author, FileStr, HtmlStr, Row
 from gigui.utils import get_relative_fstr
@@ -230,25 +229,6 @@ class RepoBlameTableSoup(RepoStatTableSoup):
         table = self._get_blame_table_from_rows(rows, iscomments)
         return table
 
-    def get_blame_history_static_tables_soup(
-        self,
-        fstr_root: FileStr,
-        sha2nr: dict[SHA, int],
-        blame_tab_index: int,
-    ) -> list[Tag]:
-        tables: list[Tag] = []
-        if fstr_root not in self.fstr2shas:
-            return []
-        for sha in self.fstr2shas[fstr_root]:
-            rows, iscomments = self.get_fr_sha_blame_rows(fstr_root, sha)
-            if not rows:
-                continue
-            nr = sha2nr[sha]
-            table = self._get_blame_table_from_rows(rows, iscomments)
-            table["id"] = f"file-{blame_tab_index}-sha-{nr}"
-            tables.append(table)
-        return tables
-
     def _get_blame_table_from_rows(
         self,
         rows: list[Row],
@@ -306,7 +286,6 @@ class RepoBlameTablesSoup(RepoBlameTableSoup):
 
     def add_blame_tables_soup(self) -> None:
         table: Tag | None
-        tables: list[Tag]
         fstr2table: dict[FileStr, Tag] = {}
         fstr2tables: dict[FileStr, list[Tag]] = {}
         fstrs: list[FileStr] = []
@@ -316,20 +295,10 @@ class RepoBlameTablesSoup(RepoBlameTableSoup):
 
         blame_tab_index = 0
         for fstr in self.fstrs:
-            if Keys.html_blame_history in self.args.file_formats:
-                tables = self.get_blame_history_static_tables_soup(
-                    fstr, sha2nr, blame_tab_index
-                )
-                if tables:
-                    fstr2tables[fstr] = tables
-                    fstrs.append(fstr)
-            elif self.dynamic_blame_history_selected():
+            if self.dynamic_blame_history_selected():
                 fstr2tables[fstr] = []
                 fstrs.append(fstr)
-            elif (
-                Keys.html_blame_history not in self.args.file_formats
-                and not self.dynamic_blame_history_selected()
-            ):
+            else:
                 table = self.get_blame_table_soup(fstr)
                 if table:
                     fstr2table[fstr] = table
@@ -360,10 +329,7 @@ class RepoBlameTablesSoup(RepoBlameTableSoup):
                 "div", attrs={"class": "table-container"}
             )
 
-            if (
-                Keys.html_blame_history in self.args.file_formats
-                or self.dynamic_blame_history_selected()
-            ):
+            if self.dynamic_blame_history_selected():
                 self._add_radio_buttons(
                     self.fstr2shas[fstr],
                     sha2nr,

@@ -273,13 +273,8 @@ class PSGBase:
             case keys.dynamic_blame_history:
                 self.window[keys.auto].update(value=False)  # type: ignore
                 self.window[keys.html].update(value=False)  # type: ignore
-                self.window[keys.html_blame_history].update(value=False)  # type: ignore
                 self.window[keys.excel].update(value=False)  # type: ignore
             case keys.html:
-                self.window[keys.html_blame_history].update(value=False)  # type: ignore
-                self.window[keys.dynamic_blame_history].update(value=False)  # type: ignore
-            case keys.html_blame_history:
-                self.window[keys.html].update(value=False)  # type: ignore
                 self.window[keys.dynamic_blame_history].update(value=False)  # type: ignore
             case keys.excel:
                 self.window[keys.dynamic_blame_history].update(value=False)  # type: ignore

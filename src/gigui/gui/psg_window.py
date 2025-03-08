@@ -297,10 +297,6 @@ def output_formats_frame() -> sg.Frame:
                     keys.html,
                 ),
                 checkbox(
-                    "html blame history",
-                    keys.html_blame_history,
-                ),
-                checkbox(
                     keys.excel,
                     keys.excel,
                 ),

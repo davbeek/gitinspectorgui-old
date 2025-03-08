@@ -227,37 +227,6 @@ class RepoBlameHistory(RepoBlame):
         self.fr2f2shas: dict[FileStr, dict[FileStr, list[SHA]]] = {}
         self.fstr2sha2blames: dict[FileStr, dict[SHA, list[Blame]]] = {}
 
-    def run_blame_history_static(self) -> None:
-        git_blames: GitBlames
-        blames: list[Blame]
-
-        for root_fstr in self.fstrs:
-            self.fstr2sha2blames[root_fstr] = {}
-            if self.fr2f2shas[root_fstr] == {}:
-                continue
-            if (
-                root_fstr in self.fr2f2shas
-                and root_fstr in self.fr2f2shas[root_fstr]
-                and self.fr2f2shas[root_fstr][root_fstr]
-            ):
-                head_sha = self.fr2f2shas[root_fstr][root_fstr][0]
-                self.fstr2sha2blames[root_fstr][head_sha] = self.fstr2blames[root_fstr]
-            else:
-                head_sha = None
-            for fstr, shas in self.fr2f2shas[root_fstr].items():
-                for sha in shas:
-                    if fstr == root_fstr and head_sha is not None and sha == head_sha:
-                        continue
-                    git_blames, _ = self._get_git_blames_for(fstr, sha)
-                    # root_str needed only for file extension to determine
-                    # comment lines
-                    blames = self._process_git_blames(root_fstr, git_blames)
-                    self.fstr2sha2blames[root_fstr][sha] = blames
-
-        # Assume that no new authors are found when using earlier root commit_shas, so
-        # do not update authors of the blames with the possibly newly found persons as
-        # in RepoBlame.run().
-
     def generate_fr_blame_history(self, root_fstr: FileStr, sha: SHA) -> list[Blame]:
         git_blames: GitBlames
         fstr: FileStr = self.get_file_for_sha(root_fstr, sha)

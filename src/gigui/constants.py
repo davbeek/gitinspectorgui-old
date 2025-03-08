@@ -52,9 +52,8 @@ AUTO = "auto"
 DYNAMIC_BLAME_HISTORY = "dynamic-blame-history"
 VIEW_OPTIONS = [AUTO, DYNAMIC_BLAME_HISTORY, NONE]
 HTML = "html"
-HTML_BLAME_HISTORY = "html-blame-history"
 EXCEL = "excel"
-FILE_FORMATS = [HTML, HTML_BLAME_HISTORY, EXCEL]
+FILE_FORMATS = [HTML, EXCEL]
 
 # Output settings web browser
 MAX_BROWSER_TABS = 20

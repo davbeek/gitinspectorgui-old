@@ -43,7 +43,6 @@ class Tip:
 
     # File formats
     html: str = "html file output"
-    html_blame_history: str = "html file output with blame history tables"
     excel: str = "excel file output"
 
     # Statistics subgroup
@@ -79,9 +78,7 @@ class Tip:
     # Analysis options
     whitespace: str = "Include all whitespace in diffs and in copy move detection"
     verbosity: str = (
-        "0: No debug output, "
-        "1: Occasional output messages, "
-        "2: Detailed debug output"
+        "0: No debug output, 1: Occasional output messages, 2: Detailed debug output"
     )
     dry_run: str = (
         "0: normal execution, 1: fast analysis without viewer or output files, "
@@ -114,9 +111,7 @@ class Tip:
     )
 
     # Multithread and multicore
-    multithread: str = (
-        "Analyse multiple files for changes and blames per repository using multiple threads"
-    )
+    multithread: str = "Analyse multiple files for changes and blames per repository using multiple threads"
     multicore: str = "Execute multiple repositories using multiple cores"
 
     # Exclusion patterns

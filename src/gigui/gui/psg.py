@@ -185,9 +185,6 @@ class PSGUI(PSGBase):
                 case keys.html:
                     self.process_view_format_radio_buttons(event)
 
-                case keys.html_blame_history:
-                    self.process_view_format_radio_buttons(event)
-
                 case keys.excel:
                     self.process_view_format_radio_buttons(event)
 
