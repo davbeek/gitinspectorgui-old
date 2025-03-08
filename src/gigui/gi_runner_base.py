@@ -3,9 +3,16 @@ from cProfile import Profile
 from logging import getLogger
 from pathlib import Path
 
+from gigui import shared
 from gigui._logging import log, set_logging_level_from_verbosity
 from gigui.args_settings import Args
-from gigui.constants import DEFAULT_FILE_BASE, DEFAULT_VERBOSITY, MAX_BROWSER_TABS, NONE
+from gigui.constants import (
+    DEFAULT_FILE_BASE,
+    DEFAULT_VERBOSITY,
+    DYNAMIC_BLAME_HISTORY,
+    MAX_BROWSER_TABS,
+    NONE,
+)
 from gigui.data import IniRepo
 from gigui.gui.psg_base import is_git_repo
 from gigui.keys import Keys
@@ -61,12 +68,23 @@ class GiRunnerBase:
                 "Set the view option and/or an output format."
             )
             return False
-
         if non_hex := non_hex_chars_in_list(self.args.ex_revisions):
             log(
-                f"Non-hex characters {" ". join(non_hex)} not allowed in exclude "
-                f"revisions option {", ". join(self.args.ex_revisions)}."
+                f"Non-hex characters {' '.join(non_hex)} not allowed in exclude "
+                f"revisions option {', '.join(self.args.ex_revisions)}."
             )
+            return False
+        if self.args.view == DYNAMIC_BLAME_HISTORY and self.args.copy_move >= 2:
+            if shared.gui:
+                log(
+                    "View option dynamic blame history is not available for copy move "
+                    f"option value {self.args.copy_move}, but only for 0 and 1."
+                )
+            else:
+                log(
+                    "Option --view dynamic-blame-history is not available for "
+                    f"--copy-move {self.args.copy_move}, but only for 0 and 1."
+                )
             return False
         return True
 
