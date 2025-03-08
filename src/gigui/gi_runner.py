@@ -255,16 +255,23 @@ def multicore_worker(
     verbosity: int,
 ) -> str:
     ini_repo: IniRepo
+    repo_name: str = "unknown"
 
     global logger
-    _logging.set_logging_level_from_verbosity(verbosity)
-    logger = getLogger(__name__)
+    try:
+        _logging.set_logging_level_from_verbosity(verbosity)
+        logger = getLogger(__name__)
 
-    # Take into account that the SyncManager can be shut down in the main process,
-    # which will cause subsequent logging to fail.
-    while True:
-        ini_repo = queues.task.get()
-        repo_runner = RepoRunner(ini_repo, queues)
-        repo_runner.process_repo()
-        queues.task.task_done()
-        return ini_repo.name
+        # Take into account that the SyncManager can be shut down in the main process,
+        # which will cause subsequent logging to fail.
+        while True:
+            ini_repo = queues.task.get()
+            repo_name = ini_repo.name
+            repo_runner = RepoRunner(ini_repo, queues)
+            repo_runner.process_repo()
+            queues.task.task_done()
+            return ini_repo.name
+    except Exception as e:
+        logger.error(f"Exception for repo {repo_name}:")
+        logger.exception(e)
+        return repo_name
