@@ -96,7 +96,7 @@ class HTMLServer(RepoHTML):
                     f"http://localhost:{shared.port_value}/?id={browser_id}"
                 )
         except Exception as e:
-            print(
+            logging.error(
                 # Use name instead of repo.name because repo can be unbound
                 f"{name} port number {shared.port_value} main body exception {e}"
             )
@@ -143,7 +143,7 @@ class HTMLServer(RepoHTML):
                 )
             elif request.path.startswith("/shutdown"):
                 shutdown_id = request.args.get("id")  # type: ignore
-                if shutdown_id in self.browser_ids:
+                if shutdown_id is None or shutdown_id in self.browser_ids:
                     self.events.server_shutdown_request.set()
                     response = Response(content_type="text/plain")
                 else:
@@ -168,7 +168,7 @@ class HTMLServer(RepoHTML):
             start_response(response.status, list(response.headers.items()))
             return [response.data]
         except Exception as e:
-            print(f"port number {shared.port_value} server app exception {e}")
+            logging.error(f"port number {shared.port_value} server app exception {e}")
             raise e
 
     def get_html_doc(self, browser_id: str) -> HtmlStr | None:
@@ -223,11 +223,26 @@ class HTMLServer(RepoHTML):
                 timeout=1,
             )
             if response.status_code != 200:
-                print(f"Failed to send shutdown request: {response.status_code}")
+                log(f"Failed to send shutdown request: {response.status_code}")
         except requests.exceptions.Timeout:
-            print(
+            logging.error(
                 f"Timeout sending shutdown request on port {shared.port_value} "
                 f"browser_id {browser_id}"  # type: ignore
+            )
+
+    def send_general_shutdown_request(self) -> None:
+        try:
+            response = requests.post(
+                f"http://localhost:{shared.port_value}/shutdown",
+                timeout=1,
+            )
+            if response.status_code != 200:
+                logging.error(
+                    f"Failed to send shutdown request: {response.status_code}"
+                )
+        except requests.exceptions.Timeout:
+            logging.error(
+                f"Timeout sending shutdown request on port {shared.port_value}"
             )
 
     def set_localhost_data(self) -> None:
@@ -284,7 +299,7 @@ class HTMLServer(RepoHTML):
             self.browser_ids = list(self.id2host_repo_data.keys())
 
     def start_server(self) -> None:
-        if not self.server_thread:
+        if not self.server:
             self.server = make_server(
                 "localhost",
                 shared.port_value,

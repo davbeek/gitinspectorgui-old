@@ -13,7 +13,6 @@ from gigui.args_settings import Args
 from gigui.constants import AUTO, DYNAMIC_BLAME_HISTORY, MAX_CORE_WORKERS
 from gigui.data import IniRepo
 from gigui.gi_runner_base import GiRunnerBase
-from gigui.keys import Keys
 from gigui.messages import CLOSE_OUTPUT_VIEWERS_MSG
 from gigui.output.repo_html_server import HTMLServer, require_server
 from gigui.queues_events import RunnerQueues
@@ -24,7 +23,6 @@ from gigui.utils import (
     log_end_time,
     open_file,
     out_profile,
-    print_threads,
     setup_sigint_handler,
 )
 
@@ -63,7 +61,7 @@ class GIRunner(GiRunnerBase):
         if self.args.view == DYNAMIC_BLAME_HISTORY and self.args.multicore:
             log(
                 "Dynamic blame history is not supported in multicore mode. "
-                "Switching to single core."
+                "Executing in single core mode."
             )
             self.args.multicore = False
 
@@ -155,10 +153,7 @@ class GIRunner(GiRunnerBase):
                         + (f" {i} of {self.len_repos}" if self.len_repos > 1 else "")
                     )
                     continue
-                if shared.gui:
-                    shared.gui_window.write_event_value(Keys.open_file, out_file_name)  # type: ignore
-                else:
-                    open_file(out_file_name)
+                open_file(out_file_name)
                 logger.info(
                     f"{repo_name}:    {out_file_name}: output done "
                     + (f" {i} of {self.len_repos}" if self.len_repos > 1 else "")

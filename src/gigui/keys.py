@@ -50,10 +50,6 @@ class Keys(KeysArgs):
     log: str = "log"
     logging: str = "logging"
 
-    # Output
-    open_file: str = "open_file"
-    open_server: str = "open_server"
-
     # Complete settings column
     config_column: str = "config_column"
 

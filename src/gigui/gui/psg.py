@@ -27,7 +27,7 @@ from gigui.keys import Keys
 from gigui.output.repo_html_server import HTMLServer, require_server
 from gigui.queues_events import RunnerQueues, get_runner_queues
 from gigui.tiphelp import Help, Tip
-from gigui.utils import open_file, print_threads, to_posix_fstr
+from gigui.utils import to_posix_fstr
 
 logger = getLogger(__name__)
 
@@ -114,10 +114,6 @@ class PSGUI(PSGBase):
                     message, color = values[event]
                     sg.cprint(message, text_color=color, end="")
 
-                # Output
-                case keys.open_file:
-                    open_file(values[event])
-
                 # Top level buttons
                 ###########################
                 case keys.col_percent:
@@ -151,16 +147,13 @@ class PSGUI(PSGBase):
 
                 # Exit button clicked
                 case keys.exit:
-                    break
+                    self.close()
+                    return False
 
                 # Window closed
                 case sg.WIN_CLOSED:
-                    if self.gi_runner_thread:
-                        shared.gui_window_closed = True
-                        self.gi_runner_thread.join()
-                        if self.manager:
-                            self.manager.shutdown()
-                    break
+                    self.close()
+                    return False
 
                 # IO configuration
                 ##################################
@@ -317,6 +310,26 @@ class PSGUI(PSGBase):
         )
         if not shared.gui_window_closed:
             self.window.write_event_value(keys.end, None)
+
+    def shutdown_html_server(self) -> None:
+        if self.html_server.server:
+            self.html_server.send_general_shutdown_request()
+            self.html_server.events.server_shutdown_request.wait()
+            self.html_server.server.shutdown()
+            self.html_server.server.server_close()
+            if (
+                self.html_server.server_thread
+                and self.html_server.server_thread.is_alive()
+            ):
+                self.html_server.server_thread.join()
+
+    def close(self) -> None:
+        self.shutdown_html_server()
+        if self.gi_runner_thread:
+            shared.gui_window_closed = True
+            self.gi_runner_thread.join()
+            if self.manager:
+                self.manager.shutdown()
 
     def _update_column_height(
         self,
