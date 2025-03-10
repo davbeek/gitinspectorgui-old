@@ -1,4 +1,7 @@
 from dataclasses import dataclass
+from pathlib import Path
+
+from gigui.typedefs import FileStr
 
 
 @dataclass
@@ -105,9 +108,14 @@ def marker_must_be_at_beginning(extension: str) -> bool:
 
 
 def get_is_comment_lines(
-    extension: str | None, lines: list[str], in_multiline_comment: bool
+    lines: list[str],
+    ext: str = "",  # use ext as extension
+    fstr: FileStr = "no_ext",  # if fstr == name.ext, use ext as extension
+    in_multiline_comment: bool = False,
 ) -> tuple[list[bool], bool]:
-    if extension is None:
+    dot_ext: str = Path(fstr).suffix
+    extension: str = dot_ext[1:] if dot_ext else ""
+    if not extension:
         return [False] * len(lines), in_multiline_comment
     is_comment_lines = []
     for line in lines:

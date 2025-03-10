@@ -130,46 +130,44 @@ class HTMLServer(RepoHTML):
         load_table_request: str
         load_table_id: str
         repo: RepoRunner
-        try:
-            request = Request(environ)
-            logger.debug(
-                f"browser request = {request.path} " + f"{request.args.get('id')}"
-            )  # type: ignore
-            if request.path == "/":
-                browser_id = request.args.get("id")  # type: ignore
-                response = Response(
-                    self.get_html_doc(browser_id),
-                    content_type="text/html; charset=utf-8",
-                )
-            elif request.path.startswith("/shutdown"):
-                shutdown_id = request.args.get("id")  # type: ignore
-                if shutdown_id is None or shutdown_id in self.browser_ids:
-                    self.events.server_shutdown_request.set()
-                    response = Response(content_type="text/plain")
-                else:
-                    response = Response("Invalid shutdown ID", status=403)
-            elif request.path.startswith("/load-table/"):
-                load_table_request = request.path.split("/")[-1]
-                load_table_id = request.args.get("id")  # type: ignore
-                if load_table_id in self.browser_ids:
-                    repo = self.id2host_repo_data[load_table_id].repo
-                    table_html = self.handle_load_table(
-                        repo, load_table_request, repo.dynamic_blame_history_selected()
-                    )
-                    response = Response(table_html, content_type="text/html")
-                else:
-                    # Ignore invalid load-table requests from old cache pages
-                    response = Response("Not found", status=404)
-            elif request.path == "/favicon.ico":
-                response = Response(status=404)  # Ignore favicon requests
+        # try:
+        request = Request(environ)
+        logger.debug(f"browser request = {request.path} " + f"{request.args.get('id')}")  # type: ignore
+        if request.path == "/":
+            browser_id = request.args.get("id")  # type: ignore
+            response = Response(
+                self.get_html_doc(browser_id),
+                content_type="text/html; charset=utf-8",
+            )
+        elif request.path.startswith("/shutdown"):
+            shutdown_id = request.args.get("id")  # type: ignore
+            if shutdown_id is None or shutdown_id in self.browser_ids:
+                self.events.server_shutdown_request.set()
+                response = Response(content_type="text/plain")
             else:
+                response = Response("Invalid shutdown ID", status=403)
+        elif request.path.startswith("/load-table/"):
+            load_table_request = request.path.split("/")[-1]
+            load_table_id = request.args.get("id")  # type: ignore
+            if load_table_id in self.browser_ids:
+                repo = self.id2host_repo_data[load_table_id].repo
+                table_html = self.handle_load_table(
+                    repo, load_table_request, repo.dynamic_blame_history_selected()
+                )
+                response = Response(table_html, content_type="text/html")
+            else:
+                # Ignore invalid load-table requests from old cache pages
                 response = Response("Not found", status=404)
+        elif request.path == "/favicon.ico":
+            response = Response(status=404)  # Ignore favicon requests
+        else:
+            response = Response("Not found", status=404)
 
-            start_response(response.status, list(response.headers.items()))
-            return [response.data]
-        except Exception as e:
-            logging.error(f"port number {shared.port_value} server app exception {e}")
-            raise e
+        start_response(response.status, list(response.headers.items()))
+        return [response.data]
+        # except Exception as e:
+        #     logging.error(f"port number {shared.port_value} server app exception {e}")
+        #     raise e
 
     def get_html_doc(self, browser_id: str) -> HtmlStr | None:
         if browser_id in self.id2host_data:
@@ -204,7 +202,8 @@ class HTMLServer(RepoHTML):
     ) -> HtmlStr:
         root_fstr: FileStr = repo.fstrs[file_nr]
         sha: SHA = repo.nr2sha[commit_nr]
-        rows, iscomments = repo.generate_fr_sha_blame_rows(root_fstr, sha)
+        blame_file: FileStr = repo.sha2fstr_set[root_fstr][sha]
+        rows, iscomments = repo.generate_fr_sha_blame_rows(blame_file, sha)
         table = repo._get_blame_table_from_rows(rows, iscomments, file_nr, commit_nr)
         html_code = str(table)
         html_code = html_code.replace("&amp;nbsp;", "&nbsp;")
@@ -306,6 +305,7 @@ class HTMLServer(RepoHTML):
                 self.server_app,
                 threaded=False,
                 processes=0,
+                passthrough_errors=True,
             )
             self.server_thread = Thread(
                 target=self.server.serve_forever,

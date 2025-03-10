@@ -133,6 +133,13 @@ class RepoData(RepoBlameHistory):
             sha2author[sha] = new_author
         self.sha2author = sha2author
 
+        for fstr, blames in self.fstr2blames.items():
+            if fstr not in self.fr2sha2f:
+                self.fr2sha2f[fstr] = {}
+            for b in blames:
+                self.fr2sha2f[fstr][b.sha] = b.fstr
+
+        self.update_fr2f2a2sha_set_with_blames()
         self.fr2f2a2shas = self.fr2f2a2sha_set_to_list(self.fr2f2a2sha_set)
 
         self.fr2f2shas = self.fr2f2sha_set_to_list(

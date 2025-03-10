@@ -68,9 +68,14 @@ class RepoBase:
         self.sha_date_nrs: list[SHADateNr]
 
         # List of commit nrs from the commits in self.shas_date_nr.
-        self.sha_nrs: list[int] = []
+        # These are the commits that fall in the date rage since to until.
+        self.date_range_sha_nrs: list[int] = []
 
         self.fr2f2a2sha_set: dict[FileStr, dict[FileStr, dict[Author, set[SHA]]]] = {}
+
+        # Set in RepoBlameBase._add_blame()
+        # Used for dynamic blame history
+        self.fr2sha2f: dict[FileStr, dict[SHA, FileStr]] = {}
 
         # Set of short SHAs of commits in the repo that are excluded by the
         # --ex-revision parameter together with the --ex-message parameter.
@@ -314,7 +319,7 @@ class RepoBase:
 
         sha_date_nrs.sort(key=lambda x: x.date)
         self.sha_date_nrs = sha_date_nrs
-        self.sha_nrs = [sha_date_nr.nr for sha_date_nr in sha_date_nrs]
+        self.date_range_sha_nrs = [sha_date_nr.nr for sha_date_nr in sha_date_nrs]
         self.ex_shas = ex_shas
 
     def _get_since_until_args(self) -> list[str]:

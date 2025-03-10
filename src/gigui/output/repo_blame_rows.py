@@ -11,15 +11,7 @@ class RepoBlameRows(RepoStatRows):
         blames: list[Blame] = self.fstr2blames[fstr]
         return self._get_blame_rows(blames)
 
-    # Only called for STATIC blame history, where the blame rows should already be
-    # available.
-    def get_fr_sha_blame_rows(
-        self, fstr_root: FileStr, sha: SHA
-    ) -> tuple[list[Row], list[bool]]:
-        blames: list[Blame] = self.fstr2sha2blames[fstr_root][sha]
-        return self._get_blame_rows(blames)
-
-    # For DYNAMIC blame history
+    # For dynamic blame history
     def generate_fr_sha_blame_rows(self, fstr_root: FileStr, sha: SHA):
         blames: list[Blame] = self.generate_fr_blame_history(fstr_root, sha)
         return self._get_blame_rows(blames)
@@ -36,7 +28,7 @@ class RepoBlameRows(RepoStatRows):
                 exclude_comment = is_comment and not self.args.comments
                 exclude_empty = line.strip() == "" and not self.args.empty_lines
                 exclude_author = author in self.args.ex_authors
-                exclude_nr = b.commit_nr not in self.sha_nrs
+                exclude_nr = b.commit_nr not in self.date_range_sha_nrs
                 if self.args.blame_exclusions == REMOVE and (
                     exclude_comment or exclude_empty or exclude_author or exclude_nr
                 ):

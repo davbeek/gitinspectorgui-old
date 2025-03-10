@@ -331,7 +331,7 @@ class RepoBlameTablesSoup(RepoBlameTableSoup):
 
             if self.dynamic_blame_history_selected():
                 self._add_radio_buttons(
-                    self.fstr2shas[fstr],
+                    self.get_blame_shas_for_fstr(fstr),
                     sha2nr,
                     blame_container,
                     blame_tab_index,
