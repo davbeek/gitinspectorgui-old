@@ -133,19 +133,6 @@ class RepoData(RepoBlameHistory):
             sha2author[sha] = new_author
         self.sha2author = sha2author
 
-        for fstr, blames in self.fstr2blames.items():
-            if fstr not in self.fr2sha2f:
-                self.fr2sha2f[fstr] = {}
-            for b in blames:
-                self.fr2sha2f[fstr][b.sha] = b.fstr
-
-        self.update_fr2f2a2sha_set_with_blames()
-        self.fr2f2a2shas = self.fr2f2a2sha_set_to_list(self.fr2f2a2sha_set)
-
-        self.fr2f2shas = self.fr2f2sha_set_to_list(
-            self.get_fr2f2sha_set(self.fr2f2a2sha_set)
-        )
-
         for fstr in self.fstrs:
             # When no commit lines are found in _process_commit_lines_for(fstr. lines),
             # self.fr2f2shas will not have an entry for fstr.
@@ -201,18 +188,6 @@ class RepoData(RepoBlameHistory):
                         shas, key=lambda x: self.sha2nr[x], reverse=True
                     )
                     target[fstr_root][fstr][person_author] = shas_sorted
-        return target
-
-    def get_fr2f2sha_set(
-        self, source: dict[FileStr, dict[FileStr, dict[Author, set[SHA]]]]
-    ) -> dict[FileStr, dict[FileStr, set[SHA]]]:
-        target: dict[FileStr, dict[FileStr, set[SHA]]] = {}
-        for fstr_root, fstr_root_dict in source.items():
-            target[fstr_root] = {}
-            for fstr, fstr_dict in fstr_root_dict.items():
-                target[fstr_root][fstr] = set()
-                for shas in fstr_dict.values():
-                    target[fstr_root][fstr].update(shas)
         return target
 
     def fr2f2sha_set_to_list(

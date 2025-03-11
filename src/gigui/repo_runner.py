@@ -95,6 +95,14 @@ class RepoRunner(RepoBlameTablesSoup, RepoHTML, Book):
             # Assume that self.args.file_formats is not empty here otherwise this method
             # would not have been called.
             pass
+        if (
+            self.args.verbosity == 0
+            and not self.args.file_formats
+            and not self.args.multicore
+        ):
+            # print new line, because output file with new line was not printed after
+            # the dots.
+            log("")  # Uncommented logging statement
 
     def get_html(self) -> HtmlStr:
         # Load the template file.

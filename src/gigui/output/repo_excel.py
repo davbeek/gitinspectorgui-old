@@ -180,7 +180,7 @@ class Book(RepoBlameRows):
             BlameSheet(
                 rows,
                 iscomments,
-                self.header_blames(),
+                self.header_blames(self.args),
                 self.workbook.add_worksheet(sheet_name),
                 self,
             )

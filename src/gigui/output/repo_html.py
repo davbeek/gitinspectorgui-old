@@ -33,6 +33,7 @@ HEADER_CLASS_DICT: dict[str, str] = {
     "Date": "date-col",
     "Message": "message-col",
     "SHA": "sha-col number-col",
+    "Origin": "origin-col",
     "Commit number": "commit-number-col number-col",
     "Line": "line-col number-col",
     "Code": "code-col",
@@ -243,7 +244,7 @@ class RepoBlameTableSoup(RepoStatTableSoup):
         if self.dynamic_blame_history_selected():
             table["id"] = f"file-{fstr_nr}-sha-{sha_nr}"
 
-        header_row = self.header_blames()
+        header_row = self.header_blames(self.args)
         self._add_header_row(header_row, table)
 
         bg_colors_cnt = len(BG_AUTHOR_COLORS)

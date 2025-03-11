@@ -29,6 +29,7 @@ td.author-col,
 td.email-col,
 td.file-col,
 td.message-col,
+td.origin-col,
 td.code-col,
 td.comment-col {
     display: block;
@@ -45,6 +46,7 @@ td.author-col:hover,
 td.email-col:hover,
 td.file-col:hover,
 td.message-col:hover,
+td.origin-col:hover,
 td.code-col:hover,
 td.comment-col:hover {
     overflow: visible;
@@ -174,6 +176,10 @@ td.number-col {
 }
 
 .message-col {
+    width: 150px;
+}
+
+.origin-col {
     width: 150px;
 }
 

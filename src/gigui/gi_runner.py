@@ -1,4 +1,7 @@
+import select
+import sys
 import threading
+import time
 from concurrent.futures import Future, ProcessPoolExecutor, as_completed
 from cProfile import Profile
 from logging import getLogger
@@ -182,7 +185,15 @@ class GIRunner(GiRunnerBase):
                         i + 1,
                     )
             log(CLOSE_OUTPUT_VIEWERS_MSG)
-            self.html_server.events.server_shutdown_done.wait()
+            while True:
+                if self.html_server.events.server_shutdown_done.is_set():
+                    break
+                if select.select([sys.stdin], [], [], 1)[0]:
+                    input()
+                    self.html_server.send_shutdown_request()
+                    self.html_server.events.server_shutdown_done.wait()
+                    break
+                time.sleep(0.1)
         elif require_server(self.args) and shared.gui:
             # GUI
             assert self.html_server is not None

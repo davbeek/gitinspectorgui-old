@@ -19,7 +19,7 @@ def close_browser_key():
 
 CLOSE_OUTPUT_VIEWERS_MSG = (
     f"Close the browser window ({close_browser_key()}) or one or more browser "
-    f"tabs ({close_tab_key()}) to continue."
+    f"tabs ({close_tab_key()}), or press Enter to continue."
 )
 
 CONTROL_C = (

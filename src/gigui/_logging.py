@@ -204,14 +204,17 @@ def log(arg: Any, text_color: str | None = None, end: str = "\n", flush: bool = 
         print(arg, end=end, flush=flush)
 
 
-def log_dots(
-    i: int, i_max: int, prefix: str = "", postfix: str = "\n", multicore: bool = False
-):
+def log_dot(multicore: bool = False):
     if gui_multicore:
         return
 
-    # i from 1 to and including i_max
     if not multicore:
-        if i == 1:
-            log(prefix, end="")
-        log("." if i < i_max else "." + postfix, end="", flush=True)
+        log(".", end="", flush=True)
+
+
+def log_space(i: int, multicore: bool = False):
+    if gui_multicore:
+        return
+
+    if not multicore:
+        log(" " * i, end="", flush=True)

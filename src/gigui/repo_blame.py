@@ -1,5 +1,7 @@
+import copy
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime
 from logging import getLogger
@@ -7,7 +9,7 @@ from pathlib import Path
 
 from git import Repo as GitRepo
 
-from gigui._logging import log_dots
+from gigui._logging import log_dot
 from gigui.comment import get_is_comment_lines
 from gigui.constants import BLAME_CHUNK_SIZE, MAX_THREAD_WORKERS
 from gigui.data import FileStat, IniRepo
@@ -25,6 +27,14 @@ logger = getLogger(__name__)
 
 
 @dataclass
+class LineData:
+    line: str = ""
+    fstr: FileStr = ""
+    line_nr: int = 0  # line number in file fstr
+    is_comment: bool = False
+
+
+@dataclass
 class Blame:
     author: Author = ""
     email: Email = ""
@@ -33,35 +43,7 @@ class Blame:
     sha: SHA = ""
     oid: OID = ""
     commit_nr: int = 0
-    fstr: FileStr = ""
-    is_comment_lines: list[bool] = field(default_factory=list)
-    lines: list[str] = field(default_factory=list)
-
-    def merge(self, b: "Blame"):
-        assert not self.oid or not b.oid or self.oid == b.oid, (
-            f"Cannot merge different OIDs: {self.oid} != {b.oid}"
-        )
-        assert not self.sha or not b.sha or self.sha == b.sha, (
-            f"Cannot merge different SHAs: {self.sha} != {b.sha}"
-        )
-        assert not self.commit_nr or not b.commit_nr or self.commit_nr == b.commit_nr, (
-            f"Cannot merge different commit numbers: {self.commit_nr} != {b.commit_nr}"
-        )
-        # assert not self.fstr or not b.fstr or self.fstr == b.fstr, (
-        #     f"Cannot merge different file strings: {self.fstr} != {b.fstr}"
-        # )
-        if self.fstr and b.fstr and self.fstr != b.fstr:
-            logger.warning(f"Merge overwrites {self.fstr} by {b.fstr} in {self}")
-        self.oid = b.oid if b.oid else self.oid
-        self.sha = b.sha if b.sha else self.sha
-        self.commit_nr = b.commit_nr if b.commit_nr else self.commit_nr
-        self.author = b.author if b.author else self.author
-        self.email = b.email if b.email else self.email
-        self.date = b.date if b.date else self.date
-        self.message = b.message if b.message else self.message
-        self.fstr = b.fstr if b.fstr else self.fstr
-        self.is_comment_lines.extend(b.is_comment_lines)
-        self.lines.extend(b.lines)
+    line_datas: list[LineData] = field(default_factory=list)
 
 
 class RepoBlameBase(RepoBase):
@@ -78,11 +60,12 @@ class RepoBlameBase(RepoBase):
         self, fstr: FileStr, start_sha: SHA, i: int, i_max: int
     ) -> tuple[FileStr, list[Blame]]:
         blame_lines: list[BlameStr]
+        blames: list[Blame]
         blame_lines, _ = self._get_git_blames_for(fstr, start_sha)
         if self.args.verbosity == 0 and not self.args.multicore:
-            log_dots(i, i_max, "", "\n")
+            log_dot()
         logger.info(" " * 8 + f"{i} of {i_max}: {self.name} {fstr}")
-        blames: list[Blame] = self._process_blame_lines(fstr, blame_lines)
+        blames = BlameReader(blame_lines, self).process_lines(fstr)
         self.fstr2blames[fstr] = blames
         return fstr, blames
 
@@ -112,9 +95,15 @@ class RepoBlameBase(RepoBase):
     def _run_git_blame(
         self,
         start_sha: SHA,
-        fstr: FileStr,
+        root_fstr: FileStr,
         blame_opts: list[str],
     ) -> BlameStr:
+        fstr = self.get_fstr_for_sha(root_fstr, start_sha)
+        if not fstr:
+            raise ValueError(
+                f"File {root_fstr} not found at {start_sha}, "
+                f"number {self.sha2nr[start_sha]}."
+            )
         start_oid = self.sha2oid[start_sha]
         blame_str: BlameStr
         if self.args.multithread:
@@ -130,99 +119,6 @@ class RepoBlameBase(RepoBase):
                 start_oid, fstr, "--follow", "--porcelain", *blame_opts
             )  # type: ignore
         return blame_str
-
-    def _process_blame_lines(self, fstr: FileStr, lines: list[BlameStr]) -> list[Blame]:
-        blames: list[Blame] = []
-        oid2blame: dict[
-            OID, Blame
-        ] = {}  # associates OIDs with Blame objects without blame lines
-        oid: OID = ""
-        current_oid: OID = ""
-
-        # True if we are obtaining commit info other than blame files, such as author,
-        # email and sha.
-        oid_in_progress: bool = False
-        code_str: str = ""
-        i: int = 0
-        self.blame = Blame()
-        is_comment_lines: list[bool]
-        while i < len(lines):
-            line = lines[i]
-            if re.match(r"^[a-f0-9]{40} ", line):
-                oid = line.split()[0]
-                if oid != current_oid:
-                    # new oid
-                    if self.blame.oid:
-                        # save the current blame object
-                        blames.append(self.blame)
-                    if oid in oid2blame:
-                        self.blame = oid2blame[oid]
-                    else:
-                        self.blame = Blame()
-                    current_oid = oid
-                    oid_in_progress = True
-                    self._parse_git_blame_porcelain(line, fstr)
-                else:  # oid == current_oid
-                    i += 1
-                    line = lines[i]
-                    if line.startswith("filename "):
-                        new_fstr = line[len("filename ") :]
-                        if self.blame.fstr != fstr:
-                            logger.warning(
-                                f"File {fstr} has two blame files {self.blame.fstr} "
-                                f"and {new_fstr} for commit {self.blame.sha},"
-                                f"ignoring {new_fstr}."
-                            )
-                        i += 1
-                        line = lines[i]
-                    assert line.startswith("\t"), f"Expected tab, got {line}"
-                    code_str = line[1:]
-                    self.blame.lines.append(code_str)
-                    is_comment_lines, _ = get_is_comment_lines(
-                        lines=[code_str],
-                        fstr=fstr,
-                    )
-                    self.blame.is_comment_lines.extend(is_comment_lines)
-            elif oid_in_progress:
-                self._parse_git_blame_porcelain(line, fstr)
-                if line.startswith("filename "):
-                    oid2blame[oid] = self.blame
-                    self._parse_git_blame_porcelain(line, fstr)
-                    oid_in_progress = False
-                    i += 1
-                    self._parse_git_blame_porcelain(lines[i], fstr)
-            else:
-                raise ValueError(f"Unexpected line: {line}")
-            i += 1
-
-        for b in oid2blame.values():
-            blames.append(b)
-        return blames
-
-    def _parse_git_blame_porcelain(self, line: str, fstr: FileStr) -> None:
-        b: Blame = Blame()
-        if re.match(r"^[a-f0-9]{40} ", line):
-            parts = line.split()
-            b.oid = parts[0]
-            b.sha = self.oid2sha[b.oid]
-            b.commit_nr = self.sha2nr[b.sha]
-        elif line.startswith("author "):
-            b.author = line[len("author ") :]
-        elif line.startswith("author-mail "):
-            b.email = line[len("author-mail ") :].strip("<>")
-        elif line.startswith("author-time "):
-            b.date = datetime.fromtimestamp(int(line[len("author-time ") :]))
-        elif line.startswith("summary "):
-            b.message = line[len("summary ") :]
-        elif line.startswith("filename "):
-            b.fstr = line[len("filename ") :]
-        elif line.startswith("\t"):
-            b.lines = [line[1:]]
-            b.is_comment_lines, _ = get_is_comment_lines(
-                lines=b.lines,
-                fstr=fstr,
-            )
-        self.blame.merge(b)
 
 
 class RepoBlame(RepoBlameBase):
@@ -242,9 +138,9 @@ class RepoBlame(RepoBlameBase):
                     chunk_fstrs = self.all_fstrs[chunk_start:chunk_end]
                     futures = [
                         thread_executor.submit(
-                            self.get_blames_for, fstr, self.head_sha, i, i_max
+                            self.get_blames_for, fstr, self.head_sha, i + inc + 1, i_max
                         )
-                        for fstr in chunk_fstrs
+                        for inc, fstr in enumerate(chunk_fstrs)
                     ]
                     for future in as_completed(futures):
                         fstr, blames = future.result()
@@ -269,20 +165,6 @@ class RepoBlame(RepoBlameBase):
                 fstr2blames[fstr].append(b)
         self.fstr2blames = fstr2blames
 
-    def update_fr2f2a2sha_set_with_blames(self) -> None:
-        # New files and shas may have been found in the blames for option --copy-move >=
-        # 2, so update the files and shas.
-        for fstr in self.all_fstrs:
-            target = self.fr2f2a2sha_set
-            if fstr not in target:
-                target[fstr] = {}
-            for b in self.fstr2blames[fstr]:
-                if b.fstr not in target[fstr]:
-                    target[fstr][b.fstr] = {}
-                if b.author not in target[fstr][b.fstr]:
-                    target[fstr][b.fstr][b.author] = set()
-                target[fstr][b.fstr][b.author].add(b.sha)
-
     def update_author2fstr2fstat(
         self, author2fstr2fstat: dict[Author, dict[FileStr, FileStat]]
     ) -> dict[Author, dict[FileStr, FileStat]]:
@@ -292,6 +174,7 @@ class RepoBlame(RepoBlameBase):
         """
         author2line_count: dict[Author, int] = {}
         target = author2fstr2fstat
+        b: Blame
         for fstr in self.all_fstrs:
             blames: list[Blame] = self.fstr2blames[fstr]
             for b in blames:
@@ -301,14 +184,16 @@ class RepoBlame(RepoBlameBase):
                 author = person.author
                 if author not in author2line_count:
                     author2line_count[author] = 0
-                total_line_count = len(b.lines)  # type: ignore
+                total_line_count = len(b.line_datas)  # type: ignore
                 comment_lines_subtract = (
-                    0 if self.args.comments else b.is_comment_lines.count(True)
+                    0
+                    if self.args.comments
+                    else [bl.is_comment for bl in b.line_datas].count(True)
                 )
                 empty_lines_subtract = (
                     0
                     if self.args.empty_lines
-                    else len([line for line in b.lines if not line.strip()])
+                    else len([bl.line for bl in b.line_datas if not bl.line.strip()])
                 )
                 line_count = (
                     total_line_count - comment_lines_subtract - empty_lines_subtract
@@ -323,24 +208,35 @@ class RepoBlame(RepoBlameBase):
         return target
 
     def get_blame_shas_for_fstr(self, fstr: FileStr) -> list[SHA]:
-        shas: list[SHA] = []
+        shas: set[SHA] = set()
+        shas_sorted: list[SHA]
         blames: list[Blame] = self.fstr2blames[fstr]
-        comments_ok: bool
-        empty_ok: bool
-        author_ok: bool
-        date_ok: bool
+        b: Blame
+        d: LineData
+        d_ok: bool
+        first_sha_nr: int  # nr of the commit where fstr was first added
+        first_sha_nr = self.fr2sha_nrs[fstr][-1]
+        sha_nr: int
+
         # Note that exclusion of revisions is already done in the blame generation.
         for b in blames:
-            comments_ok = self.args.comments or any(
-                not is_comment_line for is_comment_line in b.is_comment_lines
-            )
-            empty_ok = self.args.empty_lines or any([line.strip() for line in b.lines])
-            author_ok = b.author not in self.args.ex_authors
-            date_ok = b.commit_nr in self.date_range_sha_nrs
-            if comments_ok and empty_ok and author_ok and date_ok:
-                shas.append(b.sha)
+            for d in b.line_datas:
+                d_ok = self.line_data_ok(b, d)
+                if d_ok:
+                    sha_nr = self.sha2nr[b.sha]
+                    if sha_nr >= first_sha_nr:
+                        shas.add(b.sha)
+        shas.add(self.head_sha)
         shas_sorted = sorted(shas, key=lambda x: self.sha2nr[x], reverse=True)
         return shas_sorted
+
+    def line_data_ok(self, b: Blame, d: LineData) -> bool:
+        comment_ok: bool = self.args.comments or not d.is_comment
+        empty_ok: bool = self.args.empty_lines or not d.line.strip() == ""
+        author_ok: bool = b.author not in self.args.ex_authors
+        date_ok: bool = b.commit_nr in self.date_range_sha_nrs
+        ok: bool = comment_ok and empty_ok and author_ok and date_ok
+        return ok
 
 
 class RepoBlameHistory(RepoBlame):
@@ -352,21 +248,126 @@ class RepoBlameHistory(RepoBlame):
 
     def generate_fr_blame_history(self, root_fstr: FileStr, sha: SHA) -> list[Blame]:
         blame_lines: list[BlameStr]
-        fstr: FileStr = self.get_file_for_sha(root_fstr, sha)
-        blame_lines, _ = self._get_git_blames_for(fstr, sha)
-        blames: list[Blame] = self._process_blame_lines(root_fstr, blame_lines)
+        blame_lines, _ = self._get_git_blames_for(root_fstr, sha)
+        blames: list[Blame] = BlameReader(blame_lines, self).process_lines(root_fstr)
         return blames
 
-    def generate_fr_f_blame_history(
-        self, root_fstr: FileStr, fstr: FileStr, sha: SHA
-    ) -> list[Blame]:
-        blame_lines: list[BlameStr]
-        blame_lines, _ = self._get_git_blames_for(fstr, sha)
-        blames: list[Blame] = self._process_blame_lines(root_fstr, blame_lines)
+
+class BlameReader:
+    def __init__(self, lines: list[BlameStr], repo: RepoBase) -> None:
+        self.lines: list[BlameStr] = lines
+        self.fstr: FileStr = ""
+        self.oid2blame: dict[
+            OID, Blame
+        ] = {}  # associates OIDs with Blame objects without blame lines
+        self.repo: RepoBase = repo
+
+    def process_lines(self, root_fstr: FileStr) -> list[Blame]:
+        blame: Blame
+        blames: list[Blame] = []
+        code_lines: list[str] = []
+        comment_lines: list[bool] = []
+        i: int = 0
+        while i < len(self.lines):
+            blame, i = self.get_next_blame(i)
+            blames.append(blame)
+        code_lines = [bl.line for b in blames for bl in b.line_datas]
+        comment_lines, _ = get_is_comment_lines(
+            code_lines,
+            fstr=root_fstr,
+        )
+        i = 0
+        for b in blames:
+            for bl in b.line_datas:
+                bl.is_comment = comment_lines[i]
+                i += 1
         return blames
 
-    def get_file_for_sha(self, root_fstr: FileStr, sha: SHA) -> FileStr:
-        for fstr, shas in self.fr2f2shas[root_fstr].items():
-            if sha in shas:
-                return fstr
-        raise ValueError(f"SHA {sha} not found in {root_fstr} SHAs")
+    def get_next_blame(self, i: int) -> tuple[Blame, int]:
+        line: BlameStr = self.lines[i]
+        b: Blame
+        if re.match(r"^[a-f0-9]{40} ", line):
+            parts: list[str] = line.split()
+            oid = parts[0]
+            line_nr = int(parts[1])
+            line_count = int(parts[3])
+            if oid in self.oid2blame:
+                b, i = self.get_additional_blame(oid, line_nr, line_count, i + 1)
+            else:
+                b, i = self.get_new_blame(oid, line_nr, line_count, i + 1)
+                self.oid2blame[oid] = copy.deepcopy(b)
+                self.oid2blame[oid].line_datas = []
+        else:
+            raise ValueError(f"Unexpected line: {line}")
+        return b, i
+
+    def get_new_blame(
+        self, oid: OID, line_nr: int, line_count: int, i: int
+    ) -> tuple[Blame, int]:
+        line: BlameStr = self.lines[i]
+        b: Blame = Blame()
+        d: LineData = LineData()
+        b.oid = oid
+        b.sha = self.repo.oid2sha[b.oid]
+        b.commit_nr = self.repo.sha2nr[self.repo.oid2sha[b.oid]]
+        d.line_nr = line_nr
+        while not line.startswith("filename "):
+            if line.startswith("author "):
+                b.author = line[len("author ") :]
+            elif line.startswith("author-mail "):
+                b.email = line[len("author-mail ") :].strip("<>")
+            elif line.startswith("author-time "):
+                b.date = datetime.fromtimestamp(int(line[len("author-time ") :]))
+            elif line.startswith("summary "):
+                b.message = line[len("summary ") :]
+            i += 1
+            line = self.lines[i]
+        self.fstr = line[len("filename ") :]
+        d.fstr = self.fstr
+        i += 1
+        d, i = self.parse_line(d, i)
+        b.line_datas.append(d)
+        for _ in range(line_count - 1):
+            d, i = self.get_blame_oid_line(oid, i)
+            b.line_datas.append(d)
+        return b, i
+
+    def get_additional_blame(
+        self, oid: OID, line_nr: int, line_count: int, i: int
+    ) -> tuple[Blame, int]:
+        d: LineData = LineData()
+        b: Blame = deepcopy(self.oid2blame[oid])
+        line_datas: list[LineData] = []
+        if self.lines[i].startswith("previous "):
+            i += 1
+        if self.lines[i].startswith("filename "):
+            self.fstr = self.lines[i][len("filename ") :]
+            i += 1
+        d.line_nr = line_nr
+        d.fstr = self.fstr
+        d, i = self.parse_line(d, i)
+        line_datas.append(d)
+        for _ in range(line_count - 1):
+            d, i = self.get_blame_oid_line(oid, i)
+            line_datas.append(d)
+        b.line_datas = line_datas
+        return b, i
+
+    def get_blame_oid_line(self, oid: OID, i: int) -> tuple[LineData, int]:
+        line: BlameStr = self.lines[i]
+        d: LineData = LineData()
+        parts: list[str] = line.split()
+        assert parts[0] == oid, f"Read {parts[0]} instead of {oid} in {line}"
+        d.line_nr = int(parts[1])
+        d.fstr = self.fstr
+        line = self.lines[i + 1]
+        assert line.startswith("\t"), f"Expected starting tab, got {line}"
+        d.line = line[1:]
+        return d, i + 2
+
+    def parse_line(self, d: LineData, i: int) -> tuple[LineData, int]:
+        line: BlameStr = self.lines[i]
+        assert line.startswith("\t"), f"Expected starting tab, got {line}"
+        d.line = line[1:]
+        d.fstr = self.fstr
+        return d, i + 1

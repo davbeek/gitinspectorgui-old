@@ -202,8 +202,7 @@ class HTMLServer(RepoHTML):
     ) -> HtmlStr:
         root_fstr: FileStr = repo.fstrs[file_nr]
         sha: SHA = repo.nr2sha[commit_nr]
-        blame_file: FileStr = repo.sha2fstr_set[root_fstr][sha]
-        rows, iscomments = repo.generate_fr_sha_blame_rows(blame_file, sha)
+        rows, iscomments = repo.generate_fr_sha_blame_rows(root_fstr, sha)
         table = repo._get_blame_table_from_rows(rows, iscomments, file_nr, commit_nr)
         html_code = str(table)
         html_code = html_code.replace("&amp;nbsp;", "&nbsp;")

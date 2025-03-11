@@ -10,7 +10,7 @@ from pathlib import Path
 from git import Commit as GitCommit
 from git import Repo as GitRepo
 
-from gigui._logging import log, log_dots
+from gigui._logging import log, log_dot, log_space
 from gigui.args_settings import Args
 from gigui.constants import GIT_LOG_CHUNK_SIZE, MAX_THREAD_WORKERS
 from gigui.data import CommitGroup, IniRepo, PersonsDB, RepoStats
@@ -71,11 +71,16 @@ class RepoBase:
         # These are the commits that fall in the date rage since to until.
         self.date_range_sha_nrs: list[int] = []
 
-        self.fr2f2a2sha_set: dict[FileStr, dict[FileStr, dict[Author, set[SHA]]]] = {}
-
-        # Set in RepoBlameBase._add_blame()
-        # Used for dynamic blame history
+        # Dict of root_file to dict of the first sha, where the root_file or one of its
+        # previous names was introduced, to this file name. This sha can either be the
+        # initial sha or the sha where the file was renamed. The dict maps the sha to
+        # the first introduction of the file name.
         self.fr2sha2f: dict[FileStr, dict[SHA, FileStr]] = {}
+        self.fr2sha_nr2f: dict[FileStr, dict[int, FileStr]] = {}  # same for sha nrs
+
+        # Dict of root_file to reverse sorted list of all sha nrs where the file was
+        # renamed or first added.
+        self.fr2sha_nrs: dict[FileStr, list[int]] = {}
 
         # Set of short SHAs of commits in the repo that are excluded by the
         # --ex-revision parameter together with the --ex-message parameter.
@@ -149,6 +154,9 @@ class RepoBase:
 
         self._set_fstr2commits()
         self.all_fstrs = copy.deepcopy(self.fstrs)
+        self._set_fr2sha2f()
+        self._set_fr2sha_nr2f()
+        self._set_fr2sha_nrs()
 
     def _convert_to_timestamp(self, date_str: str) -> int:
         dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
@@ -363,6 +371,7 @@ class RepoBase:
             prefix + f"Git log: {self.name}: {i_max} files"
         )  # Log message sent to QueueHandler
         if self.args.multithread:
+            log_space(8)
             with ThreadPoolExecutor(max_workers=MAX_THREAD_WORKERS) as thread_executor:
                 for chunk_start in range(0, i_max, chunk_size):
                     chunk_end = min(chunk_start + chunk_size, i_max)
@@ -375,7 +384,7 @@ class RepoBase:
                         lines_str, fstr = future.result()
                         i += 1
                         if self.args.verbosity == 0:
-                            log_dots(i, i_max, prefix, " " * 4, self.args.multicore)
+                            log_dot(self.args.multicore)
                         else:
                             logger.info(
                                 prefix
@@ -390,16 +399,18 @@ class RepoBase:
                             lines_str, fstr
                         )
         else:  # single thread
+            log_space(8)
             for fstr in self.fstrs:
                 lines_str, fstr = self._get_commit_lines_for(fstr)
                 i += 1
                 if self.args.verbosity == 0 and not self.args.multicore:
-                    log_dots(i, i_max, prefix, " " * 4)
+                    log_dot(self.args.multicore)
                 else:
                     logger.info(prefix + f"{i} of {i_max}: {self.name} {fstr}")
                 self.fstr2commit_groups[fstr] = self._process_commit_lines_for(
                     lines_str, fstr
                 )
+        log_space(2)
         reduce_commits()
 
     def _get_commit_lines_for(self, fstr: FileStr) -> tuple[str, FileStr]:
@@ -499,25 +510,6 @@ class RepoBase:
                     fstr = match.group(2)
                 else:
                     fstr = file_name
-
-            target = self.fr2f2a2sha_set
-            if fstr_root not in target:
-                target[fstr_root] = {}
-                # Ensure that there is at least one entry for fstr_root in the target
-                # when blame history is used. This is necessary for when the first
-                # commit in the list of commits from the top down is a rename without
-                # any changes in the file. Such renames are not shown in the output for
-                # git log --follow --numstat.
-                target[fstr_root][fstr_root] = {}
-                target[fstr_root][fstr_root][author] = set()
-                target[fstr_root][fstr_root][author].add(sha)
-
-            if fstr not in target[fstr_root]:
-                target[fstr_root][fstr] = {}
-            if author not in target[fstr_root][fstr]:
-                target[fstr_root][fstr][author] = set()
-            target[fstr_root][fstr][author].add(sha)
-
             if (
                 len(commit_groups) > 1
                 and fstr == commit_groups[-1].fstr
@@ -542,3 +534,67 @@ class RepoBase:
 
     def dynamic_blame_history_selected(self) -> bool:
         return self.args.view == Keys.dynamic_blame_history
+
+    def _set_fr2sha2f(self) -> None:
+        for fstr in self.all_fstrs:
+            self.fr2sha2f[fstr] = self._get_sha2f_for_fstr(fstr)
+
+    def _set_fr2sha_nr2f(self) -> None:
+        for fstr in self.all_fstrs:
+            if fstr not in self.fr2sha_nr2f:
+                self.fr2sha_nr2f[fstr] = {}
+            for sha, new_fstr in self.fr2sha2f[fstr].items():
+                sha_nr = self.sha2nr[sha]
+                self.fr2sha_nr2f[fstr][sha_nr] = new_fstr
+
+    def _set_fr2sha_nrs(self) -> None:
+        nrs: list[int]
+        for fstr in self.all_fstrs:
+            nrs = sorted(self.fr2sha_nr2f[fstr].keys(), reverse=True)
+            self.fr2sha_nrs[fstr] = nrs
+
+    def _get_sha2f_for_fstr(self, root_fstr: FileStr) -> dict[SHA, FileStr]:
+        sha2f: dict[SHA, FileStr] = {}
+        sha: SHA
+        new_fstr: FileStr
+        line: str
+        i: int = 0
+
+        lines: list[str] = self.git_repo.git.log(
+            "--pretty=format:%h", "--follow", "--name-status", "--", root_fstr
+        ).splitlines()
+
+        while i < len(lines):
+            line = lines[i]
+            if not line:
+                i += 1
+                continue
+            if i == len(lines) - 2:
+                # get the last element, which is the addition of the file
+                sha = line.strip()
+                _, new_fstr = lines[i + 1].split("\t")
+                sha2f[sha] = new_fstr.strip()
+                break
+            if "\t" not in line and lines[i + 1].startswith("R"):
+                # get rename commit
+                sha = line.strip()
+                _, _, new_fstr = lines[i + 1].split("\t")
+                sha2f[sha] = new_fstr.strip()
+                i += 2
+            else:
+                i += 2
+        return sha2f
+
+    def get_fstr_for_sha(self, root_fstr: FileStr, sha: SHA) -> FileStr:  # type: ignore
+        sha_nr: int = self.sha2nr[sha]
+        nrs: list[int]
+        nr: int
+
+        nrs = sorted(self.fr2sha_nr2f[root_fstr].keys(), reverse=True)
+        if not nrs:
+            raise ValueError(f"No entries found for {root_fstr}.")
+        for nr in nrs:
+            if nr <= sha_nr:
+                return self.fr2sha_nr2f[root_fstr][nr]
+        # sha_nr smaller than the smallest sha nr in the list.
+        return ""
