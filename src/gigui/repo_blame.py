@@ -9,7 +9,6 @@ from pathlib import Path
 
 from git import Repo as GitRepo
 
-from gigui._logging import log_dot
 from gigui.comment import get_is_comment_lines
 from gigui.constants import BLAME_CHUNK_SIZE, MAX_THREAD_WORKERS
 from gigui.data import FileStat, IniRepo
@@ -63,7 +62,7 @@ class RepoBlameBase(RepoBase):
         blames: list[Blame]
         blame_lines, _ = self._get_git_blames_for(fstr, start_sha)
         if self.args.verbosity == 0 and not self.args.multicore:
-            log_dot()
+            self.log_dot()
         logger.info(" " * 8 + f"{i} of {i_max}: {self.name} {fstr}")
         blames = BlameReader(blame_lines, self).process_lines(fstr)
         self.fstr2blames[fstr] = blames

@@ -10,7 +10,7 @@ from pathlib import Path
 from git import Commit as GitCommit
 from git import Repo as GitRepo
 
-from gigui._logging import log, log_dot, log_space
+from gigui._logging import log
 from gigui.args_settings import Args
 from gigui.constants import GIT_LOG_CHUNK_SIZE, MAX_THREAD_WORKERS
 from gigui.data import CommitGroup, IniRepo, PersonsDB, RepoStats
@@ -371,7 +371,7 @@ class RepoBase:
             prefix + f"Git log: {self.name}: {i_max} files"
         )  # Log message sent to QueueHandler
         if self.args.multithread:
-            log_space(8)
+            self.log_space(8)
             with ThreadPoolExecutor(max_workers=MAX_THREAD_WORKERS) as thread_executor:
                 for chunk_start in range(0, i_max, chunk_size):
                     chunk_end = min(chunk_start + chunk_size, i_max)
@@ -384,7 +384,7 @@ class RepoBase:
                         lines_str, fstr = future.result()
                         i += 1
                         if self.args.verbosity == 0:
-                            log_dot(self.args.multicore)
+                            self.log_dot()
                         else:
                             logger.info(
                                 prefix
@@ -399,18 +399,18 @@ class RepoBase:
                             lines_str, fstr
                         )
         else:  # single thread
-            log_space(8)
+            self.log_space(8)
             for fstr in self.fstrs:
                 lines_str, fstr = self._get_commit_lines_for(fstr)
                 i += 1
                 if self.args.verbosity == 0 and not self.args.multicore:
-                    log_dot(self.args.multicore)
+                    self.log_dot()
                 else:
                     logger.info(prefix + f"{i} of {i_max}: {self.name} {fstr}")
                 self.fstr2commit_groups[fstr] = self._process_commit_lines_for(
                     lines_str, fstr
                 )
-        log_space(2)
+        self.log_space(2)
         reduce_commits()
 
     def _get_commit_lines_for(self, fstr: FileStr) -> tuple[str, FileStr]:
@@ -598,3 +598,11 @@ class RepoBase:
                 return self.fr2sha_nr2f[root_fstr][nr]
         # sha_nr smaller than the smallest sha nr in the list.
         return ""
+
+    def log_dot(self):
+        if not self.args.multicore and self.args.verbosity == 0:
+            log(".", end="", flush=True)
+
+    def log_space(self, i: int):
+        if not self.args.multicore and self.args.verbosity == 0:
+            log(" " * i, end="", flush=True)

@@ -202,19 +202,3 @@ def log(arg: Any, text_color: str | None = None, end: str = "\n", flush: bool = 
             print(arg, end=end, flush=flush)
     else:
         print(arg, end=end, flush=flush)
-
-
-def log_dot(multicore: bool = False):
-    if gui_multicore:
-        return
-
-    if not multicore:
-        log(".", end="", flush=True)
-
-
-def log_space(i: int, multicore: bool = False):
-    if gui_multicore:
-        return
-
-    if not multicore:
-        log(" " * i, end="", flush=True)

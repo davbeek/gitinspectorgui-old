@@ -137,6 +137,7 @@ class GIRunner(GiRunnerBase):
 
     def await_tasks_process_output(self) -> None:
         i: int = 0
+        browser_output: bool = False
         repo_name: str = ""
         while i < self.len_repos:
             repo_name = self.queues.task_done.get()
@@ -169,31 +170,39 @@ class GIRunner(GiRunnerBase):
             if self.args.view == AUTO and not self.args.file_formats:
                 self.html_server.set_localhost_data()
                 for i, data in enumerate(self.html_server.id2host_data.values()):
-                    self.html_server.open_new_tab(
-                        data.name,
-                        data.browser_id,
-                        data.html_doc,
-                        i + 1,
-                    )
+                    if data.html_doc:
+                        browser_output = True
+                        self.html_server.open_new_tab(
+                            data.name,
+                            data.browser_id,
+                            data.html_doc,
+                            i + 1,
+                        )
             elif self.args.view == DYNAMIC_BLAME_HISTORY:
                 self.html_server.set_localhost_repo_data()
                 for i, data in enumerate(self.html_server.id2host_repo_data.values()):
-                    self.html_server.open_new_tab(
-                        data.name,
-                        data.browser_id,
-                        data.html_doc,
-                        i + 1,
-                    )
-            log(CLOSE_OUTPUT_VIEWERS_MSG)
-            while True:
-                if self.html_server.events.server_shutdown_done.is_set():
-                    break
-                if select.select([sys.stdin], [], [], 1)[0]:
-                    input()
-                    self.html_server.send_shutdown_request()
-                    self.html_server.events.server_shutdown_done.wait()
-                    break
-                time.sleep(0.1)
+                    if data.html_doc:
+                        browser_output = True
+                        self.html_server.open_new_tab(
+                            data.name,
+                            data.browser_id,
+                            data.html_doc,
+                            i + 1,
+                        )
+            if browser_output:
+                log(CLOSE_OUTPUT_VIEWERS_MSG)
+                while True:
+                    if self.html_server.events.server_shutdown_done.is_set():
+                        break
+                    if select.select([sys.stdin], [], [], 1)[0]:
+                        input()
+                        self.html_server.send_shutdown_request()
+                        self.html_server.events.server_shutdown_done.wait()
+                        break
+                    time.sleep(0.1)
+            else:
+                self.html_server.send_shutdown_request()
+                self.html_server.events.server_shutdown_done.wait()
         elif require_server(self.args) and shared.gui:
             # GUI
             assert self.html_server is not None
