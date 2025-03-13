@@ -80,7 +80,7 @@ class Tip:
     verbosity: str = (
         "0: No debug output, 1: Occasional output messages, 2: Detailed debug output"
     )
-    dry_run: str = (
+    dryrun: str = (
         "0: normal execution, 1: fast analysis without viewer or output files, "
         "2: no analysis no output, only repo names."
     )

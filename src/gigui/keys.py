@@ -27,7 +27,7 @@ class KeysArgs:
     comments: str = "comments"
     copy_move: str = "copy_move"
     verbosity: str = "verbosity"
-    dry_run: str = "dry_run"
+    dryrun: str = "dryrun"
     multithread: str = "multithread"
     multicore: str = "multicore"
     since: str = "since"

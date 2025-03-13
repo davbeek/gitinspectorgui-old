@@ -191,10 +191,10 @@ def define_arguments(parser: ArgumentParser):  # pylint: disable=too-many-statem
         help=hlp.verbosity,
     )
     subgroup_general_options.add_argument(
-        "--dry-run",
+        "--dryrun",
         type=int,
         choices=[0, 1, 2],
-        help=hlp.dry_run,
+        help=hlp.dryrun,
     )
     subgroup_general_options.add_argument(
         "-e",

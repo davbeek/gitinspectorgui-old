@@ -51,7 +51,7 @@ class RepoData(RepoBlameHistory):
         """
 
         try:
-            if self.args.dry_run == 2:
+            if self.args.dryrun == 2:
                 return True
             self.init_git_repo()
             self.run_base()
@@ -62,11 +62,11 @@ class RepoData(RepoBlameHistory):
             self._set_final_data()
             return True
         finally:
-            if self.args.dry_run <= 1:
+            if self.args.dryrun <= 1:
                 self.git_repo.close()
 
     def _run_no_history(self) -> bool:
-        if self.args.dry_run == 2:
+        if self.args.dryrun == 2:
             return True
 
         # Set stats.author2fstr2fstat, the basis of all other stat tables

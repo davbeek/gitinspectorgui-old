@@ -57,7 +57,7 @@ class Args:
     comments: bool = False
     copy_move: int = DEFAULT_COPY_MOVE
     verbosity: int = 0
-    dry_run: int = 0
+    dryrun: int = 0
     multithread: bool = True
     multicore: bool = False
     since: str = ""
@@ -345,7 +345,7 @@ class SettingsFile:
             "comments": {"type": "boolean"},
             "copy_move": {"type": "integer"},
             "verbosity": {"type": "integer"},
-            "dry_run": {"type": "integer"},
+            "dryrun": {"type": "integer"},
             "multithread": {"type": "boolean"},
             "multicore": {"type": "boolean"},
             "since": {"type": "string"},

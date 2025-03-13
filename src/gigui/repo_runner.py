@@ -41,7 +41,7 @@ class RepoRunner(RepoBlameTablesSoup, RepoHTML, Book):
         log(" " * 4 + f"{self.name}" + (": start" if self.args.multicore else ""))
         stats_found = self.run_analysis()
         if not stats_found:
-            if self.args.dry_run <= 1:
+            if self.args.dryrun <= 1:
                 log(" " * 8 + "No statistics matching filters found")
             self.queues.task_done.put(self.name)
             if self.args.view == AUTO and self.args.file_formats:
@@ -51,7 +51,7 @@ class RepoRunner(RepoBlameTablesSoup, RepoHTML, Book):
             elif self.args.view == DYNAMIC_BLAME_HISTORY:
                 self.queues.html.put((self, None))  # type: ignore
         else:
-            if self.args.dry_run == 0:
+            if self.args.dryrun == 0:
                 self.generate_output()
 
     def generate_output(self) -> None:  # pylint: disable=too-many-locals

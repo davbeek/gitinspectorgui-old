@@ -130,7 +130,8 @@ class GIRunner(GiRunnerBase):
                 )
                 futures.append(future)
 
-            self.await_tasks_process_output()
+            if self.args.dryrun == 0:
+                self.await_tasks_process_output()
 
             for future in as_completed(futures):
                 logger.debug("future done:", future.result())
@@ -248,7 +249,8 @@ class GIRunner(GiRunnerBase):
                 )
                 repo_runners.append(repo_runner)
                 repo_runner.process_repo()
-        self.await_tasks_process_output()
+        if self.args.dryrun == 0:
+            self.await_tasks_process_output()
 
     @staticmethod
     def total_len(repo_lists: list[list[IniRepo]]) -> int:

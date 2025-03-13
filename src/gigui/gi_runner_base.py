@@ -41,7 +41,7 @@ class GiRunnerBase:
             not self.args.file_formats
             and not self.args.view == NONE
             and len_repos > 1
-            and self.args.dry_run == 0
+            and self.args.dryrun == 0
         ):
             if len_repos > MAX_BROWSER_TABS:
                 logger.warning(
@@ -59,7 +59,7 @@ class GiRunnerBase:
         if (
             self.args.view == NONE
             and not self.args.file_formats
-            and self.args.dry_run == 0
+            and self.args.dryrun == 0
         ):
             log(
                 "View option not set and no file formats selected.\n"
@@ -78,7 +78,7 @@ class GiRunnerBase:
         if self.args.profile:
             profiler = Profile()
             profiler.enable()
-        if self.args.dry_run == 1:
+        if self.args.dryrun == 1:
             self.args.copy_move = 0
         self.args.include_files = (
             self.args.include_files if self.args.include_files else ["*"]
