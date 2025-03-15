@@ -1,3 +1,4 @@
+import platform
 import select
 import sys
 import threading
@@ -130,7 +131,7 @@ class GIRunner(GiRunnerBase):
                 )
                 futures.append(future)
 
-            if self.args.dryrun == 0:
+            if not self.args.dryrun:
                 self.await_tasks_process_output()
 
             for future in as_completed(futures):
@@ -167,7 +168,6 @@ class GIRunner(GiRunnerBase):
             # CLI
             assert self.html_server is not None
             self.html_server.start_server()
-            self.html_server.start_monitor()
             if self.args.view == AUTO and not self.args.file_formats:
                 self.html_server.set_localhost_data()
                 for i, data in enumerate(self.html_server.id2host_data.values()):
@@ -191,19 +191,23 @@ class GIRunner(GiRunnerBase):
                             i + 1,
                         )
             if browser_output:
-                log(CLOSE_OUTPUT_VIEWERS_MSG)
-                while True:
-                    if self.html_server.events.server_shutdown_done.is_set():
-                        break
-                    if select.select([sys.stdin], [], [], 1)[0]:
-                        input()
+                if platform.system() == "Windows":
+                    log("Press Enter to continue")
+                    input()
+                    if not self.html_server.events.server_shutdown_request.is_set():
                         self.html_server.send_shutdown_request()
-                        self.html_server.events.server_shutdown_done.wait()
-                        break
-                    time.sleep(0.1)
-            else:
-                self.html_server.send_shutdown_request()
-                self.html_server.events.server_shutdown_done.wait()
+                else:  # macOS and Linux
+                    log(CLOSE_OUTPUT_VIEWERS_MSG)
+                    while not self.html_server.events.server_shutdown_request.wait(0.1):
+                        if select.select([sys.stdin], [], [], 1)[0]:
+                            input()
+                            break
+                    if not self.html_server.events.server_shutdown_request.is_set():
+                        self.html_server.send_shutdown_request()
+            self.html_server.events.server_shutdown_request.wait()
+            self.html_server.server.shutdown()  # type: ignore
+            self.html_server.server_thread.join()  # type: ignore
+            self.html_server.server.server_close()  # type: ignore
         elif require_server(self.args) and shared.gui:
             # GUI
             assert self.html_server is not None
@@ -249,7 +253,7 @@ class GIRunner(GiRunnerBase):
                 )
                 repo_runners.append(repo_runner)
                 repo_runner.process_repo()
-        if self.args.dryrun == 0:
+        if not self.args.dryrun:
             self.await_tasks_process_output()
 
     @staticmethod

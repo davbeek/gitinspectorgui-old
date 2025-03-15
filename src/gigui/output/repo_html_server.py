@@ -1,7 +1,6 @@
 import logging
 import re
 import threading
-import time
 import webbrowser
 from dataclasses import dataclass
 from logging import getLogger
@@ -102,26 +101,6 @@ class HTMLServer(RepoHTML):
             )
             raise e
 
-    def monitor_events(self) -> None:
-        assert self.server_thread is not None
-        assert self.server is not None
-        while True:
-            if self.args.multicore:
-                # no sigint_event
-                self.events.server_shutdown_request.wait()
-                break
-            else:  # single core
-                if self.events.server_shutdown_request.wait(timeout=0.1):
-                    break
-                if self.sigint_event.is_set():
-                    self.send_shutdown_request()
-                    time.sleep(0.1)
-                    self.events.server_shutdown_request.wait()
-        self.server.shutdown()
-        self.server.server_close()
-        self.server_thread.join()
-        self.events.server_shutdown_done.set()
-
     def server_app(
         self, environ: WSGIEnvironment, start_response: StartResponse
     ) -> Iterable[bytes]:
@@ -176,6 +155,7 @@ class HTMLServer(RepoHTML):
             return self.id2host_repo_data[browser_id].html_doc
         else:
             logger.info(f"Invalid browser ID: {browser_id}")
+            return None
 
     def handle_load_table(
         self, repo: RepoRunner, table_id: str, dynamic_blame_history_enabled: bool
@@ -312,13 +292,6 @@ class HTMLServer(RepoHTML):
                 name=f"Werkzeug server on port {shared.port_value}",
             )
             self.server_thread.start()
-
-    def start_monitor(self) -> None:
-        self.monitor_thread = Thread(
-            target=self.monitor_events,
-            name=f"Event monitor for server on port {shared.port_value}",
-        )
-        self.monitor_thread.start()
 
     def open_new_tabs(self) -> None:
         if self.args.view == AUTO and not self.args.file_formats:
