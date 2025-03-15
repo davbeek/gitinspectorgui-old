@@ -159,6 +159,7 @@ class GIRunner(GiRunnerBase):
                         + (f" {i} of {self.len_repos}" if self.len_repos > 1 else "")
                     )
                     continue
+                time.sleep(0.1)
                 open_file(out_file_name)
                 logger.info(
                     f"{repo_name}:    {out_file_name}: output done "
