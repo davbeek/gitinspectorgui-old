@@ -10,7 +10,7 @@ from gigui.data import FileStat, IniRepo, Person
 from gigui.keys import Keys
 from gigui.output.repo_excel import Book
 from gigui.output.repo_html import RepoBlameTablesSoup, RepoHTML
-from gigui.queues_events import RunnerQueues
+from gigui.runner_queues import RunnerQueues
 from gigui.typedefs import FileStr, HtmlStr
 from gigui.utils import get_outfile_name
 

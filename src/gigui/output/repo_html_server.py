@@ -20,8 +20,8 @@ from gigui._logging import log
 from gigui.args_settings import Args
 from gigui.constants import AUTO, DEBUG_WERKZEUG_SERVER, DYNAMIC_BLAME_HISTORY, NONE
 from gigui.output.repo_html import RepoHTML
-from gigui.queues_events import RunnerEvents, RunnerQueues
 from gigui.repo_runner import RepoRunner
+from gigui.runner_queues import RunnerQueues
 from gigui.typedefs import SHA, FileStr, HtmlStr
 
 logger = getLogger(__name__)
@@ -55,7 +55,7 @@ class HTMLServer(RepoHTML):
     def __init__(self) -> None:
         self.args: Args
         self.queues: RunnerQueues
-        self.events: RunnerEvents = RunnerEvents()
+        self.server_shutdown_request: threading.Event = threading.Event()
         self.sigint_event: threading.Event = threading.Event()
         self.browser: BaseBrowser = webbrowser.get()
 
@@ -121,7 +121,7 @@ class HTMLServer(RepoHTML):
         elif request.path.startswith("/shutdown"):
             shutdown_id = request.args.get("id")  # type: ignore
             if shutdown_id is None or shutdown_id in self.browser_ids:
-                self.events.server_shutdown_request.set()
+                self.server_shutdown_request.set()
                 response = Response(content_type="text/plain")
             else:
                 response = Response("Invalid shutdown ID", status=403)

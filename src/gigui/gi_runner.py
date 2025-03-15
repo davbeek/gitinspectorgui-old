@@ -19,8 +19,8 @@ from gigui.data import IniRepo
 from gigui.gi_runner_base import GiRunnerBase
 from gigui.messages import CLOSE_OUTPUT_VIEWERS_MSG
 from gigui.output.repo_html_server import HTMLServer, require_server
-from gigui.queues_events import RunnerQueues
 from gigui.repo_runner import RepoRunner
+from gigui.runner_queues import RunnerQueues
 from gigui.typedefs import FileStr
 from gigui.utils import (
     get_dir_matches,
@@ -194,17 +194,17 @@ class GIRunner(GiRunnerBase):
                 if platform.system() == "Windows":
                     log("Press Enter to continue")
                     input()
-                    if not self.html_server.events.server_shutdown_request.is_set():
+                    if not self.html_server.server_shutdown_request.is_set():
                         self.html_server.send_shutdown_request()
                 else:  # macOS and Linux
                     log(CLOSE_OUTPUT_VIEWERS_MSG)
-                    while not self.html_server.events.server_shutdown_request.wait(0.1):
+                    while not self.html_server.server_shutdown_request.wait(0.1):
                         if select.select([sys.stdin], [], [], 1)[0]:
                             input()
                             break
-                    if not self.html_server.events.server_shutdown_request.is_set():
+                    if not self.html_server.server_shutdown_request.is_set():
                         self.html_server.send_shutdown_request()
-            self.html_server.events.server_shutdown_request.wait()
+            self.html_server.server_shutdown_request.wait()
             self.html_server.server.shutdown()  # type: ignore
             self.html_server.server_thread.join()  # type: ignore
             self.html_server.server.server_close()  # type: ignore

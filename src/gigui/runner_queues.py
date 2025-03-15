@@ -1,4 +1,3 @@
-import threading
 from dataclasses import dataclass
 from multiprocessing.managers import SyncManager
 from queue import Queue
@@ -20,12 +19,6 @@ class RunnerQueues:
         Queue[tuple[str, HtmlStr]]
         | Queue[tuple["RepoRunner", HtmlStr]]  # for dynamic blame history
     )
-
-
-@dataclass
-class RunnerEvents:
-    server_shutdown_done: threading.Event = threading.Event()
-    server_shutdown_request: threading.Event = threading.Event()
 
 
 def get_runner_queues(

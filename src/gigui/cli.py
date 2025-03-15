@@ -16,7 +16,7 @@ from gigui.cli_arguments import define_arguments
 from gigui.constants import DEFAULT_EXTENSIONS, NONE
 from gigui.gui.psg import PSGUI
 from gigui.output.repo_html_server import HTMLServer, require_server
-from gigui.queues_events import get_runner_queues
+from gigui.runner_queues import get_runner_queues
 from gigui.tiphelp import Help
 from gigui.typedefs import FileStr
 from gigui.utils import get_dir_matches, strip_quotes

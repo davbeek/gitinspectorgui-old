@@ -25,7 +25,7 @@ from gigui.gui.psg_base import PSGBase, help_window, log, popup
 from gigui.gui.psg_window import make_window
 from gigui.keys import Keys
 from gigui.output.repo_html_server import HTMLServer, require_server
-from gigui.queues_events import RunnerQueues, get_runner_queues
+from gigui.runner_queues import RunnerQueues, get_runner_queues
 from gigui.tiphelp import Help, Tip
 from gigui.utils import to_posix_fstr
 
@@ -311,7 +311,7 @@ class PSGUI(PSGBase):
     def shutdown_html_server(self) -> None:
         if self.html_server.server:
             self.html_server.send_general_shutdown_request()
-            self.html_server.events.server_shutdown_request.wait()
+            self.html_server.server_shutdown_request.wait()
             self.html_server.server.shutdown()
             self.html_server.server.server_close()
             if (
