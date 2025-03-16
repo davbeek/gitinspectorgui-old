@@ -258,19 +258,20 @@ def sigint_handler(
 
 
 def setup_sigint_handler(sigint_event: multiprocessingEvent | threading.Event):
-    signal.signal(
-        signal.SIGINT,
-        lambda signum, frame: sigint_handler(
-            signum,
-            frame,
-            sigint_event,  # type: ignore
-        ),
-    )
-    signal.signal(
-        signal.SIGTERM,
-        lambda signum, frame: sigint_handler(
-            signum,
-            frame,
-            sigint_event,  # type: ignore
-        ),
-    )
+    pass
+    # signal.signal(
+    #     signal.SIGINT,
+    #     lambda signum, frame: sigint_handler(
+    #         signum,
+    #         frame,
+    #         sigint_event,  # type: ignore
+    #     ),
+    # )
+    # signal.signal(
+    #     signal.SIGTERM,
+    #     lambda signum, frame: sigint_handler(
+    #         signum,
+    #         frame,
+    #         sigint_event,  # type: ignore
+    #     ),
+    # )
