@@ -42,7 +42,8 @@ coll = COLLECT(
     a.zipfiles,
     a.datas,
     strip=False,
-    upx=False, name="bundle",
+    upx=False,
+    name="bundle",
 )
 
 app = BUNDLE(
