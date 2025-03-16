@@ -24,35 +24,21 @@ of the contribution of each author to selected repositories.
 
 ## Installation of GitinspectorGUI for Windows
 
-### Installation of Git for Windows
+Download the stand-alone executable `windows-gitinspectorgui-arm-setup.exe` or
+`windows-gitinspectorgui-intel-setup.exe` from the [releases
+page](https://github.com/davbeek/gitinspectorgui/releases). Execute it, and
+follow the on-screen installation instructions. The GitinspectorGUI executable
+will be available under the program group GitinspectorGUI.
 
-The GitinspectorGUI app is only about 18MB in size, but it requires Git for
-Windows to be available on your system. Git for Windows is around 375MB in
-size and can be downloaded from
-[git-scm.com](https://git-scm.com/downloads/win).
-
-Git for Windows presents numerous questions during installation. For users
-unfamiliar with Git, these questions can seem overwhelming. However, leaving
-all options at their default settings will ensure proper functionality. A
-drawback of using the default settings is that it may add extra context menu
-items in File Explorer.
-
-### Installation of the GitinspectorGUI executable
-
-Download the stand-alone executable `windows-gitinspectorgui-setup.exe` from the
-[releases page](https://github.com/davbeek/gitinspectorgui/releases). Execute
-it, and follow the on-screen installation instructions. The GitinspectorGUI
-executable will be available under the program group GitinspectorGUI.
-
-### Recommended browser
-
-Firefox is recommended to display analysis output. Microsoft Edge works properly
-only when analysis output is generated in html files. We have not tested Chrome.
+Select the Arm version for modern systems with a Snapdragon processor and the
+Intel version for systems with a traditional Intel processor. When you are not
+sure, you probably have an Intel processor.
 
 ## Installation of GitinspectorGUI for macOS
 
 ### Installation of Git for macOS
 
+The `gitinspectorgui` requires Git to be present on macOS.
 There are multiple ways to install Git for macOS, but they all require the
 command line. The easiest way to do this is by using the Miniconda or Anaconda,
 Homebrew or MacPorts package manager:
