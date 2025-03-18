@@ -17,14 +17,6 @@ AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
 DefaultDirName={autopf}\{#MyAppName}
-; "ArchitecturesAllowed=arm64" specifies that Setup cannot run
-; on anything but ARM64.
-ArchitecturesAllowed=arm64
-; "ArchitecturesInstallIn64BitMode=arm64" requests that the
-; install be done in "64-bit mode" on ARM64,
-; meaning it should use the native ARM64 Program Files directory and
-; the ARM64 view of the registry.
-ArchitecturesInstallIn64BitMode=arm64
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 DisableDirPage=no

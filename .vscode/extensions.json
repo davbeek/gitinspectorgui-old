@@ -8,6 +8,7 @@
         "bmalehorn.shell-syntax",
         "charliermarsh.ruff",
         "christian-kohler.path-intellisense",
+        "chouzz.vscode-innosetup",
         "eamodio.gitlens",
         "grapecity.gc-excelviewer",
         "ms-python.debugpy",

@@ -45,6 +45,7 @@ dependencies = [
     "urllib3 == 2.3.0", # required by requests
     "charset-normalizer == 3.4.1", # required by requests
     "ruff>=0.9.7",
+    "pillow>=11.1.0",
 ]
 
 [project.urls]

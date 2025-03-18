@@ -1,6 +1,5 @@
 import argparse
 import platform
-import signal
 import subprocess
 import threading
 import time

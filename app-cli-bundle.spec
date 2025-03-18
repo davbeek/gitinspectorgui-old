@@ -27,7 +27,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="gitinspectorgui",
+    name="gitinspectorcli",
     debug=False,
     strip=False,
     upx=False,
