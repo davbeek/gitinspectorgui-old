@@ -21,6 +21,17 @@ class GIBump:
         self.is_arm = "arm" in platform.machine().lower()
         self.toml_path = self.root_dpath / "pyproject.toml"
         self.inno_path = self.root_dpath / "tools" / "static" / "win-setup.iss"
+        self.version_commit_message = f"Version {self.version}"
+
+        version_paths: list[Path] = [
+            self.toml_path,
+            self.inno_path,
+            self.version_path,
+            self.root_dpath / "uv.lock",
+        ]
+        self.relative_version_fstrs: set[str] = {
+            str(path.relative_to(self.root_dpath)) for path in version_paths
+        }
 
     def get_version(self) -> str:
         """Retrieve the current version from the version file."""
@@ -62,6 +73,9 @@ class GIBump:
 
     def bump_version(self):
         """Update the version in all relevant files."""
+        self.check_version_commit_absence()
+        self.check_no_remaining_changed_files()
+
         print(f"Updating version to {self.version}")
         print("Bumping version in pyproject.toml")
         self.bump_toml_version()
@@ -70,18 +84,25 @@ class GIBump:
         print("Syncing and bumping version in uv lock file")
         self.uv_sync()
 
+    def check_version_commit_absence(self) -> None:
+        """Check if the version commit already exists in the branch history."""
+        if self.version_commit_message in self.git_repo.git.log("--oneline"):
+            print(self.version_commit_message, "commit already exists.")
+            raise ValueError()
+
     def commit_version(self):
         """Commit the version update to the repository."""
-        version_paths: list[Path] = [
-            self.toml_path,
-            self.inno_path,
-            self.version_path,
-            self.root_dpath / "uv.lock",
-        ]
-        version_rel_paths_str = {
-            str(path.relative_to(self.root_dpath)) for path in version_paths
-        }
+        self.check_version_commit_absence()
+        self.check_no_remaining_changed_files()
 
+        print(f"Committing version {self.version}")
+        for fstr in self.relative_version_fstrs:
+            self.git_repo.git.add(fstr)
+        self.git_repo.git.commit("-m", self.version_commit_message)
+
+    def check_no_remaining_changed_files(self) -> None:
+        """Check that there are no changed files other than those due to version
+        bumps."""
         # Gather all changed files (both staged and unstaged)
         unstaged_files: set[str] = {
             item.a_path
@@ -94,33 +115,53 @@ class GIBump:
             if item.a_path is not None
         }
         changed_files: set[str] = unstaged_files.union(staged_files)
-
-        # Check if all changed files are in version_paths
-        if changed_files.issubset(version_rel_paths_str):
-            print(f"Committing version {self.version}")
-            for fstr in version_rel_paths_str:
-                self.git_repo.git.add(fstr)
-            self.git_repo.git.commit("-m", f"Version {self.version}")
-        else:
-            # Print files not in version_paths
-            unexpected_files = changed_files - version_rel_paths_str
+        remaining_changed_files: set[str] = changed_files - self.relative_version_fstrs
+        if remaining_changed_files:
             print("The following changed files should be committed first:")
-            for file in unexpected_files:
+            for file in remaining_changed_files:
                 print(f" - {file}")
-            raise ValueError("Unexpected files in the commit")
+            raise ValueError()
+
+    def check_at_bump_commit(self) -> None:
+        """Check if the HEAD commit has the expected commit message."""
+        head_commit_message = self.git_repo.head.commit.message.strip()
+        if head_commit_message != self.version_commit_message:
+            print(f"HEAD commit is not at Version {self.version}.")
+            raise ValueError()
 
     def add_tag(self):
         """Add a Git tag for the new version."""
+        self.check_at_bump_commit()
+
+        # Check tag absence
         if self.version in self.git_repo.tags:
-            print(f"Deleting old tag {self.version}")
-            self.git_repo.delete_tag()
+            print(f"Tag {self.version} already exists.")
+            raise ValueError()
+
         print(f"Adding tag {self.version}")
         self.git_repo.create_tag(self.version)
 
     def push(self):
         """Push the version and tag to the remote repository."""
+        self.push_version()
+        self.push_tag()
+
+    def push_version(self):
+        """Push the version to the remote repository."""
+        self.check_at_bump_commit()
+
         print("Pushing version")
         self.git_repo.git.push("origin", "main")  # Pushes the main branch
+
+    def push_tag(self):
+        """Push the tag to the remote repository."""
+        self.check_at_bump_commit()
+
+        # Check that the tag exists
+        if self.version not in self.git_repo.tags:
+            print(f"Tag {self.version} not found.")
+            raise ValueError()
+
         print("Pushing tag")
         self.git_repo.git.push("origin", self.version)  # Pushes the version tag
 
@@ -152,8 +193,7 @@ class GIBump:
                 self.add_tag()
 
             case "push":
-                if self.confirm_action("Do you want to push the version and tag?"):
-                    self.push()
+                self.push()
 
 
 if __name__ == "__main__":
@@ -176,3 +216,6 @@ if __name__ == "__main__":
     except ValueError:
         print("Exiting")
         exit(1)
+    finally:
+        # Explicitly clean up the Repo object to avoid subprocess issues
+        del gi_bump.git_repo
