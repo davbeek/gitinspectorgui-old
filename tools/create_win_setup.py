@@ -7,50 +7,50 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT_DIR = SCRIPT_DIR.parent
 VERSION = (ROOT_DIR / "src" / "gigui" / "version.txt").read_text().strip()
 
+ARM_ISS_FILE = SCRIPT_DIR / "static" / "win-setup-arm.iss"
+INTEL_ISS_FILE = SCRIPT_DIR / "static" / "win-setup.iss"
+OUTPUT_DIR = ROOT_DIR / "app" / "pyinstall-setup"
+OUTPUT_FILE = OUTPUT_DIR / f"windows-gitinspectorgui-setup-{VERSION}.exe"
+
 
 def generate_intel_iss():
     """Generate win-setup.iss from win-setup-arm.iss by removing ARM-specific lines."""
-    arm_iss_file = SCRIPT_DIR / "static" / "win-setup-arm.iss"
-    intel_iss_file = SCRIPT_DIR / "static" / "win-setup.iss"
-
     print("Generating win-setup.iss from win-setup-arm.iss")
-    with arm_iss_file.open("r") as arm_file:
+    with ARM_ISS_FILE.open("r") as arm_file:
         lines = arm_file.readlines()
 
-    with intel_iss_file.open("w") as intel_file:
+    with INTEL_ISS_FILE.open("w") as intel_file:
         for line in lines:
             # Skip lines containing "arm64" (case-insensitive) or comments
             if re.search(r"arm64", line, re.IGNORECASE):
                 continue
             intel_file.write(line)
 
-    print(f"Generated {intel_iss_file}")
-    return intel_iss_file
+    print(f"Generated {INTEL_ISS_FILE}")
 
 
-def create_setup_file():
+def create_setup_file() -> Path:
     arch = platform.machine().lower()
     if "arm" in arch:
-        iss_file = SCRIPT_DIR / "static" / "win-setup-arm.iss"
+        iss_file = ARM_ISS_FILE
         print("Detected ARM architecture. Using win-setup-arm.iss")
     else:
         print("Detected Intel architecture. Regenerating win-setup.iss")
-        iss_file = generate_intel_iss()
-
-    output_dir = ROOT_DIR / "app" / "pyinstall-setup"
-    output_file = output_dir / f"windows-gitinspectorgui-setup-{VERSION}.exe"
+        generate_intel_iss()
+        iss_file = INTEL_ISS_FILE
 
     print("Generating gitinspector setup file")
     subprocess.run(
         [
             r"C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
-            f"/O{output_dir}",
-            f"/F{output_file.stem}",
+            f"/O{OUTPUT_DIR}",
+            f"/F{OUTPUT_FILE.stem}",
             str(iss_file),
         ],
         check=True,
     )
-    print(f"Setup file generated: {output_file}")
+    print(f"Setup file generated: {OUTPUT_FILE}")
+    return OUTPUT_FILE
 
 
 if __name__ == "__main__":

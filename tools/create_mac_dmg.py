@@ -1,30 +1,29 @@
+import platform
 from pathlib import Path
 
-import dmgbuild  # Ensure dmgbuild is installed
+import dmgbuild
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 APP_NAME = "GitinspectorGUI.app"
-DMG_NAME = "GitinspectorGUI.dmg"
+APP_PATH = ROOT_DIR / "app" / APP_NAME
+
 VERSION = (ROOT_DIR / "src" / "gigui" / "version.txt").read_text().strip()
+PROCESSOR_TYPE = "AppleSilicon" if "arm" in platform.machine().lower() else "Intel"
+DMG_NAME_VERSION = f"GitinspectorGUI-{VERSION}-{PROCESSOR_TYPE}.dmg"
+DMG_PATH = ROOT_DIR / "app" / DMG_NAME_VERSION
 
 
-def create_dmg():
-    app_path = ROOT_DIR / "app" / APP_NAME
-    dmg_name_with_version = (
-        f"GitinspectorGUI-{VERSION}.dmg"  # Append version to the dmg name
-    )
-    dmg_path = ROOT_DIR / "app" / dmg_name_with_version
-
+def create_dmg() -> Path:
     # Delete the existing .dmg file if it exists
-    if dmg_path.exists():
-        print(f"Deleting existing .dmg file: {dmg_path}")
-        dmg_path.unlink()
+    if DMG_PATH.exists():
+        print(f"Deleting existing .dmg file: {DMG_PATH}")
+        DMG_PATH.unlink()
 
     dmgbuild.build_dmg(
-        filename=str(dmg_path),
+        filename=str(DMG_PATH),
         volume_name="GitinspectorGUI",
         settings={
-            "files": [str(app_path)],
+            "files": [str(APP_PATH)],
             "symlinks": {"Applications": "/Applications"},
             "icon_locations": {
                 APP_NAME: (130, 100),
@@ -40,8 +39,8 @@ def create_dmg():
             "icon_size": 128,
         },
     )
-
-    print(f"Created .dmg installer at: {dmg_path}")
+    print(f"Created .dmg installer at: {DMG_PATH}")
+    return DMG_PATH
 
 
 if __name__ == "__main__":

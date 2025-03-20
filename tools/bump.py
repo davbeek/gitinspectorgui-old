@@ -1,9 +1,3 @@
-# /// script
-# requires-python = ">=3.12"
-# dependencies = [
-#     "gitpython",
-# ]
-# ///
 import argparse
 import re
 import subprocess
