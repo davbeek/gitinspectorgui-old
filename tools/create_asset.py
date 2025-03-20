@@ -8,4 +8,4 @@ from tools.github import GitHub
 
 if __name__ == "__main__":
     github = GitHub()
-    github.extend_release()
+    github.create_asset()
