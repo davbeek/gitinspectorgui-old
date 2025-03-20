@@ -117,9 +117,11 @@ class GIBump:
         print(f"Adding tag {self.version}")
         self.git_repo.create_tag(self.version)
 
-    def push_version(self):
+    def push(self):
         """Push the version and tag to the remote repository."""
+        print("Pushing version")
         self.git_repo.git.push("origin", "main")  # Pushes the main branch
+        print("Pushing tag")
         self.git_repo.git.push("origin", self.version)  # Pushes the version tag
 
     def confirm_action(self, message: str) -> bool:
@@ -138,7 +140,7 @@ class GIBump:
                 self.bump_version()
                 self.commit_version()
                 self.add_tag()
-                self.push_version()
+                self.push()
 
             case "version":
                 self.bump_version()
@@ -151,7 +153,7 @@ class GIBump:
 
             case "push":
                 if self.confirm_action("Do you want to push the version and tag?"):
-                    self.push_version()
+                    self.push()
 
 
 if __name__ == "__main__":
