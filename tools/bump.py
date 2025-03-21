@@ -9,6 +9,12 @@ from git import Repo
 DEBUG_UV = False  # If True, use the -v flag for uv sync.
 
 
+class GIToolError(Exception):
+    """Custom exception for errors in the GIBump class, GITool class and subclasses."""
+
+    pass
+
+
 class GIBump:
     def __init__(self):
         self.root_dpath = Path(__file__).resolve().parent.parent
@@ -88,17 +94,7 @@ class GIBump:
         """Check if the version commit already exists in the branch history."""
         if self.version_commit_message in self.git_repo.git.log("--oneline"):
             print(self.version_commit_message, "commit already exists.")
-            raise ValueError()
-
-    def commit_version(self):
-        """Commit the version update to the repository."""
-        self.check_version_commit_absence()
-        self.check_no_remaining_changed_files()
-
-        print(f"Committing version {self.version}")
-        for fstr in self.relative_version_fstrs:
-            self.git_repo.git.add(fstr)
-        self.git_repo.git.commit("-m", self.version_commit_message)
+            raise GIToolError()
 
     def check_no_remaining_changed_files(self) -> None:
         """Check that there are no changed files other than those due to version
@@ -120,14 +116,17 @@ class GIBump:
             print("The following changed files should be committed first:")
             for file in remaining_changed_files:
                 print(f" - {file}")
-            raise ValueError()
+            raise GIToolError()
 
-    def check_at_bump_commit(self) -> None:
-        """Check if the HEAD commit has the expected commit message."""
-        head_commit_message = self.git_repo.head.commit.message.strip()
-        if head_commit_message != self.version_commit_message:
-            print(f"HEAD commit is not at Version {self.version}.")
-            raise ValueError()
+    def commit_version(self):
+        """Commit the version update to the repository."""
+        self.check_version_commit_absence()
+        self.check_no_remaining_changed_files()
+
+        print(f"Committing version {self.version}")
+        for fstr in self.relative_version_fstrs:
+            self.git_repo.git.add(fstr)
+        self.git_repo.git.commit("-m", self.version_commit_message)
 
     def add_tag(self):
         """Add a Git tag for the new version."""
@@ -136,10 +135,17 @@ class GIBump:
         # Check tag absence
         if self.version in self.git_repo.tags:
             print(f"Tag {self.version} already exists.")
-            raise ValueError()
+            raise GIToolError()
 
         print(f"Adding tag {self.version}")
         self.git_repo.create_tag(self.version)
+
+    def check_at_bump_commit(self) -> None:
+        """Check if the HEAD commit has the expected commit message."""
+        head_commit_message = self.git_repo.head.commit.message.strip()
+        if head_commit_message != self.version_commit_message:
+            print(f"HEAD commit is not at Version {self.version}.")
+            raise GIToolError()
 
     def push(self):
         """Push the version and tag to the remote repository."""
@@ -160,24 +166,15 @@ class GIBump:
         # Check that the tag exists
         if self.version not in self.git_repo.tags:
             print(f"Tag {self.version} not found.")
-            raise ValueError()
+            raise GIToolError()
 
         print("Pushing tag")
         self.git_repo.git.push("origin", self.version)  # Pushes the version tag
-
-    def confirm_action(self, message: str) -> bool:
-        """Prompt the user for confirmation."""
-        response = input(f"{message} (y/N): ").strip().lower()
-        return response == "y"
 
     def main(self, action: str):
         """Perform the specified action: bump version, commit, tag, or all."""
         match action:
             case "all":
-                if not self.confirm_action(
-                    "Do you want to bump the version, commit, add tag, and push?"
-                ):
-                    return
                 self.bump_version()
                 self.commit_version()
                 self.add_tag()
@@ -213,7 +210,7 @@ if __name__ == "__main__":
     gi_bump = GIBump()
     try:
         gi_bump.main(args.action)
-    except ValueError:
+    except GIToolError:
         print("Exiting")
         exit(1)
     finally:

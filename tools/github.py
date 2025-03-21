@@ -11,7 +11,7 @@ import requests
 # Add the parent directory to the Python module search path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
-from tools.bump import GIBump
+from tools.bump import GIBump, GIToolError
 
 
 class GITool(GIBump):
@@ -25,10 +25,6 @@ class GITool(GIBump):
         self.app_name = "GitinspectorGUI.app"
         self.app_path = self.root_dpath / "app" / self.app_name
         self.processor_type = "AppleSilicon" if self.is_arm else "Intel"
-
-        # Set by subclasses to path of asset to upload to GitHub: either dmg file for
-        # macOS or setup file for Windows.
-        self.asset_path: Path
 
     def create_app(self, app_type: str):
         spec_file = (
@@ -57,9 +53,10 @@ class GITool(GIBump):
         if self.is_win:
             activate_script = self.root_dpath / ".venv" / "Scripts" / "Activate.ps1"
             if not activate_script.exists():
-                raise FileNotFoundError(
+                print(
                     f"Virtual environment activation script not found: {activate_script}"
                 )
+                raise GIToolError()
             command = (
                 f"& {activate_script}; "
                 f"pyinstaller --distpath={self.root_dpath / 'app'} {self.root_dpath / spec_file}"
@@ -71,9 +68,10 @@ class GITool(GIBump):
         else:  # macOS or Linux
             activate_script = self.root_dpath / ".venv" / "bin" / "activate"
             if not activate_script.exists():
-                raise FileNotFoundError(
+                print(
                     f"Virtual environment activation script not found: {activate_script}"
                 )
+                raise GIToolError()
             result = subprocess.run(
                 [f"source {activate_script} && pyinstaller --distpath=app {spec_file}"],
                 cwd=self.root_dpath,
@@ -118,7 +116,6 @@ class GIMacTool(GITool):
             },
         )
         print(f"Created .dmg installer at: {self.dmg_path}")
-        self.asset_path = self.dmg_path
 
 
 class GIWinTool(GITool):
@@ -169,23 +166,20 @@ class GIWinTool(GITool):
             check=True,
         )
         print(f"Setup file generated: {self.win_setup_path}")
-        self.asset_path = self.win_setup_path
 
 
 class GitHub(GIMacTool, GIWinTool):
     def __init__(self):
         super().__init__()
         self.release_name = f"GitinspectorGUI-{self.version}"
-        self.upload_url = None
 
     def create_release(self):
-        if self.is_win:
-            # Release must be created on macOS.
-            raise EnvironmentError("Creating releases on Windows is not supported.")
-
         """Create a new GitHub release and store the upload URL."""
         if not self.github_token:
-            raise EnvironmentError("GITHUB_TOKEN environment variable is not set.")
+            print("GITHUB_TOKEN environment variable is not set.")
+            raise GIToolError()
+
+        self.check_release_absence()
 
         # Determine if this is a prerelease based on VERSION
         is_prerelease = "rc" in self.version
@@ -202,12 +196,11 @@ class GitHub(GIMacTool, GIWinTool):
         }
 
         print(
-            f"Creating GitHub release for version {self.version} ({is_prerelease=})..."
+            f"Creating GitHub {'pre-' if is_prerelease else ''}release for version {self.version} ..."
         )
         response = requests.post(url, headers=headers, json=data)
         response.raise_for_status()
         release = response.json()
-        self.upload_url = release["upload_url"].replace("{?name,label}", "")
         print(f"Release created: {release['html_url']}")
 
     def create_asset(self):
@@ -218,18 +211,22 @@ class GitHub(GIMacTool, GIWinTool):
 
     def upload_asset(self):
         """Upload the stored asset to the GitHub release."""
-        if not self.asset_path or not self.asset_path.exists():
-            raise FileNotFoundError(f"Asset file not found: {self.asset_path}")
+        asset_path: Path = self.dmg_path if self.is_mac else self.win_setup_path
+        if not asset_path or not asset_path.exists():
+            print(f"Asset file not found: {asset_path}")
+            raise GIToolError()
 
-        print(f"Uploading {self.asset_path.name} to GitHub release...")
+        upload_url = self.get_upload_url()  # Use the new method to fetch the upload URL
+
+        print(f"Uploading {asset_path.name} to GitHub release...")
         headers = {
             "Authorization": f"token {self.github_token}",
             "Content-Type": "application/octet-stream",
         }
-        params = {"name": self.asset_path.name}
-        with self.asset_path.open("rb") as f:
+        params = {"name": asset_path.name}
+        with asset_path.open("rb") as f:
             response = requests.post(
-                self.upload_url,  # type: ignore
+                upload_url,  # Use the fetched upload URL
                 headers=headers,
                 params=params,
                 data=f,
@@ -237,38 +234,35 @@ class GitHub(GIMacTool, GIWinTool):
         response.raise_for_status()
         print(f"Asset uploaded: {response.json()['browser_download_url']}")
 
-    def extend_release(self):
-        """Extend the release by creating and uploading platform-specific assets."""
-
-        if self.is_mac:
-            print("Detected macOS on Intel hardware. Creating and uploading DMG...")
-            self.create_app("gui")
-            self.create_dmg()
-        elif self.is_win:
-            print("Detected Windows. Creating and uploading setup file...")
-            self.create_app("gui")
-            self.create_win_setup_exe()
-        else:
-            print("Unsupported platform or architecture. No action taken.")
-            return
-
-        self.upload_asset()
-
-    def release_exists(self) -> bool:
-        """Check if a GitHub release for the current version already exists."""
+    def get_upload_url(self):
+        """Get the upload URL for the GitHub release."""
         if not self.github_token:
-            raise EnvironmentError("GITHUB_TOKEN environment variable is not set.")
+            print("GITHUB_TOKEN environment variable is not set.")
+            raise GIToolError()
 
         url = f"{self.github_api_url}/repos/{self.repo_owner}/{self.repo_name}/releases/tags/v{self.version}"
         headers = {"Authorization": f"token {self.github_token}"}
 
-        print(f"Checking if release for version {self.version} exists...")
+        print(f"Fetching upload URL for release version {self.version} ...")
         response = requests.get(url, headers=headers)
-
         if response.status_code == 404:
             print(f"No release found for version {self.version}.")
-            return False
-
+            raise GIToolError()
         response.raise_for_status()
-        print(f"Release for version {self.version} already exists.")
-        return True
+        release = response.json()
+        return release["upload_url"].replace("{?name,label}", "")
+
+    def check_release_absence(self):
+        """Check if a GitHub release for the current version already exists."""
+        if not self.github_token:
+            print("GITHUB_TOKEN environment variable is not set.")
+            raise GIToolError()
+
+        url = f"{self.github_api_url}/repos/{self.repo_owner}/{self.repo_name}/releases/tags/v{self.version}"
+        headers = {"Authorization": f"token {self.github_token}"}
+
+        response = requests.get(url, headers=headers)
+        if response.status_code != 404:
+            response.raise_for_status()
+            print(f"Release for version {self.version} already exists.")
+            raise GIToolError()

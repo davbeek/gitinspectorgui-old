@@ -10,7 +10,10 @@ if __name__ == "__main__":
     github = GitHub()
 
     try:
+        github.check_release_absence()
+        github.create_asset()
         github.create_release()
+        github.upload_asset()
     except GIToolError:
         print("Exiting")
         exit(1)
