@@ -1,17 +1,22 @@
 import os
+import platform
 import re
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 
-import dmgbuild
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 # Add the parent directory to the Python module search path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from tools.bump import GIBump, GIToolError
+
+if platform.system() == "Darwin":
+    import dmgbuild  # gives error when imported on Windows
 
 
 class GITool(GIBump):
@@ -24,9 +29,14 @@ class GITool(GIBump):
         self.github_token = os.getenv("GITHUB_TOKEN")
         self.app_name = "GitinspectorGUI.app"
         self.app_path = self.root_dpath / "app" / self.app_name
-        self.processor_type = "AppleSilicon" if self.is_arm else "Intel"
+
+        if self.is_win:
+            self.processor_type = "Arm" if self.is_arm else "Intel"
+        else:
+            self.processor_type = "AppleSilicon" if self.is_arm else "Intel"
 
     def create_app(self, app_type: str):
+        self.uv_sync
         spec_file = (
             "app-gui-bundle.spec" if app_type == "gui" else "app-cli-bundle.spec"
         )
@@ -51,29 +61,14 @@ class GITool(GIBump):
         print()
 
         if self.is_win:
-            activate_script = self.root_dpath / ".venv" / "Scripts" / "Activate.ps1"
-            if not activate_script.exists():
-                print(
-                    f"Virtual environment activation script not found: {activate_script}"
-                )
-                raise GIToolError()
-            command = (
-                f"& {activate_script}; "
-                f"pyinstaller --distpath={self.root_dpath / 'app'} {self.root_dpath / spec_file}"
-            )
+            command = f"pyinstaller --distpath={self.root_dpath / 'app'} {self.root_dpath / spec_file}"
             result = subprocess.run(
                 ["powershell", "-Command", command],
                 cwd=self.root_dpath,
             )
         else:  # macOS or Linux
-            activate_script = self.root_dpath / ".venv" / "bin" / "activate"
-            if not activate_script.exists():
-                print(
-                    f"Virtual environment activation script not found: {activate_script}"
-                )
-                raise GIToolError()
             result = subprocess.run(
-                [f"source {activate_script} && pyinstaller --distpath=app {spec_file}"],
+                [f"pyinstaller --distpath=app {spec_file}"],
                 cwd=self.root_dpath,
                 shell=True,
                 executable="/bin/bash",  # Ensure compatibility with 'source'
@@ -86,10 +81,8 @@ class GITool(GIBump):
 class GIMacTool(GITool):
     def __init__(self):
         super().__init__()
-        self.dmg_name_version = (
-            f"GitinspectorGUI-{self.version}-{self.processor_type}.dmg"
-        )
-        self.dmg_path = self.root_dpath / "app" / self.dmg_name_version
+        dmg_name_version = f"GitinspectorGUI-{self.version}-{self.processor_type}.dmg"
+        self.dmg_path = self.root_dpath / "app" / dmg_name_version
 
     def create_dmg(self):
         # Delete the existing .dmg file if it exists
@@ -97,7 +90,7 @@ class GIMacTool(GITool):
             print(f"Deleting existing .dmg file: {self.dmg_path}")
             self.dmg_path.unlink()
 
-        dmgbuild.build_dmg(
+        dmgbuild.build_dmg(  # type: ignore
             filename=str(self.dmg_path),
             volume_name="GitinspectorGUI",
             settings={
@@ -124,11 +117,12 @@ class GIWinTool(GITool):
 
         self.iss_dpath = self.root_dpath / "tools" / "static"
         self.win_setup_dpath = self.root_dpath / "app" / "pyinstall-setup"
-        self.arm_iss_path = self.iss_dpath / "static" / "win-setup-arm.iss"
-        self.intel_iss_path = self.iss_dpath / "static" / "win-setup.iss"
-        self.win_setup_path = (
-            self.win_setup_dpath / f"windows-gitinspectorgui-setup-{self.version}.exe"
+        self.arm_iss_path = self.iss_dpath / "win-setup-arm.iss"
+        self.intel_iss_path = self.iss_dpath / "win-setup.iss"
+        setup_name_version = (
+            f"windows-gitinspectorgui-setup-{self.version}-{self.processor_type}.exe"
         )
+        self.win_setup_path = self.win_setup_dpath / setup_name_version
 
     def generate_win_setup_iss(self):
         """Generate win-setup.iss from win-setup-arm.iss by removing ARM-specific lines."""
@@ -219,20 +213,37 @@ class GitHub(GIMacTool, GIWinTool):
         upload_url = self.get_upload_url()  # Use the new method to fetch the upload URL
 
         print(f"Uploading {asset_path.name} to GitHub release...")
+
+        # Configure retries for the session
+        session = requests.Session()
+        retries = Retry(
+            total=5, backoff_factor=1, status_forcelist=[500, 502, 503, 504]
+        )
+        session.mount("https://", HTTPAdapter(max_retries=retries))
+
         headers = {
             "Authorization": f"token {self.github_token}",
             "Content-Type": "application/octet-stream",
         }
         params = {"name": asset_path.name}
-        with asset_path.open("rb") as f:
-            response = requests.post(
-                upload_url,  # Use the fetched upload URL
-                headers=headers,
-                params=params,
-                data=f,
-            )
-        response.raise_for_status()
-        print(f"Asset uploaded: {response.json()['browser_download_url']}")
+
+        try:
+            with asset_path.open("rb") as f:
+                response = session.post(
+                    upload_url,
+                    headers=headers,
+                    params=params,
+                    data=f,
+                    verify=True,  # Set to False if SSL issues persist
+                )
+            response.raise_for_status()
+            print(f"Asset uploaded: {response.json()['browser_download_url']}")
+        except requests.exceptions.SSLError as e:
+            print("SSL error occurred. Please check your SSL configuration.")
+            raise GIToolError() from e
+        except requests.exceptions.RequestException as e:
+            print("Failed to upload asset.")
+            raise GIToolError() from e
 
     def get_upload_url(self):
         """Get the upload URL for the GitHub release."""
