@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "GitinspectorGUI"
-#define MyAppVersion "0.4.0"
+#define MyAppVersion "0.4.1rc2"
 #define MyAppURL "https://gitinspectorgui.readthedocs.io/"
 #define MyAppExeName "gitinspectorgui.exe"
 
@@ -30,7 +30,7 @@ DisableProgramGroupPage=yes
 DisableDirPage=no
 ; Remove the following line to run in administrative install mode (install for all users.)
 PrivilegesRequired=lowest
-SetupIconFile=C:\Users\dvbeek\1-repos\github\gitinspectorgui\src\gigui\gui\images\icon.ico
+SetupIconFile={userprofile}\1-repos\github\gitinspectorgui\src\gigui\gui\images\icon.ico
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
@@ -39,8 +39,8 @@ WizardStyle=modern
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-Source: "C:\Users\dvbeek\1-repos\github\gitinspectorgui\app\bundle\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "C:\Users\dvbeek\minigit\*"; DestDir: "{userappdata}\minigit"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{userprofile}\1-repos\github\gitinspectorgui\app\bundle\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{userprofile}\minigit\*"; DestDir: "{userappdata}\minigit"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]

@@ -27,6 +27,7 @@ class GIBump:
         self.is_arm = "arm" in platform.machine().lower()
         self.toml_path = self.root_dpath / "pyproject.toml"
         self.inno_path = self.root_dpath / "tools" / "static" / "win-setup.iss"
+        self.inno_arm_path = self.root_dpath / "tools" / "static" / "win-setup-arm.iss"
         self.version_commit_message = f"Version {self.version}"
 
         version_paths: list[Path] = [
@@ -57,9 +58,14 @@ class GIBump:
         with self.toml_path.open("w", encoding="utf-8") as file:
             file.write(content)
 
-    def bump_inno_version(self):
+    def bump_inno_versions(self):
+        """Update the version in the Intel and Arm Inno Setup scripts."""
+        self.bump_inno_version_for(self.inno_path)
+        self.bump_inno_version_for(self.inno_arm_path)
+
+    def bump_inno_version_for(self, inno_path: Path):
         """Update the version in the Inno Setup script."""
-        with self.inno_path.open("r", encoding="utf-8") as file:
+        with inno_path.open("r", encoding="utf-8") as file:
             content = file.read()
         content = re.sub(
             r'^#define MyAppVersion\s*".*"',
@@ -67,7 +73,7 @@ class GIBump:
             content,
             flags=re.MULTILINE,
         )
-        with self.inno_path.open("w", encoding="utf-8") as file:
+        with inno_path.open("w", encoding="utf-8") as file:
             file.write(content)
 
     def uv_sync(self):
@@ -86,7 +92,7 @@ class GIBump:
         print("Bumping version in pyproject.toml")
         self.bump_toml_version()
         print("Bumping version in app-setup.iss")
-        self.bump_inno_version()
+        self.bump_inno_versions()
         print("Syncing and bumping version in uv lock file")
         self.uv_sync()
 

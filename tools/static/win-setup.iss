@@ -22,9 +22,7 @@ DisableProgramGroupPage=yes
 DisableDirPage=no
 ; Remove the following line to run in administrative install mode (install for all users.)
 PrivilegesRequired=lowest
-OutputDir=C:\Users\dvbeek\1-repos\github\gitinspectorgui\app\pyinstall-setup
-OutputBaseFilename=windows-gitinspectorgui-setup
-SetupIconFile=C:\Users\dvbeek\1-repos\github\gitinspectorgui\src\gigui\gui\images\icon.ico
+SetupIconFile={userprofile}\1-repos\github\gitinspectorgui\src\gigui\gui\images\icon.ico
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
@@ -33,8 +31,8 @@ WizardStyle=modern
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-Source: "C:\Users\dvbeek\1-repos\github\gitinspectorgui\app\bundle\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "C:\Users\dvbeek\minigit\*"; DestDir: "{userappdata}\minigit"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{userprofile}\1-repos\github\gitinspectorgui\app\bundle\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{userprofile}\minigit\*"; DestDir: "{userappdata}\minigit"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]
@@ -46,4 +44,3 @@ Type: dirifempty; Name: "{app}"
 [Run]
 ; Add the minigit\cmd folder to the Windows PATH environment variable
 Filename: "cmd"; Parameters: "/C setx PATH ""%PATH%;{userappdata}\minigit\cmd"""; Flags: runhidden
-; Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
