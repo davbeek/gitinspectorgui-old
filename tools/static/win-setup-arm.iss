@@ -30,7 +30,7 @@ DisableProgramGroupPage=yes
 DisableDirPage=no
 ; Remove the following line to run in administrative install mode (install for all users.)
 PrivilegesRequired=lowest
-SetupIconFile={userprofile}\1-repos\github\gitinspectorgui\src\gigui\gui\images\icon.ico
+SetupIconFile=icon.ico
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
@@ -39,8 +39,8 @@ WizardStyle=modern
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-Source: "{userprofile}\1-repos\github\gitinspectorgui\app\bundle\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{userprofile}\minigit\*"; DestDir: "{userappdata}\minigit"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\..\app\bundle\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\..\..\minigit\*"; DestDir: "{userappdata}\minigit"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]
