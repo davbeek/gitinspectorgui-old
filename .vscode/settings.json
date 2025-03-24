@@ -69,21 +69,24 @@
         },
     },
     //
-    "python.analysis.indexing": true,
-    "python.analysis.typeCheckingMode": "standard",
     "python.analysis.autoImportCompletions": true,
     "python.analysis.autoFormatStrings": true,
     "python.analysis.completeFunctionParens": true,
+    "python.analysis.exclude": [
+        "**/.venv/**"
+    ],
+    "python.analysis.indexing": true,
     "python.analysis.inlayHints.callArgumentNames": "off",
     // "python.analysis.inlayHints.callArgumentNames": "partial",
     "python.analysis.inlayHints.variableTypes": false,
+    //
     // Error: basic info and errors
     // Warning: = Error + warnings
     // Information: = Warning + execution times and return info etc (Default)
     // Trace: = Information + ?????
     "python.analysis.logLevel": "Information",
     //
-    // Pylance, None, Jedi (Jedi DOES NOT WORK)
+    "python.analysis.typeCheckingMode": "standard",
     "python.languageServer": "Pylance",
     //
     "python.testing.pytestEnabled": true,
