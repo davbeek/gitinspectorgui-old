@@ -24,15 +24,14 @@ of the contribution of each author to selected repositories.
 
 ## Installation of GitinspectorGUI for Windows
 
-Download the stand-alone executable `windows-gitinspectorgui-arm-setup.exe` or
-`windows-gitinspectorgui-intel-setup.exe` from the [releases
-page](https://github.com/davbeek/gitinspectorgui/releases). Execute it, and
-follow the on-screen installation instructions. The GitinspectorGUI executable
-will be available under the program group GitinspectorGUI.
-
-Select the Arm version for modern systems with a Snapdragon processor and the
-Intel version for systems with a traditional Intel processor. When you are not
-sure, you probably have an Intel processor.
+Download the stand-alone executable `win-gitinspectorgui-arm-setup.exe` or
+`win-gitinspectorgui-intel-setup.exe` from the [releases
+page](https://github.com/davbeek/gitinspectorgui/releases). Select the Arm
+version for modern systems with a Snapdragon processor and the Intel version for
+systems with a traditional Intel processor. When you are not sure, you probably
+have an Intel processor. Execute the downloaded file, and follow the on-screen
+installation instructions. The GitinspectorGUI executable will be available
+under the program group GitinspectorGUI.
 
 ## Installation of GitinspectorGUI for macOS
 
@@ -96,8 +95,10 @@ Linux only the CLI version is available.
 
 ## Installation of Git
 
-Like the GUI app, the CLI version also requires Git to be installed. See the
-section [Installation of Git for Windows](#installation-of-git-for-windows) or
+The CLI version requires Git to be available on your system. For Windows,
+installing the GUI will automatically install Git, which can then also be used
+for the CLI version. On macOS, if you follow the installation instructions for
+the GUI, the installed Git can be reused by the CLI version, see
 [Installation of Git for macOS](#installation-of-git-for-macos). On Linux, use
 the package manager of your distribution to install git.
 

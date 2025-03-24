@@ -120,7 +120,7 @@ class GIWinTool(GITool):
         self.arm_iss_path = self.iss_dpath / "win-setup-arm.iss"
         self.intel_iss_path = self.iss_dpath / "win-setup.iss"
         setup_name_version = (
-            f"windows-gitinspectorgui-setup-{self.version}-{self.processor_type}.exe"
+            f"win-gitinspectorgui-setup-{self.version}-{self.processor_type}.exe"
         )
         self.win_setup_path = self.win_setup_dpath / setup_name_version
 
