@@ -33,6 +33,7 @@ class GIBump:
         version_paths: list[Path] = [
             self.toml_path,
             self.inno_path,
+            self.inno_arm_path,
             self.version_path,
             self.root_dpath / "uv.lock",
         ]
