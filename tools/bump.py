@@ -92,7 +92,6 @@ class GIBump:
         self.check_at_bump_commit()
 
         # Check tag absence
-        print(self.git_repo.tags)
         if self.version in self.git_repo.tags:
             print(f"Tag {self.version} already exists.")
             raise GIToolError()

@@ -203,15 +203,15 @@ class GitHub(GIMacTool, GIWinTool):
         url = f"{self.github_api_url}/repos/{self.repo_owner}/{self.repo_name}/releases"
         headers = {"Authorization": f"token {self.github_token}"}
         data = {
-            "tag_name": f"v{self.version}",
-            "name": f"v{self.version}",
+            "tag_name": f"{self.version}",
+            "name": f"{self.version}",
             "body": f"Release version {self.version}",
             "draft": False,
             "prerelease": is_prerelease,
         }
 
         print(
-            f"Creating GitHub {'pre-' if is_prerelease else ''}release for version {self.version} ..."
+            f"Creating GitHub {'pre-' if is_prerelease else ''}release for version {self.version}"
         )
         response = requests.post(url, headers=headers, json=data)
         response.raise_for_status()
@@ -227,7 +227,7 @@ class GitHub(GIMacTool, GIWinTool):
 
         upload_url = self.get_upload_url()  # Use the new method to fetch the upload URL
 
-        print(f"Uploading {asset_path.name} to GitHub release...")
+        print(f"Uploading {asset_path.name} to GitHub release")
 
         # Configure retries for the session
         session = requests.Session()
@@ -269,7 +269,7 @@ class GitHub(GIMacTool, GIWinTool):
         url = f"{self.github_api_url}/repos/{self.repo_owner}/{self.repo_name}/releases/tags/v{self.version}"
         headers = {"Authorization": f"token {self.github_token}"}
 
-        print(f"Fetching upload URL for release version {self.version} ...")
+        print(f"Fetching upload URL for release version {self.version}")
         response = requests.get(url, headers=headers)
         if response.status_code == 404:
             print(f"No release found for version {self.version}.")
