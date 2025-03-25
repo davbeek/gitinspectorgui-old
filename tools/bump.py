@@ -91,6 +91,7 @@ class GIBump:
         self.check_at_bump_commit()
 
         # Check tag absence
+        print(self.git_repo.tags)
         if self.version in self.git_repo.tags:
             print(f"Tag {self.version} already exists.")
             raise GIToolError()
@@ -112,9 +113,10 @@ class GIBump:
 
     def check_version_commit_absence(self) -> None:
         """Check if the version commit already exists in the branch history."""
-        if self.version_commit_message in self.git_repo.git.log("--oneline"):
-            print(self.version_commit_message, "commit already exists.")
-            raise GIToolError()
+        for commit in self.git_repo.iter_commits():
+            if commit.message.strip() == self.version_commit_message:
+                print(f"{self.version_commit_message} commit already exists.")
+                raise GIToolError()
 
     def check_no_remaining_changed_files(self) -> None:
         """Check that there are no changed files other than those due to version
