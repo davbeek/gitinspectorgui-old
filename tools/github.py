@@ -124,21 +124,6 @@ class GIWinTool(GITool):
         )
         self.win_setup_path = self.win_setup_dpath / setup_name_version
 
-    def generate_win_setup_iss(self):
-        """Generate win-setup.iss from win-setup-arm.iss by removing ARM-specific lines."""
-        print("Generating win-setup.iss from win-setup-arm.iss")
-        with self.arm_iss_path.open("r") as arm_file:
-            lines = arm_file.readlines()
-
-        with self.intel_iss_path.open("w") as intel_file:
-            for line in lines:
-                # Skip lines containing "arm64" (case-insensitive) or comments
-                if re.search(r"arm64", line, re.IGNORECASE):
-                    continue
-                intel_file.write(line)
-
-        print(f"Generated {self.intel_iss_path}")
-
     def create_win_setup_exe(self):
         """Create a Windows setup file using Inno Setup."""
         if self.is_arm:
@@ -161,11 +146,47 @@ class GIWinTool(GITool):
         )
         print(f"Setup file generated: {self.win_setup_path}")
 
+    def generate_win_setup_iss(self):
+        """Generate win-setup.iss from win-setup-arm.iss by removing ARM-specific lines."""
+        print("Generating win-setup.iss from win-setup-arm.iss")
+        with self.arm_iss_path.open("r") as arm_file:
+            lines = arm_file.readlines()
+
+        with self.intel_iss_path.open("w") as intel_file:
+            for line in lines:
+                # Skip lines containing "arm64" (case-insensitive) or comments
+                if re.search(r"arm64", line, re.IGNORECASE):
+                    continue
+                intel_file.write(line)
+
+        print(f"Generated {self.intel_iss_path}")
+
 
 class GitHub(GIMacTool, GIWinTool):
     def __init__(self):
         super().__init__()
         self.release_name = f"GitinspectorGUI-{self.version}"
+
+    def check_release_absence(self):
+        """Check if a GitHub release for the current version already exists."""
+        if not self.github_token:
+            print("GITHUB_TOKEN environment variable is not set.")
+            raise GIToolError()
+
+        url = f"{self.github_api_url}/repos/{self.repo_owner}/{self.repo_name}/releases/tags/v{self.version}"
+        headers = {"Authorization": f"token {self.github_token}"}
+
+        response = requests.get(url, headers=headers)
+        if response.status_code != 404:
+            response.raise_for_status()
+            print(f"Release for version {self.version} already exists.")
+            raise GIToolError()
+
+    def create_asset(self):
+        if self.is_mac:
+            self.create_dmg()
+        elif self.is_win:
+            self.create_win_setup_exe()
 
     def create_release(self):
         """Create a new GitHub release and store the upload URL."""
@@ -196,12 +217,6 @@ class GitHub(GIMacTool, GIWinTool):
         response.raise_for_status()
         release = response.json()
         print(f"Release created: {release['html_url']}")
-
-    def create_asset(self):
-        if self.is_mac:
-            self.create_dmg()
-        elif self.is_win:
-            self.create_win_setup_exe()
 
     def upload_asset(self):
         """Upload the stored asset to the GitHub release."""
@@ -262,18 +277,3 @@ class GitHub(GIMacTool, GIWinTool):
         response.raise_for_status()
         release = response.json()
         return release["upload_url"].replace("{?name,label}", "")
-
-    def check_release_absence(self):
-        """Check if a GitHub release for the current version already exists."""
-        if not self.github_token:
-            print("GITHUB_TOKEN environment variable is not set.")
-            raise GIToolError()
-
-        url = f"{self.github_api_url}/repos/{self.repo_owner}/{self.repo_name}/releases/tags/v{self.version}"
-        headers = {"Authorization": f"token {self.github_token}"}
-
-        response = requests.get(url, headers=headers)
-        if response.status_code != 404:
-            response.raise_for_status()
-            print(f"Release for version {self.version} already exists.")
-            raise GIToolError()
