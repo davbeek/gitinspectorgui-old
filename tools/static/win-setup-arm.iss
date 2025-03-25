@@ -50,5 +50,8 @@ Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Type: dirifempty; Name: "{app}"
 
 [Run]
-; Add the minigit\cmd folder to the Windows PATH environment variable for the user only using PowerShell
-Filename: "powershell"; Parameters: "-Command [Environment]::SetEnvironmentVariable('PATH', [Environment]::GetEnvironmentVariable('PATH', 'User') + ';{localappdata}\\minigit\\cmd', 'User')"; Flags: runhidden
+; Add the minigit\cmd folder to the Windows PATH environment variable for the user only
+; using PowerShell.
+; Use / instead of \\ in path, because in Win11-Arms \\ end up as \ in path, but in
+; Win10-Intel, \\ end up as \\ in path.
+Filename: "powershell"; Parameters: "-Command [Environment]::SetEnvironmentVariable('PATH', [Environment]::GetEnvironmentVariable('PATH', 'User') + ';{localappdata}/minigit/cmd', 'User')"; Flags: runhidden
