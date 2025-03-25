@@ -225,7 +225,7 @@ class GitHub(GIMacTool, GIWinTool):
             print(f"Asset file not found: {asset_path}")
             raise GIToolError()
 
-        upload_url = self.get_upload_url()  # Use the new method to fetch the upload URL
+        upload_url = self.get_upload_url()
 
         print(f"Uploading {asset_path.name} to GitHub release")
 
@@ -266,7 +266,7 @@ class GitHub(GIMacTool, GIWinTool):
             print("GITHUB_TOKEN environment variable is not set.")
             raise GIToolError()
 
-        url = f"{self.github_api_url}/repos/{self.repo_owner}/{self.repo_name}/releases/tags/v{self.version}"
+        url = f"{self.github_api_url}/repos/{self.repo_owner}/{self.repo_name}/releases/tags/{self.version}"
         headers = {"Authorization": f"token {self.github_token}"}
 
         print(f"Fetching upload URL for release version {self.version}")

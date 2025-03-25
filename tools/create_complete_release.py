@@ -17,8 +17,9 @@ if __name__ == "__main__":
     gi_bump = GIBump()
 
     try:
-        gi_bump.main("all")
         github.check_release_absence()
+        gi_bump.main("all")
+        github.create_app("gui")
         github.create_asset()
         github.create_release()
         github.upload_asset()
