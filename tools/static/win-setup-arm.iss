@@ -40,7 +40,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
 Source: "..\..\app\bundle\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "..\..\..\minigit\*"; DestDir: "{userappdata}\minigit"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\..\..\minigit\*"; DestDir: "{localappdata}\minigit"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]
@@ -50,5 +50,5 @@ Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Type: dirifempty; Name: "{app}"
 
 [Run]
-; Add the minigit\cmd folder to the Windows PATH environment variable
-Filename: "cmd"; Parameters: "/C setx PATH ""%PATH%;{userappdata}\minigit\cmd"""; Flags: runhidden
+; Add the minigit\cmd folder to the Windows PATH environment variable for the user only using PowerShell
+Filename: "powershell"; Parameters: "-Command [Environment]::SetEnvironmentVariable('PATH', [Environment]::GetEnvironmentVariable('PATH', 'User') + ';{localappdata}\\minigit\\cmd', 'User')"; Flags: runhidden

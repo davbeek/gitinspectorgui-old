@@ -226,6 +226,10 @@ class GitHub(GIMacTool, GIWinTool):
             raise GIToolError()
 
         upload_url = self.get_upload_url()
+        release_id = self.get_release_id()
+
+        # Check and delete existing asset if it exists
+        self.delete_existing_asset(release_id, asset_path.name)
 
         print(f"Uploading {asset_path.name} to GitHub release")
 
@@ -259,6 +263,39 @@ class GitHub(GIMacTool, GIWinTool):
         except requests.exceptions.RequestException as e:
             print("Failed to upload asset.")
             raise GIToolError() from e
+
+    def delete_existing_asset(self, release_id, asset_name):
+        """Delete an existing asset from the GitHub release."""
+        url = f"{self.github_api_url}/repos/{self.repo_owner}/{self.repo_name}/releases/{release_id}/assets"
+        headers = {"Authorization": f"token {self.github_token}"}
+
+        print(f"Checking for existing asset: {asset_name}")
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        assets = response.json()
+
+        for asset in assets:
+            if asset["name"] == asset_name:
+                delete_url = asset["url"]
+                print(f"Deleting existing asset: {asset_name}")
+                delete_response = requests.delete(delete_url, headers=headers)
+                delete_response.raise_for_status()
+                print(f"Deleted existing asset: {asset_name}")
+                break
+
+    def get_release_id(self):
+        """Get the release ID for the current version."""
+        url = f"{self.github_api_url}/repos/{self.repo_owner}/{self.repo_name}/releases/tags/{self.version}"
+        headers = {"Authorization": f"token {self.github_token}"}
+
+        print(f"Fetching release ID for version {self.version}")
+        response = requests.get(url, headers=headers)
+        if response.status_code == 404:
+            print(f"No release found for version {self.version}.")
+            raise GIToolError()
+        response.raise_for_status()
+        release = response.json()
+        return release["id"]
 
     def get_upload_url(self):
         """Get the upload URL for the GitHub release."""
