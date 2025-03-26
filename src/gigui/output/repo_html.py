@@ -266,12 +266,13 @@ class RepoBlameTableSoup(RepoStatTableSoup):
                             .replace(">", "&gt;")
                             .replace('"', "&quot;")
                         )
+                        if is_comment:
+                            td["class"] = "comment-col"
+                        else:
+                            td["class"] = HEADER_CLASS_DICT[head]
                     else:
                         # empty line of code
                         data = "&nbsp;"
-                    if is_comment:
-                        td["class"] = "comment-col"
-                    else:
                         td["class"] = HEADER_CLASS_DICT[head]
                 td.string = str(data)
                 tr.append(td)
