@@ -169,6 +169,17 @@ class RepoData(RepoBlameHistory):
         for sha, author in self.sha2author.items():
             self.sha2author_nr[sha] = self.author2nr[author]
 
+        authors_included_filtered: set = set()
+        for author2fstat in self.fstr2author2fstat.values():
+            authors = author2fstat.keys()
+            authors_included_filtered.update(authors)
+
+        self.authors_included = sorted(
+            authors_included_filtered,
+            key=lambda x: self.author2pstat[x].stat.line_count,
+            reverse=True,
+        )
+
     @property
     def real_authors_included(self) -> list[Author]:
         return [author for author in self.authors_included if not author == "*"]
