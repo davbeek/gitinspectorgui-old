@@ -20,14 +20,9 @@ class RepoData(RepoBlameHistory):
 
         self.stat_tables = StatTables()
 
-        self.author2fstr2fstat: dict[str, dict[str, FileStat]] = {}
-        self.fstr2fstat: dict[str, FileStat] = {}
-        self.fstr2author2fstat: dict[str, dict[str, FileStat]] = {}
-        self.author2pstat: dict[str, PersonStat] = {}
-
-        # Valid only after self._run_no_history has been called, which calculates the
-        # sorted versions of self.fstrs and self.star_fstrs.
-        self.star_fstrs: list[str] = []
+        self.author2fstr2fstat: dict[Author, dict[FileStr, FileStat]] = {}
+        self.fstr2author2fstat: dict[FileStr, dict[Author, FileStat]] = {}
+        self.author2pstat: dict[Author, PersonStat] = {}
 
         # Sorted list of non-excluded authors, valid only after self.run has been called.
         self.authors_included: list[Author] = []
@@ -86,16 +81,6 @@ class RepoData(RepoBlameHistory):
             self.author2fstr2fstat, self.fstr2commit_groups
         )
 
-        # Set self.fstrs and self.star_fstrs and sort by line count
-        fstrs = self.fstr2fstat.keys()
-        self.star_fstrs = sorted(
-            fstrs, key=lambda x: self.fstr2fstat[x].stat.line_count, reverse=True
-        )
-        if self.star_fstrs and self.star_fstrs[0] == "*":
-            self.fstrs = self.star_fstrs[1:]  # remove "*"
-        else:
-            self.fstrs = self.star_fstrs
-
         if list(self.fstr2fstat.keys()) == ["*"]:
             return False
 
@@ -108,7 +93,7 @@ class RepoData(RepoBlameHistory):
         )
 
         total_insertions = self.author2pstat["*"].stat.insertions
-        total_lines = self.author2pstat["*"].stat.line_count
+        total_lines = self.author2pstat["*"].stat.blame_line_count
 
         self.stat_tables.calculate_percentages(
             self.fstr2fstat, total_insertions, total_lines
@@ -156,7 +141,7 @@ class RepoData(RepoBlameHistory):
         authors_included: list[Author] = self.persons_db.authors_included
         self.authors_included = sorted(
             authors_included,
-            key=lambda x: self.author2pstat[x].stat.line_count,
+            key=lambda x: self.author2pstat[x].stat.blame_line_count,
             reverse=True,
         )
 
@@ -177,7 +162,7 @@ class RepoData(RepoBlameHistory):
 
         self.authors_included = sorted(
             authors_included_filtered,
-            key=lambda x: self.author2pstat[x].stat.line_count,
+            key=lambda x: self.author2pstat[x].stat.blame_line_count,
             reverse=True,
         )
 
@@ -222,11 +207,9 @@ class StatTables:
         fstr2commit_groups: dict[FileStr, list[CommitGroup]],
         persons_db: PersonsDB,
     ) -> dict[Author, dict[FileStr, FileStat]]:
-        target: dict[Author, dict[FileStr, FileStat]] = {"*": {}}
-        target["*"]["*"] = FileStat("*")
+        target = {"*": {"*": FileStat("*")}}
         for author in persons_db.authors_included:
-            target[author] = {}
-            target[author]["*"] = FileStat("*")
+            target[author] = {"*": FileStat("*")}
         # Start with last commit and go back in time
         for fstr in fstrs:
             for commit_group in fstr2commit_groups[fstr]:
@@ -276,8 +259,7 @@ class StatTables:
                 if fstr == "*":
                     continue
                 if fstr not in target:
-                    target[fstr] = {}
-                    target[fstr]["*"] = FileStat(fstr)
+                    target[fstr] = {"*": FileStat(fstr)}
                 target[fstr][author] = fstat
                 target[fstr]["*"].stat.add(fstat.stat)
                 target[fstr]["*"].names = fstr2fstat[fstr].names
@@ -320,5 +302,5 @@ class StatTables:
                 af2pf_stat[af].stat.insertions, total_insertions
             )
             af2pf_stat[af].stat.percent_lines = divide_to_percentage(
-                af2pf_stat[af].stat.line_count, total_lines
+                af2pf_stat[af].stat.blame_line_count, total_lines
             )

@@ -33,7 +33,7 @@ class RepoStatRows(RepoRows):
             fstrs = list(a2f2f[author].keys())
             fstrs = sorted(
                 fstrs,
-                key=lambda x: self.fstr2fstat[x].stat.line_count,
+                key=lambda x: self.fstr2fstat[x].stat.blame_line_count,
                 reverse=True,
             )
             for fstr in fstrs:
@@ -57,7 +57,7 @@ class RepoStatRows(RepoRows):
         fstrs = list(f2a2f.keys())
         fstrs = sorted(
             fstrs,
-            key=lambda x: self.fstr2fstat[x].stat.line_count,
+            key=lambda x: self.fstr2fstat[x].stat.blame_line_count,
             reverse=True,
         )
         for fstr in fstrs:
@@ -66,7 +66,7 @@ class RepoStatRows(RepoRows):
                 authors,
                 key=lambda x: f2a2f[fstr][  # pylint: disable=cell-var-from-loop
                     x
-                ].stat.line_count,
+                ].stat.blame_line_count,
                 reverse=True,
             )
             for author in authors:
@@ -98,7 +98,7 @@ class RepoStatRows(RepoRows):
 
     def _get_stat_values(self, stat: Stat, nr_authors: int = -1) -> list[Any]:
         return (
-            [stat.line_count]
+            [stat.blame_line_count]
             + [stat.insertions]
             + ([stat.deletions] if self.args.deletions else [])  # noqa: F821
             + [_percentage_to_out(stat.percent_lines)]

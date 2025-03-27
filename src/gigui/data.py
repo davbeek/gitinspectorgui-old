@@ -1,5 +1,5 @@
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from logging import getLogger
 from math import floor
 from pathlib import Path
@@ -38,7 +38,7 @@ class Stat:
         self.insertions: int = 0
         self.deletions: int = 0
         self.date_sum: int = 0  # Sum of Unix timestamps in seconds
-        self.line_count: int = 0  # DEFINED BY BLAME, NOT BY FILE SIZE!!!
+        self.blame_line_count: int = 0
         self.percent_insertions: float = 0
         self.percent_deletions: float = 0
         self.percent_lines: float = 0
@@ -46,8 +46,8 @@ class Stat:
     @property
     def stability(self) -> int | str:
         return (
-            min(100, round(100 * self.line_count / self.insertions))
-            if self.insertions and self.line_count
+            min(100, round(100 * self.blame_line_count / self.insertions))
+            if self.insertions and self.blame_line_count
             else ""
         )
 
@@ -73,7 +73,7 @@ class Stat:
         self.insertions = self.insertions + other.insertions
         self.deletions = self.deletions + other.deletions
         self.date_sum = self.date_sum + other.date_sum
-        self.line_count = self.line_count + other.line_count
+        self.blame_line_count = self.blame_line_count + other.blame_line_count
 
     def add_commit_group(self, commit_group: CommitGroup):
         self.shas |= commit_group.shas
@@ -118,7 +118,7 @@ class FileStat:
         self.stat: Stat = Stat()
 
     def __repr__(self):
-        s = f"FileStat: {self.names_str}\n"
+        s = f"FileStat: {self.names_str()}\n"
         s += f"{repr(self.stat)}\n"
         return s
 
@@ -134,7 +134,6 @@ class FileStat:
         self.add_name(commit_group.fstr)
         self.stat.add_commit_group(commit_group)
 
-    @property
     def names_str(self) -> str:
         names = self.names
         if self.fstr == "*":
@@ -165,20 +164,6 @@ class FileStat:
             return " + ".join(names)
         else:
             return fstr + ": " + " + ".join(names)
-
-
-@dataclass
-class RepoStats:
-    author2pstat: dict[Author, PersonStat] = field(default_factory=dict)
-    author2fstr2fstat: dict[Author, dict[FileStr, FileStat]] = field(
-        default_factory=dict
-    )
-    fstr2author2fstat: dict[FileStr, dict[Author, FileStat]] = field(
-        default_factory=dict
-    )
-    # Dict to gather statistics of the files of this repo, defined by --include-n-files
-    # or --include-files:
-    fstr2fstat: dict[FileStr, FileStat] = field(default_factory=dict)
 
 
 @dataclass

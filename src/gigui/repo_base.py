@@ -13,7 +13,7 @@ from git import Repo as GitRepo
 from gigui._logging import log
 from gigui.args_settings import Args
 from gigui.constants import GIT_LOG_CHUNK_SIZE, MAX_THREAD_WORKERS
-from gigui.data import CommitGroup, IniRepo, RepoStats
+from gigui.data import CommitGroup, FileStat, IniRepo
 from gigui.keys import Keys
 from gigui.person_data import PersonsDB
 from gigui.typedefs import OID, SHA, Author, FileStr, Rev
@@ -21,7 +21,7 @@ from gigui.typedefs import OID, SHA, Author, FileStr, Rev
 logger = getLogger(__name__)
 
 
-# SHAShortDate object is used to order and number commits by date, starting at 1 for the
+# SHADateNr object is used to order and number commits by date, starting at 1 for the
 # initial commit.
 @dataclass
 class SHADateNr:
@@ -48,16 +48,20 @@ class RepoBase:
     git_repo : GitRepo
         The Git repository object.
 
+    _fstrs : list[FileStr]
+        A private list of file names representing the top-level files in the repository
+        that are not explicitly excluded. This list serves as a fallback for the `fstrs`
+        property when no analysis or blame run has been executed.
+
     fstrs : list[FileStr]
-        - List of files from the top commit of the repo.
-        - Initially, the list is unfiltered and may still include files from authors
-          that are excluded later, because the blame run may find new authors that match
-          an excluded author and thus must be excluded later.
-        - In _run_no_history() from RepoData, fstrs is sorted and all excluded files are
-          removed.
-    all_fstrs : list[FileStr]
-        - Unfiltered list of files.
-        - May still include files that belong completely to an excluded author.
+        A public property that provides a filtered and sorted list of file strings.
+        Initially, the list equals the private list _fstrs and may still include files
+        from authors that are excluded later after the blame run. This occurs when the
+        blame run finds an new excluded author that is merged with a previously included
+        author. When all authors of a file are excluded, the file is excluded.
+
+    fstr2fstat : dict[FileStr, FileStat]
+        Includes only files that are not excluded defined in subclass RepoData
 
     ex_revisions : set[Rev]
         Set of the values of the --ex-revision option.
@@ -91,9 +95,6 @@ class RepoBase:
         Maps file names to the number of lines in the file.
     fstr2commit_groups : dict[FileStr, list[CommitGroup]]
         Maps file names to their associated commit groups.
-    stats : RepoStats
-        Dataclass object that stores statistics for the repository, attrs: -
-        author2pstat - author2fstr2fstat - fstr2author2fstat - fstr2fstat
 
     sha2author: dict[SHA, Author] = {}
         Maps sha to the author of the commit. Used for blame history to get the color of
@@ -121,13 +122,14 @@ class RepoBase:
         self.persons_db: PersonsDB = PersonsDB()
         self.git_repo: GitRepo
 
-        self.fstrs: list[FileStr] = []
-        self.all_fstrs: list[FileStr]
+        self._fstrs: list[FileStr]
+
+        self.fstr2fstat: dict[FileStr, FileStat] = {}
 
         self.ex_revisions: set[Rev] = set(self.args.ex_revisions)
         self.ex_shas: set[SHA] = set()
 
-        self.sha_since_until_datas: list[SHADateNr]
+        self.sha_since_until_date_nrs: list[SHADateNr]
         self.sha_since_until_nrs: list[int] = []
 
         self.fr2sha2f: dict[FileStr, dict[SHA, FileStr]] = {}
@@ -137,7 +139,6 @@ class RepoBase:
         self.fstr2line_count: dict[FileStr, int] = {}
         self.fstr2commit_groups: dict[FileStr, list[CommitGroup]] = {}
 
-        self.stats = RepoStats()
         self.sha2author: dict[SHA, Author] = {}
 
         ###################################################
@@ -152,6 +153,24 @@ class RepoBase:
         self.head_commit: GitCommit
         self.head_oid: OID
         self.head_sha: SHA
+
+    @property
+    def fstrs(self) -> list[FileStr]:
+        if not self.fstr2fstat:  # analysis and blame run not yet executed
+            return list(self._fstrs)
+        else:  # after analysis and blame run
+            # fstrs2fstat.keys() can be a subset of self.fstrs, because some files may
+            # have been excluded due to author exclusion as a result of the blame run.
+            fstrs = [fstr for fstr in self.fstr2fstat.keys() if fstr != "*"]
+            return sorted(
+                fstrs,
+                key=lambda x: self.fstr2fstat[x].stat.blame_line_count,
+                reverse=True,
+            )
+
+    @property
+    def star_fstrs(self) -> list[FileStr]:
+        return ["*"] + self.fstrs
 
     def init_git_repo(self) -> None:
         # Init the git repo.
@@ -192,14 +211,14 @@ class RepoBase:
         self.head_sha = self.oid2sha[self.head_oid]
 
     def run_base(self) -> None:
-        # Set list top level fstrs (based on until par and allowed file extensions)
-        self.fstrs = self._get_worktree_files()
+        # Set list of top level fstrs (based on until par and allowed file extensions)
+        self._fstrs = self._get_worktree_files()
 
-        self._set_fstr2line_count()
+        self._set_fdata_line_count()
         self._get_commits_first_pass()
 
         self._set_fstr2commits()
-        self.all_fstrs = copy.deepcopy(self.fstrs)
+
         self._set_fr2sha2f()
         self._set_fr2sha_nr2f()
         self._set_fr2sha_nrs()
@@ -208,10 +227,12 @@ class RepoBase:
         dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
         return int(dt.timestamp())
 
-    # Get list of top level files (based on the until parameter) that satisfy the
-    # required extensions and do not match the exclude file patterns.
-    # To get all files use --include-files="*" as pattern
-    # include_files takes priority over n_files
+    # Get list of top level files (based on the until parameter) that:
+    # - satisfy the required extensions
+    # - do not match the exclude file patterns
+    # - are in the args.subfolder
+    # To get all files use --include-files="*" as pattern.
+    # Include_files takes priority over n_files.
     def _get_worktree_files(self) -> list[FileStr]:
         sorted_files: list[FileStr] = self._get_sorted_worktree_files()
         files_set: set[FileStr] = set(sorted_files)
@@ -254,6 +275,7 @@ class RepoBase:
     # - match the required file extensions
     # - are not excluded
     # - are in args.subfolder
+    # This function is called by _get_worktree_files()
     def _get_sorted_worktree_files(self) -> list[FileStr]:
         # Get the files with their file sizes
         def _get_worktree_files_sizes() -> list[tuple[FileStr, int]]:
@@ -303,7 +325,7 @@ class RepoBase:
     def _get_biggest_files_from(self, matches: list[FileStr]) -> list[FileStr]:
         return matches
 
-    def _set_fstr2line_count(self) -> None:
+    def _set_fdata_line_count(self) -> None:
         self.fstr2line_count["*"] = 0
         for blob in self.head_commit.tree.traverse():
             if (
@@ -372,7 +394,7 @@ class RepoBase:
             i += 1
 
         sha_date_nrs.sort(key=lambda x: x.date)
-        self.sha_since_until_datas = sha_date_nrs
+        self.sha_since_until_date_nrs = sha_date_nrs
         self.sha_since_until_nrs = [sha_date_nr.nr for sha_date_nr in sha_date_nrs]
         self.ex_shas = ex_shas
 
@@ -582,11 +604,11 @@ class RepoBase:
         return self.args.view == Keys.dynamic_blame_history
 
     def _set_fr2sha2f(self) -> None:
-        for fstr in self.all_fstrs:
+        for fstr in self.fstrs:
             self.fr2sha2f[fstr] = self._get_sha2f_for_fstr(fstr)
 
     def _set_fr2sha_nr2f(self) -> None:
-        for fstr in self.all_fstrs:
+        for fstr in self.fstrs:
             if fstr not in self.fr2sha_nr2f:
                 self.fr2sha_nr2f[fstr] = {}
             for sha, new_fstr in self.fr2sha2f[fstr].items():
@@ -595,7 +617,7 @@ class RepoBase:
 
     def _set_fr2sha_nrs(self) -> None:
         nrs: list[int]
-        for fstr in self.all_fstrs:
+        for fstr in self.fstrs:
             nrs = sorted(self.fr2sha_nr2f[fstr].keys(), reverse=True)
             self.fr2sha_nrs[fstr] = nrs
 

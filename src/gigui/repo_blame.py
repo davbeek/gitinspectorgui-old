@@ -126,7 +126,7 @@ class RepoBlame(RepoBlameBase):
     # another way to set/get the author and email of a commit.
     def run_blame(self) -> None:
         logger = getLogger(__name__)
-        i_max: int = len(self.all_fstrs)
+        i_max: int = len(self.fstrs)
         i: int = 0
         chunk_size: int = BLAME_CHUNK_SIZE
         logger.info(" " * 8 + f"Blame: {self.name}: {i_max} files")
@@ -134,7 +134,7 @@ class RepoBlame(RepoBlameBase):
             with ThreadPoolExecutor(max_workers=MAX_THREAD_WORKERS) as thread_executor:
                 for chunk_start in range(0, i_max, chunk_size):
                     chunk_end = min(chunk_start + chunk_size, i_max)
-                    chunk_fstrs = self.all_fstrs[chunk_start:chunk_end]
+                    chunk_fstrs = self.fstrs[chunk_start:chunk_end]
                     futures = [
                         thread_executor.submit(
                             self.get_blames_for, fstr, self.head_sha, i + inc + 1, i_max
@@ -146,7 +146,7 @@ class RepoBlame(RepoBlameBase):
                         self.fstr2blames[fstr] = blames
 
         else:  # single thread
-            for fstr in self.all_fstrs:
+            for fstr in self.fstrs:
                 fstr, blames = self.get_blames_for(fstr, self.head_sha, i, i_max)
                 self.fstr2blames[fstr] = blames
                 i += 1
@@ -155,7 +155,7 @@ class RepoBlame(RepoBlameBase):
         # the authors of the blames with the possibly newly found persons.
         # Create a local version of self.fstr2blames with the new authors.
         fstr2blames: dict[FileStr, list[Blame]] = {}
-        for fstr in self.all_fstrs:
+        for fstr in self.fstrs:
             # fstr2blames will be the new value of self.fstr2blames
             fstr2blames[fstr] = []
             for b in self.fstr2blames[fstr]:
@@ -174,7 +174,7 @@ class RepoBlame(RepoBlameBase):
         author2line_count: dict[Author, int] = {}
         target = author2fstr2fstat
         b: Blame
-        for fstr in self.all_fstrs:
+        for fstr in self.fstrs:
             blames: list[Blame] = self.fstr2blames[fstr]
             for b in blames:
                 if b.commit_nr not in self.sha_since_until_nrs:
@@ -201,9 +201,9 @@ class RepoBlame(RepoBlameBase):
                 if not person.filter_matched:
                     if fstr not in target[author]:
                         target[author][fstr] = FileStat(fstr)
-                    target[author][fstr].stat.line_count += line_count  # type: ignore
-                    target[author]["*"].stat.line_count += line_count
-                    target["*"]["*"].stat.line_count += line_count
+                    target[author][fstr].stat.blame_line_count += line_count  # type: ignore
+                    target[author]["*"].stat.blame_line_count += line_count
+                    target["*"]["*"].stat.blame_line_count += line_count
         return target
 
     def get_blame_shas_for_fstr(self, fstr: FileStr) -> list[SHA]:
