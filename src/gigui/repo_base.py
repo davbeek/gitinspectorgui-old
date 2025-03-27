@@ -13,8 +13,9 @@ from git import Repo as GitRepo
 from gigui._logging import log
 from gigui.args_settings import Args
 from gigui.constants import GIT_LOG_CHUNK_SIZE, MAX_THREAD_WORKERS
-from gigui.data import CommitGroup, IniRepo, PersonsDB, RepoStats
+from gigui.data import CommitGroup, IniRepo, RepoStats
 from gigui.keys import Keys
+from gigui.person_data import PersonsDB
 from gigui.typedefs import OID, SHA, Author, FileStr, Rev
 
 logger = getLogger(__name__)

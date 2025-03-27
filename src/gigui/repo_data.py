@@ -2,7 +2,8 @@ from logging import getLogger
 from pathlib import Path
 from typing import TypeVar
 
-from gigui.data import CommitGroup, FileStat, IniRepo, Person, PersonsDB, PersonStat
+from gigui.data import CommitGroup, FileStat, IniRepo, Person, PersonStat
+from gigui.person_data import PersonsDB
 from gigui.repo_blame import RepoBlameHistory
 from gigui.typedefs import SHA, Author, FileStr
 from gigui.utils import divide_to_percentage
