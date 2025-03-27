@@ -30,68 +30,113 @@ class SHADateNr:
 
 
 class RepoBase:
+    """
+    Represents a base repository and provides functionality to interact with and analyze
+    a Git repository.
+
+    Attributes
+    ----------
+    name : str
+        Name of the repository.
+    location : Path
+        File system location of the repository.
+    args : Args
+        Command-line arguments or configuration options for the repository.
+    persons_db : PersonsDB
+        Database of persons (authors) associated with the repository.
+    git_repo : GitRepo
+        The Git repository object.
+
+    fstrs : list[FileStr]
+        - List of files from the top commit of the repo.
+        - Initially, the list is unfiltered and may still include files from authors
+          that are excluded later, because the blame run may find new authors that match
+          an excluded author and thus must be excluded later.
+        - In _run_no_history() from RepoData, fstrs is sorted and all excluded files are
+          removed.
+    all_fstrs : list[FileStr]
+        - Unfiltered list of files.
+        - May still include files that belong completely to an excluded author.
+
+    ex_revisions : set[Rev]
+        Set of the values of the --ex-revision option.
+    ex_shas : set[SHA]
+        Set of shas of commits in the repo that are excluded by the --ex-revision
+        parameter or the --ex-message parameter.
+
+    sha_since_until_datas : list[SHADateNr]
+        - List of SHADateNr dataclass objects, which represent shas (commits) from date
+          since to date until, sorted on commit date.
+        - Merge commits are included.
+        - The list starts with the commit with the smallest date, which is the oldest
+          date, and which equals the since date or the first commit date. The newest
+          date is the until date or the head commit, and it is at the end of the list.
+        - Rename commits that do not change the file are not present in the output of
+          `git log --follow --numstat` and are therefore not present in sha_date_nrs.
+    sha_since_until_nrs : list[int]
+        List of sha nrs from since to until date, analogous to sha_since_until_datas.
+
+    fr2sha2f : dict[FileStr, dict[SHA, FileStr]]
+        Maps root_file to dict of the first sha where the root_file or one of its
+        previous names was introduced, to this (previous) file name. This sha can either
+        be the initial sha or the sha where the file was renamed. The dict maps the sha
+        to the first introduction of the file name.
+    fr2sha_nr2f : dict[FileStr, dict[int, FileStr]]
+        Similar to fr2sha2f, but uses sha numbers instead of SHAs.
+    fr2sha_nrs : dict[FileStr, list[int]]
+        Maps root_file to reverse sorted list of all sha nrs where the file was renamed
+        or first added.
+    fstr2line_count : dict[FileStr, int]
+        Maps file names to the number of lines in the file.
+    fstr2commit_groups : dict[FileStr, list[CommitGroup]]
+        Maps file names to their associated commit groups.
+    stats : RepoStats
+        Dataclass object that stores statistics for the repository, attrs: -
+        author2pstat - author2fstr2fstat - fstr2author2fstat - fstr2fstat
+
+    sha2author: dict[SHA, Author] = {}
+        Maps sha to the author of the commit. Used for blame history to get the color of
+        a radio button for the sha.
+    sha2oid: dict[SHA, OID]
+        Maps sha to the oid (the long sha format).
+    oid2sha: dict[OID, SHA]
+        Maps oid to sha.
+    sha2nr:  dict[SHA, int]
+        Maps sha to its number.
+    nr2sha:  dict[int, SHA]
+        Maps number to sha.
+    head_commit: GitCommit
+        Top-level Git commit object, at the date given by args.until.
+    head_oid: OID
+        Top-level commit oid.
+    head_sha: SHA
+        Top-level commit sha.
+    """
+
     def __init__(self, ini_repo: IniRepo):
         self.name: str = ini_repo.name
         self.location: Path = ini_repo.location
         self.args: Args = ini_repo.args
-
-        # Here the values of the --ex-revision option are stored as a set.
-        self.ex_revisions: set[Rev] = set(self.args.ex_revisions)
-
         self.persons_db: PersonsDB = PersonsDB()
         self.git_repo: GitRepo
 
-        # self.fstrs is a list of files from the top commit of the repo.
-
-        # Initially, the list is unfiltered and may still include files from authors
-        # that are excluded later, because the blame run may find new authors that match
-        # an excluded author and thus must be excluded later.
-
-        # In self._run_no_history from RepoData, self.fstrs is sorted and all excluded
-        # files are removed.
         self.fstrs: list[FileStr] = []
-
-        # self.all_fstrs is the unfiltered list of files, may still include files that
-        # belong completely to an excluded author.
         self.all_fstrs: list[FileStr]
 
-        # List of the repo commits (shas) from date since to date until, sorted on
-        # commit date. Merge commits are included.
-        #
-        # The list starts with the commit with the smallest date, which is the oldest
-        # date, and which equals the since date or the first commit date. The newest
-        # date is the until date or the head commit, and it is at the end of the list.
-        #
-        # Note that rename commits that do not change the file are not present in the
-        # output of git log --follow --numstat and are therefore not present in
-        # self.sha_date_nrs.
-        self.sha_date_nrs: list[SHADateNr]
-
-        # List of commit nrs from the commits in self.shas_date_nr.
-        # These are the commits that fall in the date rage since to until.
-        self.date_range_sha_nrs: list[int] = []
-
-        # Dict of root_file to dict of the first sha, where the root_file or one of its
-        # previous names was introduced, to this file name. This sha can either be the
-        # initial sha or the sha where the file was renamed. The dict maps the sha to
-        # the first introduction of the file name.
-        self.fr2sha2f: dict[FileStr, dict[SHA, FileStr]] = {}
-        self.fr2sha_nr2f: dict[FileStr, dict[int, FileStr]] = {}  # same for sha nrs
-
-        # Dict of root_file to reverse sorted list of all sha nrs where the file was
-        # renamed or first added.
-        self.fr2sha_nrs: dict[FileStr, list[int]] = {}
-
-        # Set of short SHAs of commits in the repo that are excluded by the
-        # --ex-revision parameter together with the --ex-message parameter.
+        self.ex_revisions: set[Rev] = set(self.args.ex_revisions)
         self.ex_shas: set[SHA] = set()
 
-        # Dict of file names to their sizes:
+        self.sha_since_until_datas: list[SHADateNr]
+        self.sha_since_until_nrs: list[int] = []
+
+        self.fr2sha2f: dict[FileStr, dict[SHA, FileStr]] = {}
+        self.fr2sha_nr2f: dict[FileStr, dict[int, FileStr]] = {}  # same for sha nrs
+        self.fr2sha_nrs: dict[FileStr, list[int]] = {}
+
         self.fstr2line_count: dict[FileStr, int] = {}
-
         self.fstr2commit_groups: dict[FileStr, list[CommitGroup]] = {}
-        self.stats = RepoStats()
 
+        self.stats = RepoStats()
         self.sha2author: dict[SHA, Author] = {}
 
         ###################################################
@@ -326,8 +371,8 @@ class RepoBase:
             i += 1
 
         sha_date_nrs.sort(key=lambda x: x.date)
-        self.sha_date_nrs = sha_date_nrs
-        self.date_range_sha_nrs = [sha_date_nr.nr for sha_date_nr in sha_date_nrs]
+        self.sha_since_until_datas = sha_date_nrs
+        self.sha_since_until_nrs = [sha_date_nr.nr for sha_date_nr in sha_date_nrs]
         self.ex_shas = ex_shas
 
     def _get_since_until_args(self) -> list[str]:

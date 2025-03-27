@@ -177,7 +177,7 @@ class RepoBlame(RepoBlameBase):
         for fstr in self.all_fstrs:
             blames: list[Blame] = self.fstr2blames[fstr]
             for b in blames:
-                if b.commit_nr not in self.date_range_sha_nrs:
+                if b.commit_nr not in self.sha_since_until_nrs:
                     continue
                 person = self.persons_db[b.author]
                 author = person.author
@@ -233,7 +233,7 @@ class RepoBlame(RepoBlameBase):
         comment_ok: bool = self.args.comments or not d.is_comment
         empty_ok: bool = self.args.empty_lines or not d.line.strip() == ""
         author_ok: bool = b.author not in self.args.ex_authors
-        date_ok: bool = b.commit_nr in self.date_range_sha_nrs
+        date_ok: bool = b.commit_nr in self.sha_since_until_nrs
         ok: bool = comment_ok and empty_ok and author_ok and date_ok
         return ok
 

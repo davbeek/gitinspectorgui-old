@@ -69,6 +69,9 @@
         },
     },
     //
+    "python.analysis.aiCodeActions": {
+        "generateDocstring": true
+    },
     "python.analysis.autoImportCompletions": true,
     "python.analysis.autoFormatStrings": true,
     "python.analysis.completeFunctionParens": true,
