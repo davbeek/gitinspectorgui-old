@@ -47,9 +47,9 @@ class RepoRunner(RepoBlameTablesSoup, RepoHTML, Book):
             if self.args.view == AUTO and self.args.file_formats:
                 self.queues.open_file.put((self.name, None))  # type: ignore
             elif self.args.view == AUTO:
-                self.queues.html.put((self.name, None))  # type: ignore
+                self.queues.html.put((self.name, None, None))  # type: ignore
             elif self.args.view == DYNAMIC_BLAME_HISTORY:
-                self.queues.html.put((self, None))  # type: ignore
+                self.queues.html.put((self.name, None, self))  # type: ignore
         else:
             if self.args.dryrun == 0:
                 self.generate_output()
@@ -86,11 +86,11 @@ class RepoRunner(RepoBlameTablesSoup, RepoHTML, Book):
         elif self.args.view == AUTO:  # not self.args.file_formats
             self.queues.task_done.put(self.name)
             html_code = self.get_html()
-            self.queues.html.put((self.name, html_code))  # type: ignore
+            self.queues.html.put((self.name, html_code, None))  # type: ignore
         elif self.args.view == DYNAMIC_BLAME_HISTORY:
             self.queues.task_done.put(self.name)
             html_code = self.get_html()
-            self.queues.html.put((self, html_code))  # type: ignore
+            self.queues.html.put((self.name, html_code, self))  # type: ignore
         else:  # self.args.view == NONE
             # Assume that self.args.file_formats is not empty here otherwise this method
             # would not have been called.

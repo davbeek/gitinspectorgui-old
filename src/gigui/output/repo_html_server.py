@@ -22,7 +22,7 @@ from gigui.constants import AUTO, DEBUG_WERKZEUG_SERVER, DYNAMIC_BLAME_HISTORY, 
 from gigui.output.repo_html import RepoHTML
 from gigui.repo_runner import RepoRunner
 from gigui.runner_queues import RunnerQueues
-from gigui.typedefs import SHA, FileStr, HtmlStr
+from gigui.typedefs import SHA, BrowserID, FileStr, HtmlStr
 
 logger = getLogger(__name__)
 if DEBUG_WERKZEUG_SERVER:
@@ -40,15 +40,10 @@ url_map = Map(
 
 
 @dataclass
-class HostData:
+class LocalHostData:
     name: str
-    browser_id: str
     html_doc: HtmlStr | None
-
-
-@dataclass
-class HostRepoData(HostData):
-    repo: RepoRunner
+    repo: RepoRunner | None
 
 
 class HTMLServer(RepoHTML):
@@ -60,11 +55,9 @@ class HTMLServer(RepoHTML):
         self.browser: BaseBrowser = webbrowser.get()
 
         self.len_repos: int = 0
-        self.id2host_data: dict[str, HostData] = {}
-        self.id2new_data: dict[str, HostData] = {}
-        self.id2host_repo_data: dict[str, HostRepoData] = {}
-        self.id2new_repo_data: dict[str, HostRepoData] = {}
-        self.browser_ids: list[str] = []
+        self.id2localhost_data: dict[BrowserID, LocalHostData] = {}
+        self.id2new_localhost_data: dict[BrowserID, LocalHostData] = {}
+        self.browser_ids: list[BrowserID] = []
 
         self.server_thread: Thread | None = None
         self.monitor_thread: Thread | None = None
@@ -78,7 +71,7 @@ class HTMLServer(RepoHTML):
         self.queues = queues
 
     def open_new_tab(
-        self, name: str, browser_id: str, html_doc_code: HtmlStr | None, i: int
+        self, name: str, browser_id: BrowserID, html_doc_code: HtmlStr | None, i: int
     ) -> None:
         try:
             if html_doc_code is None:
@@ -104,10 +97,10 @@ class HTMLServer(RepoHTML):
     def server_app(
         self, environ: WSGIEnvironment, start_response: StartResponse
     ) -> Iterable[bytes]:
-        browser_id: str
-        shutdown_id: str
+        browser_id: BrowserID
+        shutdown_id: BrowserID
         load_table_request: str
-        load_table_id: str
+        load_table_id: BrowserID
         repo: RepoRunner
         # try:
         request = Request(environ)
@@ -129,7 +122,7 @@ class HTMLServer(RepoHTML):
             load_table_request = request.path.split("/")[-1]
             load_table_id = request.args.get("id")  # type: ignore
             if load_table_id in self.browser_ids:
-                repo = self.id2host_repo_data[load_table_id].repo
+                repo = self.id2localhost_data[load_table_id].repo  # type: ignore
                 table_html = self.handle_load_table(
                     repo, load_table_request, repo.dynamic_blame_history_selected()
                 )
@@ -148,17 +141,15 @@ class HTMLServer(RepoHTML):
         #     logging.error(f"port number {shared.port_value} server app exception {e}")
         #     raise e
 
-    def get_html_doc(self, browser_id: str) -> HtmlStr | None:
-        if browser_id in self.id2host_data:
-            return self.id2host_data[browser_id].html_doc
-        elif browser_id in self.id2host_repo_data:
-            return self.id2host_repo_data[browser_id].html_doc
+    def get_html_doc(self, browser_id: BrowserID) -> HtmlStr | None:
+        if browser_id in self.id2localhost_data:
+            return self.id2localhost_data[browser_id].html_doc
         else:
             logger.info(f"Invalid browser ID: {browser_id}")
             return None
 
     def handle_load_table(
-        self, repo: RepoRunner, table_id: str, dynamic_blame_history_enabled: bool
+        self, repo: RepoRunner, table_id: BrowserID, dynamic_blame_history_enabled: bool
     ) -> HtmlStr:
         # Extract file_nr and commit_nr from table_id
         table_html: HtmlStr = ""
@@ -195,7 +186,7 @@ class HTMLServer(RepoHTML):
         try:
             if not self.browser_ids:
                 return
-            browser_id: str = self.browser_ids[0]
+            browser_id: BrowserID = self.browser_ids[0]
             response = requests.post(
                 f"http://localhost:{shared.port_value}/shutdown?id={browser_id}",
                 timeout=1,
@@ -224,40 +215,26 @@ class HTMLServer(RepoHTML):
             )
 
     def set_localhost_data(self) -> None:
-        # self.args.view == AUTO and not self.args.file_formats
-        i: int = 0
-        name: str
-        browser_id: str
-        html_code: str | None
-        while i < self.len_repos:
-            i += 1
-            name, html_code = self.queues.html.get()  # type: ignore
-            browser_id = f"{name}-{str(uuid4())[-12:]}"
-            html_doc_code = (
-                RepoHTML.create_html_document(
-                    self.args, html_code, RepoHTML.load_css(), browser_id
-                )
-                if html_code is not None
-                else None
-            )
-            self.id2host_data[browser_id] = self.id2new_data[browser_id] = HostData(
-                name=name,
-                browser_id=browser_id,
-                html_doc=html_doc_code,
-            )
-            self.browser_ids = list(self.id2host_data.keys())
+        """Set localhost data for the server.
 
-    def set_localhost_repo_data(self) -> None:
-        # self.args.view == DYNAMIC_BLAME_HISTORY
+        For len_repos do:
+        - Get repo name, html code, and a RepoRunner instance (in case of dynamic blame
+          history) from queues.html.
+        - Create html document via class RepoHTML from html code.
+        - Set the following data in self.id2localhost_data:[browser_id]
+            - repo name
+            - html code
+            - RepoRunner instance
+        Finally, create the list of all browser_ids, a browser_id per repo..
+        """
         i: int = 0
         name: str
-        browser_id: str
-        html_code: str | None
+        browser_id: BrowserID
+        html_code: HtmlStr | None
         repo: RepoRunner
         while i < self.len_repos:
             i += 1
-            repo, html_code = self.queues.html.get()  # type: ignore
-            name = repo.name
+            name, html_code, repo = self.queues.html.get()  # type: ignore
             browser_id = f"{name}-{str(uuid4())[-12:]}"
             html_doc_code = (
                 RepoHTML.create_html_document(
@@ -266,15 +243,14 @@ class HTMLServer(RepoHTML):
                 if html_code is not None
                 else None
             )
-            self.id2host_repo_data[browser_id] = self.id2new_repo_data[browser_id] = (
-                HostRepoData(
-                    name=name,
-                    browser_id=browser_id,
-                    html_doc=html_doc_code,
-                    repo=repo,
-                )
+            self.id2localhost_data[browser_id] = self.id2new_localhost_data[
+                browser_id
+            ] = LocalHostData(
+                name=name,
+                html_doc=html_doc_code,
+                repo=repo,
             )
-            self.browser_ids = list(self.id2host_repo_data.keys())
+            self.browser_ids = list(self.id2localhost_data.keys())
 
     def start_server(self) -> None:
         if not self.server:
@@ -293,44 +269,21 @@ class HTMLServer(RepoHTML):
             )
             self.server_thread.start()
 
-    def open_new_tabs(self) -> None:
-        if self.args.view == AUTO and not self.args.file_formats:
-            for i, data in enumerate(self.id2new_data.values()):
-                self.open_new_tab(
-                    data.name,
-                    data.browser_id,
-                    data.html_doc,
-                    i + 1,
-                )
-        elif self.args.view == DYNAMIC_BLAME_HISTORY:
-            for i, data in enumerate(self.id2new_repo_data.values()):
-                self.open_new_tab(
-                    data.name,
-                    data.browser_id,
-                    data.html_doc,
-                    i + 1,
-                )
-
     def gui_open_new_tabs(self) -> None:
-        if self.args.view == AUTO and not self.args.file_formats:
-            for i, data in enumerate(self.id2new_data.values()):
+        if require_server(self.args):
+            for i, (browser_id, data) in enumerate(self.id2new_localhost_data.items()):
                 self.open_new_tab(
                     data.name,
-                    data.browser_id,
+                    browser_id,
                     data.html_doc,
                     i + 1,
                 )
-            self.id2new_data.clear()
-        elif self.args.view == DYNAMIC_BLAME_HISTORY:
-            for i, data in enumerate(self.id2new_repo_data.values()):
-                self.open_new_tab(
-                    data.name,
-                    data.browser_id,
-                    data.html_doc,
-                    i + 1,
-                )
-            self.id2new_repo_data.clear()
+            self.id2new_localhost_data.clear()
 
 
 def require_server(args: Args) -> bool:
-    return not args.file_formats and args.view != NONE
+    return (
+        args.view == AUTO
+        and not args.file_formats
+        or args.view == DYNAMIC_BLAME_HISTORY
+    )

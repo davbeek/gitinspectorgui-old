@@ -165,32 +165,29 @@ class GIRunner(GiRunnerBase):
                     f"{repo_name}:    {out_file_name}: output done "
                     + (f" {i} of {self.len_repos}" if self.len_repos > 1 else "")
                 )
+        elif require_server(self.args) and shared.gui:
+            # GUI
+            assert self.html_server is not None
+            if not self.html_server.server:
+                self.html_server.start_server()
+            self.html_server.set_localhost_data()
+            self.html_server.gui_open_new_tabs()
         elif require_server(self.args) and not shared.gui:
             # CLI
             assert self.html_server is not None
             self.html_server.start_server()
-            if self.args.view == AUTO and not self.args.file_formats:
-                self.html_server.set_localhost_data()
-                for i, data in enumerate(self.html_server.id2host_data.values()):
-                    if data.html_doc:
-                        browser_output = True
-                        self.html_server.open_new_tab(
-                            data.name,
-                            data.browser_id,
-                            data.html_doc,
-                            i + 1,
-                        )
-            elif self.args.view == DYNAMIC_BLAME_HISTORY:
-                self.html_server.set_localhost_repo_data()
-                for i, data in enumerate(self.html_server.id2host_repo_data.values()):
-                    if data.html_doc:
-                        browser_output = True
-                        self.html_server.open_new_tab(
-                            data.name,
-                            data.browser_id,
-                            data.html_doc,
-                            i + 1,
-                        )
+            self.html_server.set_localhost_data()
+            for i, (browser_id, data) in enumerate(
+                self.html_server.id2localhost_data.items()
+            ):
+                if data.html_doc:
+                    browser_output = True
+                    self.html_server.open_new_tab(
+                        data.name,
+                        browser_id,
+                        data.html_doc,
+                        i + 1,
+                    )
             if browser_output:
                 if platform.system() == "Windows":
                     log("Press Enter to continue")
@@ -209,35 +206,11 @@ class GIRunner(GiRunnerBase):
             self.html_server.server.shutdown()  # type: ignore
             self.html_server.server_thread.join()  # type: ignore
             self.html_server.server.server_close()  # type: ignore
-        elif require_server(self.args) and shared.gui:
-            # GUI
-            assert self.html_server is not None
-            if not self.html_server.server:
-                self.html_server.start_server()
-            if self.args.view == AUTO and not self.args.file_formats:
-                self.html_server.set_localhost_data()
-            elif self.args.view == DYNAMIC_BLAME_HISTORY:
-                self.html_server.set_localhost_repo_data()
-            self.html_server.gui_open_new_tabs()
 
     def process_repos_singlecore(
         self,
         repo_lists: list[list[IniRepo]],
     ) -> None:
-        """Processes repositories on a single core.
-
-        Outputs repositories in batches, where each batch contains repositories
-        from a single folder.
-
-        Args:
-            args: Command-line arguments.
-            repo_lists: List of lists of repositories to process.
-            len_repos: Total number of repositories.
-            outfile_base: Base name for output files.
-            gui_window: GUI window instance, if any.
-            start_time: Start time of the process.
-            shared_data: Shared data dictionary for inter-process communication.
-        """
         repo_runners: list[RepoRunner] = []
         while repo_lists:
             # output a batch of repos from the same folder in a single run

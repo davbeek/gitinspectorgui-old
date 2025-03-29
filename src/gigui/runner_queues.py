@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from multiprocessing.managers import SyncManager
 from queue import Queue
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 
 from gigui.data import IniRepo
 from gigui.typedefs import HtmlStr
@@ -15,10 +15,14 @@ class RunnerQueues:
     task: Queue[IniRepo]
     task_done: Queue[str]
     open_file: Queue[tuple[str, str]]
-    html: (
-        Queue[tuple[str, HtmlStr]]
-        | Queue[tuple["RepoRunner", HtmlStr]]  # for dynamic blame history
-    )
+    html: Queue[
+        tuple[
+            str,  # str is the name of the repo
+            HtmlStr,
+            # RepoRunner is used for dynamic blame history, None for static
+            "Union['RepoRunner', None]",
+        ]
+    ]
 
 
 def get_runner_queues(
