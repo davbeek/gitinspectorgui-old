@@ -63,18 +63,7 @@ blame_exclusions_hide: bool  # noqa: F821
 logger = getLogger(__name__)
 
 
-class RepoColor(RepoBlameRows):
-    def _get_color_for_author(self, author: Author) -> str:
-        author_nr = self.author_star2nr[author]
-        return BG_AUTHOR_COLORS[author_nr % len(BG_AUTHOR_COLORS)]
-
-    def _get_color_for_sha_nr(self, sha_nr: int) -> str:
-        sha = self.nr2sha[sha_nr]
-        author = self.sha2author[sha]
-        return self._get_color_for_author(author)
-
-
-class TableSoup(RepoColor):
+class TableSoup(RepoBlameRows):
     def __init__(self, ini_repo: IniRepo) -> None:
         super().__init__(ini_repo)
 
@@ -184,6 +173,10 @@ class RepoStatTableSoup(TableSoup):
                 tr.append(td)
         table.append(tbody)
         return table
+
+    def _get_color_for_author(self, author: Author) -> str:
+        author_nr = self.author_star2nr[author]
+        return BG_AUTHOR_COLORS[author_nr % len(BG_AUTHOR_COLORS)]
 
     def get_files_soup(self) -> Tag:
         rows = self.get_files_rows()
@@ -414,6 +407,11 @@ class RepoBlameTablesSoup(RepoBlameTableSoup):
             container.append(radio_button)
             container.append(label)
         parent.append(container)
+
+    def _get_color_for_sha_nr(self, sha_nr: int) -> str:
+        sha = self.nr2sha[sha_nr]
+        author = self.sha2author[sha]
+        return self._get_color_for_author(author)
 
 
 class RepoHTML:
