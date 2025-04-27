@@ -17,6 +17,7 @@ from gigui._logging import set_logging_level_from_verbosity
 from gigui.args_settings import Args, Settings, SettingsFile
 from gigui.constants import (
     DEBUG_SHOW_MAIN_EVENT_LOOP,
+    DEFAULT_EXTENSIONS,
     MAX_COL_HEIGHT,
     WINDOW_HEIGHT_CORR,
 )
@@ -219,6 +220,7 @@ class PSGUI(PSGBase):
 
                 case keys.reset:
                     self.settings.reset()
+                    self.settings.extensions = DEFAULT_EXTENSIONS
                     self.window.close()
                     recreate_window = True
                     break  # strangely enough also works without the break
