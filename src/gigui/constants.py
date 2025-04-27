@@ -44,6 +44,7 @@ DEFAULT_EXTENSIONS = [
     "py",
     "rb",
     "sql",
+    "ts",
 ]
 
 # Output options

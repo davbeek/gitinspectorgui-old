@@ -45,6 +45,7 @@ COMMENT_MARKER: dict[str, CommentMarker] = {
     "rs": CommentMarker(None, None, "//"),
     "scala": CommentMarker("/*", "*/", "//"),
     "sql": CommentMarker("/*", "*/", "--"),
+    "ts": CommentMarker("/*", "*/", "//"),
     "tex": CommentMarker("\\begin{comment}", "\\end{comment}", "%"),
     "tooldef": CommentMarker("/*", "*/", "//"),
     "xhtml": CommentMarker("<!--", "-->", None),
