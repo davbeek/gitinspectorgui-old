@@ -210,19 +210,21 @@ def get_posix_dir_matches_for(pattern: FileStr) -> list[FileStr]:
                 if pattern_path.drive == Path().drive
                 else Path(pattern_path.drive)
             )
-        if no_drive_pattern == "/" and rel_pattern in ".":
+        if rel_pattern == ".":
             # Path("/").glob(".") crashes
-            return ["/"]
-    else:
+            # Path.cwd().glob(".") crashes
+            return [str(base_path)]
+    else:  # macOS or Linux
         if pattern_path.is_absolute():
             rel_pattern = pattern_path.relative_to(Path("/")).as_posix()
             base_path = Path("/")
         else:
             rel_pattern = pattern
-            base_path = Path()
-        if base_path == Path("/") and rel_pattern == ".":
+            base_path = Path.cwd()
+        if rel_pattern == ".":
             # Path("/").glob(".") crashes
-            return ["/"]
+            # Path.cwd().glob(".") crashes
+            return [str(base_path)]
 
     if not rel_pattern:
         return []
@@ -233,6 +235,16 @@ def get_posix_dir_matches_for(pattern: FileStr) -> list[FileStr]:
         if path.is_dir() and not path.name.startswith(".")
     ]
     return matches
+
+
+# If the input _fstrs are not absolute, resolve them to absolute posix file strings.
+# If an input_fstr item equals  `.`, it is replaced with the current working directory.
+def resolve_and_strip_input_fstrs(input_fstrs: list[FileStr]) -> list[FileStr]:
+    input_fstrs_posix: list[FileStr] = [
+        Path(strip_quotes(fstr)).resolve().as_posix()  # strip enclosing '' and ""
+        for fstr in input_fstrs
+    ]
+    return input_fstrs_posix
 
 
 def strip_quotes(s: str) -> str:  # Remove quotes from the string.

@@ -19,7 +19,7 @@ from gigui.output.repo_html_server import HTMLServer, require_server
 from gigui.runner_queues import get_runner_queues
 from gigui.tiphelp import Help
 from gigui.typedefs import FileStr
-from gigui.utils import get_dir_matches, strip_quotes
+from gigui.utils import get_dir_matches, resolve_and_strip_input_fstrs, strip_quotes
 
 # Limit the width of the help text to 80 characters.
 os.environ["COLUMNS"] = "90"
@@ -114,11 +114,7 @@ def main() -> None:
 
     args: Args = cli_args.create_args()
 
-    input_fstrs_posix: list[FileStr] = [
-        Path(strip_quotes(fstr)).resolve().as_posix()  # strip enclosing '' and ""
-        for fstr in args.input_fstrs
-    ]
-    args.input_fstrs = input_fstrs_posix
+    args.input_fstrs = resolve_and_strip_input_fstrs(args.input_fstrs)
 
     if namespace.save:
         settings = cli_args.create_settings()

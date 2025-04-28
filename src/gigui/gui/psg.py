@@ -27,7 +27,7 @@ from gigui.keys import Keys
 from gigui.output.repo_html_server import HTMLServer, require_server
 from gigui.runner_queues import RunnerQueues, get_runner_queues
 from gigui.tiphelp import Help, Tip
-from gigui.utils import to_posix_fstr
+from gigui.utils import resolve_and_strip_input_fstrs, to_posix_fstr
 
 logger = getLogger(__name__)
 
@@ -355,6 +355,7 @@ class PSGUI(PSGBase):
 def main():
     settings: Settings
     settings, _ = SettingsFile.load()
+    settings.input_fstrs = resolve_and_strip_input_fstrs(settings.input_fstrs)
     _logging.ini_for_gui_base()
     _logging.add_cli_handler()
     PSGUI(settings)
