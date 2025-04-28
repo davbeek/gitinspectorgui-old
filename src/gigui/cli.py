@@ -13,7 +13,7 @@ from gigui import _logging, gi_runner, shared
 from gigui._logging import log, set_logging_level_from_verbosity
 from gigui.args_settings import Args, CLIArgs, Settings, SettingsFile
 from gigui.cli_arguments import define_arguments
-from gigui.constants import DEFAULT_EXTENSIONS, NONE
+from gigui.constants import NONE
 from gigui.gui.psg import PSGUI
 from gigui.output.repo_html_server import HTMLServer, require_server
 from gigui.runner_queues import get_runner_queues
@@ -109,9 +109,6 @@ def main() -> None:
 
     if cli_args.profile:
         cli_args.view = NONE
-
-    if not cli_args.extensions:
-        cli_args.extensions = DEFAULT_EXTENSIONS
 
     logger.debug(f"{cli_args = }")  # type: ignore
 

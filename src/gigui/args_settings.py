@@ -16,6 +16,7 @@ from gigui.constants import (
     BLAME_EXCLUSION_CHOICES,
     BLAME_EXCLUSIONS_DEFAULT,
     DEFAULT_COPY_MOVE,
+    DEFAULT_EXTENSIONS,
     DEFAULT_FILE_BASE,
     DEFAULT_N_FILES,
     FILE_FORMATS,
@@ -118,6 +119,14 @@ class Settings(Args):
             raise ValueError("n_files must be a non-negative integer")
         if not self.depth >= 0:
             raise ValueError("depth must be a non-negative integer")
+        # Always silently change empty extensions to the default value. This is done
+        # when initializing, but also when settings are loaded from a a settings file.
+        # Fixing empty extensions to the default value is much easier than checking if
+        # the user has set it to an empty list. A side effect of this is that an empty
+        # value of the extensions field in the settings file has the exact same effect
+        # as the extensions field set to the default value.
+        if not self.extensions:
+            self.extensions = DEFAULT_EXTENSIONS
         self.normalize()
 
     @classmethod
