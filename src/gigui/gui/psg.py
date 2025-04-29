@@ -197,7 +197,7 @@ class PSGUI(PSGBase):
                     self.settings.from_values_dict(values)
                     self.settings.gui_settings_full_path = self.gui_settings_full_path
                     self.settings.save()
-                    log("Settings saved to " + SettingsFile.get_settings_file())
+                    log(f"Settings saved to {SettingsFile.get_location_path()}")
 
                 case keys.save_as:
                     self.settings.from_values_dict(values)
@@ -205,7 +205,7 @@ class PSGUI(PSGBase):
                     destination = values[keys.save_as]
                     self.settings.save_as(destination)
                     self.update_settings_file_str(self.gui_settings_full_path)
-                    log(f"Settings saved to {str(SettingsFile.get_location_path())}")
+                    log(f"Settings saved to {SettingsFile.get_location_path()}")
 
                 case keys.load:
                     settings_file = values[keys.load]

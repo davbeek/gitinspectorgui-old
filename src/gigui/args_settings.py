@@ -466,18 +466,6 @@ class SettingsFile:
         return settings
 
     @classmethod
-    def get_settings_file(cls) -> str:
-        try:
-            return cls.get_location_path().as_posix()
-        except (
-            FileNotFoundError,
-            json.decoder.JSONDecodeError,
-            jsonschema.ValidationError,
-        ):
-            cls.create_location_file_for(cls.DEFAULT_LOCATION_SETTINGS)
-            return cls.get_location_path().as_posix()
-
-    @classmethod
     def set_location(cls, location: PathLike):
         # Creating a new file or overwriting the existing file is both done using the
         # same "with open( ..., "w") as f" statement.
