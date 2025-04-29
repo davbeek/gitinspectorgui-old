@@ -125,7 +125,7 @@ class PSGBase:
         self.window[keys.settings_file].update(value=settings_fstr)  # type: ignore
 
     def update_outfile_str(self) -> None:
-        def get_outfile_str() -> str:
+        def get_outfile_path() -> Path:
             def get_rename_file() -> str:
                 if self.input_repo_path:
                     repo_name = self.input_repo_path.stem
@@ -140,15 +140,15 @@ class PSGBase:
                     return self.outfile_base
 
             if not self.input_fstrs or not self.input_fstr_matches:
-                return ""
+                return Path("")
 
             out_name = get_rename_file()
             if self.input_repo_path:
-                return str(self.input_repo_path.parent) + "/" + out_name
+                return self.input_repo_path.parent / out_name
             else:
-                return PARENT_HINT + out_name
+                return Path(PARENT_HINT) / out_name
 
-        self.window[keys.outfile_path].update(value=get_outfile_str())  # type: ignore
+        self.window[keys.outfile_path].update(value=str(get_outfile_path()))  # type: ignore
 
     def update_settings_file_str(
         self,

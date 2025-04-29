@@ -196,19 +196,17 @@ def get_posix_dir_matches_for(pattern: FileStr) -> list[FileStr]:
 
     if platform.system() == "Windows":
         no_drive_pattern = pattern_path.as_posix().replace(pattern_path.drive, "", 1)
-        if pattern_path.is_absolute():
+        # Note that on Windows, Path("/").is_absolute() is False, but
+        # Path("C:/").is_absolute() is True.
+        if pattern_path.is_absolute() or pattern_path.as_posix().startswith("/"):
             rel_pattern = no_drive_pattern[1:]  # type: ignore
-            base_path = (
-                Path("/")
-                if pattern_path.drive == Path().drive
-                else Path(pattern_path.drive) / "/"
-            )
+            base_path = Path(pattern_path.drive) / "/"
         else:
             rel_pattern = no_drive_pattern
             base_path = (
-                Path()
-                if pattern_path.drive == Path().drive
-                else Path(pattern_path.drive)
+                Path.cwd()
+                if pattern_path.drive in {Path.cwd().drive, ""}
+                else Path(pattern_path.drive) / "/"
             )
         if rel_pattern == ".":
             # Path("/").glob(".") crashes
