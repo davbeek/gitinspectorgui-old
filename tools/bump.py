@@ -17,7 +17,7 @@ class GIToolError(Exception):
 
 class GIBump:
     def __init__(self):
-        self.root_dpath = Path(__file__).resolve().parent.parent
+        self.root_dpath = Path(__file__).resolve().parent.parent  # repo root dir path
         self.git_repo: Repo = Repo(self.root_dpath)
         self.gigui_path = self.root_dpath / "src" / "gigui"
         self.version_path = self.gigui_path / "version.txt"

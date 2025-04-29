@@ -75,7 +75,10 @@ class GITool(GIBump):
             )
         if result.returncode == 0:
             print()
-            print(f"Done, created {app_name} in folder {destination}")
+            if self.is_win:
+                print(f"Done, created {app_name} in folder {destination / 'bundle'}")
+            else:
+                print(f"Done, created {app_name} in folder {destination}")
 
 
 class GIMacTool(GITool):
