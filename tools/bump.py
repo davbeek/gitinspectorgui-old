@@ -21,25 +21,27 @@ class GIBump:
         self.git_repo: Repo = Repo(self.root_dpath)
         self.gigui_path = self.root_dpath / "src" / "gigui"
         self.version_path = self.gigui_path / "version.txt"
-        self.version = self.version_path.read_text().strip()
-        self.is_win = platform.system() == "Windows"
-        self.is_mac = platform.system() == "Darwin"
-        self.is_arm = "arm" in platform.machine().lower()
         self.toml_path = self.root_dpath / "pyproject.toml"
         self.inno_path = self.root_dpath / "tools" / "static" / "win-setup.iss"
         self.inno_arm_path = self.root_dpath / "tools" / "static" / "win-setup-arm.iss"
-        self.version_commit_message = f"Version {self.version}"
+        self.uv_lock_path = self.root_dpath / "uv.lock"
 
         version_paths: list[Path] = [
             self.toml_path,
             self.inno_path,
             self.inno_arm_path,
             self.version_path,
-            self.root_dpath / "uv.lock",
+            self.uv_lock_path,
         ]
-        self.relative_version_fstrs: set[str] = {
-            str(path.relative_to(self.root_dpath)) for path in version_paths
+        self.relative_version_paths: set[Path] = {
+            path.relative_to(self.root_dpath) for path in version_paths
         }
+
+        self.version = self.version_path.read_text().strip()
+        self.is_win = platform.system() == "Windows"
+        self.is_mac = platform.system() == "Darwin"
+        self.is_arm = "arm" in platform.machine().lower()
+        self.version_commit_message = f"Version {self.version}"
 
     def main(self, action: str):
         """Perform the specified action: bump version, commit, tag, or all."""
@@ -83,8 +85,8 @@ class GIBump:
         self.check_no_remaining_changed_files()
 
         print(f"Committing version {self.version}")
-        for fstr in self.relative_version_fstrs:
-            self.git_repo.git.add(fstr)
+        for path in self.relative_version_paths:
+            self.git_repo.git.add(str(path))
         self.git_repo.git.commit("-m", self.version_commit_message)
 
     def add_tag(self):
@@ -122,18 +124,20 @@ class GIBump:
         """Check that there are no changed files other than those due to version
         bumps."""
         # Gather all changed files (both staged and unstaged)
-        unstaged_files: set[str] = {
-            item.a_path
+        unstaged_files: set[Path] = {
+            Path(item.a_path)
             for item in self.git_repo.index.diff(None)
             if item.a_path is not None
         }
-        staged_files: set[str] = {
-            item.a_path
+        staged_files: set[Path] = {
+            Path(item.a_path)
             for item in self.git_repo.index.diff("HEAD")
             if item.a_path is not None
         }
-        changed_files: set[str] = unstaged_files.union(staged_files)
-        remaining_changed_files: set[str] = changed_files - self.relative_version_fstrs
+        changed_files: set[Path] = unstaged_files.union(staged_files)
+        remaining_changed_files: set[Path] = changed_files - {
+            path for path in self.relative_version_paths
+        }
         if remaining_changed_files:
             print("The following changed files should be committed first:")
             for file in remaining_changed_files:
