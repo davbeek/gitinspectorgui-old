@@ -1,6 +1,6 @@
 [project]
 name = "gitinspectorgui"
-version = "0.4.4"
+version = "0.4.5"
 description = "A CLI and GUI tool for numerical and blame analysis of git repositories."
 authors = [{ name = "Bert van Beek", email = "d.a.v.beek@tue.nl" }]
 license = { text = "MIT" }
