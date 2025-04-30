@@ -35,6 +35,11 @@ class GITool(GIBump):
         else:
             self.processor_type = "AppleSilicon" if self.is_arm else "Intel"
 
+        self.releases_url = (
+            f"{self.github_api_url}/repos/{self.repo_owner}/{self.repo_name}/releases"
+        )
+        self.version_url = self.releases_url + f"/tags/{self.version}"
+
     def create_app(self, app_type: str):
         self.uv_sync
         spec_file = (
@@ -61,7 +66,10 @@ class GITool(GIBump):
         print()
 
         if self.is_win:
-            command = f"pyinstaller --distpath={self.root_dpath / 'app'} {self.root_dpath / spec_file}"
+            command = (
+                f"pyinstaller --distpath={self.root_dpath / 'app'} "
+                f"{self.root_dpath / spec_file}"
+            )
             result = subprocess.run(
                 ["powershell", "-Command", command],
                 cwd=self.root_dpath,
@@ -176,10 +184,9 @@ class GitHub(GIMacTool, GIWinTool):
             print("GITHUB_TOKEN environment variable is not set.")
             raise GIToolError()
 
-        url = f"{self.github_api_url}/repos/{self.repo_owner}/{self.repo_name}/releases/tags/v{self.version}"
         headers = {"Authorization": f"token {self.github_token}"}
 
-        response = requests.get(url, headers=headers)
+        response = requests.get(self.version_url, headers=headers)
         if response.status_code != 404:
             response.raise_for_status()
             print(f"Release for version {self.version} already exists.")
@@ -203,7 +210,6 @@ class GitHub(GIMacTool, GIWinTool):
         is_prerelease = "rc" in self.version
 
         # Create a new release
-        url = f"{self.github_api_url}/repos/{self.repo_owner}/{self.repo_name}/releases"
         headers = {"Authorization": f"token {self.github_token}"}
         data = {
             "tag_name": f"{self.version}",
@@ -214,9 +220,10 @@ class GitHub(GIMacTool, GIWinTool):
         }
 
         print(
-            f"Creating GitHub {'pre-' if is_prerelease else ''}release for version {self.version}"
+            f"Creating GitHub {'pre-' if is_prerelease else ''}release for version "
+            f"{self.version}"
         )
-        response = requests.post(url, headers=headers, json=data)
+        response = requests.post(self.releases_url, headers=headers, json=data)
         response.raise_for_status()
         release = response.json()
         print(f"Release created: {release['html_url']}")
@@ -269,11 +276,11 @@ class GitHub(GIMacTool, GIWinTool):
 
     def delete_existing_asset(self, release_id, asset_name):
         """Delete an existing asset from the GitHub release."""
-        url = f"{self.github_api_url}/repos/{self.repo_owner}/{self.repo_name}/releases/{release_id}/assets"
+        assets_url = self.releases_url + f"/{release_id}/assets"
         headers = {"Authorization": f"token {self.github_token}"}
 
         print(f"Checking for existing asset: {asset_name}")
-        response = requests.get(url, headers=headers)
+        response = requests.get(assets_url, headers=headers)
         response.raise_for_status()
         assets = response.json()
 
@@ -288,11 +295,10 @@ class GitHub(GIMacTool, GIWinTool):
 
     def get_release_id(self):
         """Get the release ID for the current version."""
-        url = f"{self.github_api_url}/repos/{self.repo_owner}/{self.repo_name}/releases/tags/{self.version}"
         headers = {"Authorization": f"token {self.github_token}"}
 
         print(f"Fetching release ID for version {self.version}")
-        response = requests.get(url, headers=headers)
+        response = requests.get(self.version_url, headers=headers)
         if response.status_code == 404:
             print(f"No release found for version {self.version}.")
             raise GIToolError()
@@ -306,11 +312,10 @@ class GitHub(GIMacTool, GIWinTool):
             print("GITHUB_TOKEN environment variable is not set.")
             raise GIToolError()
 
-        url = f"{self.github_api_url}/repos/{self.repo_owner}/{self.repo_name}/releases/tags/{self.version}"
         headers = {"Authorization": f"token {self.github_token}"}
 
         print(f"Fetching upload URL for release version {self.version}")
-        response = requests.get(url, headers=headers)
+        response = requests.get(self.version_url, headers=headers)
         if response.status_code == 404:
             print(f"No release found for version {self.version}.")
             raise GIToolError()
