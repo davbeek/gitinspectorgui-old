@@ -160,6 +160,8 @@ class RepoBlame(RepoBlameBase):
             fstr2blames[fstr] = []
             for b in self.fstr2blames[fstr]:
                 # update author
+                if b.author not in self.persons_db:
+                    self.persons_db.add_person(b.author, b.email)
                 b.author = self.persons_db[b.author].author
                 fstr2blames[fstr].append(b)
         self.fstr2blames = fstr2blames
