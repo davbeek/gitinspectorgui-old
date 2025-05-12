@@ -114,6 +114,7 @@ class DPGui:
 
                 self.window[keys.col_percent] = dpg.add_input_int(
                     label="%",
+                    width=75,
                     min_value=20,
                     max_value=100,
                     step=5,
@@ -126,7 +127,7 @@ class DPGui:
             with dpg.child_window(height=127):
                 with dpg.group(horizontal=True):
                     dpg.add_text("Input folder path")
-                    self.add_dg_input_text(keys.input_fstrs, -1)
+                    self.add_dg_input_text(keys.input_fstrs, 567)
 
                     with dpg.file_dialog(
                         width=300,
@@ -215,7 +216,6 @@ class DPGui:
                 with dpg.group(horizontal=True):
                     dpg.add_text("File formats")
                     self.add_dg_checkbox(keys.html, keys.html)
-                    self.add_dg_checkbox("html blame history", keys.html_blame_history)
                     self.add_dg_checkbox(keys.excel, keys.excel)
 
                 with dpg.group(horizontal=True):
@@ -278,8 +278,8 @@ class DPGui:
                         callback=gui_handle,
                     )
                     dpg.add_text("Dry run")
-                    self.window[keys.dry_run] = dpg.add_input_int(
-                        tag=keys.dry_run,
+                    self.window[keys.dryrun] = dpg.add_input_int(
+                        tag=keys.dryrun,
                         min_value=0,
                         max_value=3,
                         min_clamped=True,
@@ -366,13 +366,8 @@ class DPGui:
             case keys.dynamic_blame_history:
                 self.update_window_value(keys.auto, False)
                 self.update_window_value(keys.html, False)
-                self.update_window_value(keys.html_blame_history, False)
                 self.update_window_value(keys.excel, False)
             case keys.html:
-                self.update_window_value(keys.html_blame_history, value=False)
                 self.update_window_value(keys.dynamic_blame_history, value=False)
-            case keys.html_blame_history:
-                self.update_window_value(keys.html, False)
-                self.update_window_value(keys.dynamic_blame_history, False)
             case keys.excel:
                 self.update_window_value(keys.dynamic_blame_history, False)
