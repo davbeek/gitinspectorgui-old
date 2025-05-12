@@ -1,8 +1,9 @@
-# -*- mode: python ; coding: utf-8 -*-
+# type: ignore
+# ruff: noqa: F821  # Do not complain about undefined names
 
 block_cipher = None
 
-a = Analysis(  # type: ignore
+a = Analysis(
     ["src/gigui/cli.py"],
     pathex=["src"],
     binaries=[],
@@ -18,13 +19,15 @@ a = Analysis(  # type: ignore
     excludes=[],
     win_private_assemblies=False,
 )
-pyz = PYZ(a.pure, a.zipped_data)  # type: ignore
-exe = EXE(  # type: ignore
+
+pyz = PYZ(a.pure, a.zipped_data)
+
+exe = EXE(
     pyz,
     a.scripts,
     [],
     exclude_binaries=True,
-    name="gitinspectorgui",
+    name="gitinspectorcli",
     debug=False,
     strip=False,
     upx=False,
@@ -32,6 +35,13 @@ exe = EXE(  # type: ignore
     console=True,
     disable_windowed_traceback=True,
 )
-coll = COLLECT(  # type: ignore
-    exe, a.binaries, a.zipfiles, a.datas, strip=False, upx=False, name="bundle"
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    strip=False,
+    upx=False,
+    name="bundle",
 )

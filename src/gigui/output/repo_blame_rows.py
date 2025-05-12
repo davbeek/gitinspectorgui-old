@@ -1,9 +1,11 @@
 from typing import Counter
 
-from gigui.constants import REMOVE
+from gigui.args_settings import Args
+from gigui.constants import DYNAMIC_BLAME_HISTORY, REMOVE
 from gigui.output.repo_stat_rows import RepoStatRows
 from gigui.repo_blame import Blame
 from gigui.typedefs import SHA, FileStr, Row
+from gigui.utils import get_relative_fstr
 
 
 class RepoBlameRows(RepoStatRows):
@@ -11,15 +13,7 @@ class RepoBlameRows(RepoStatRows):
         blames: list[Blame] = self.fstr2blames[fstr]
         return self._get_blame_rows(blames)
 
-    # Only called for STATIC blame history, where the blame rows should already be
-    # available.
-    def get_fr_sha_blame_rows(
-        self, fstr_root: FileStr, sha: SHA
-    ) -> tuple[list[Row], list[bool]]:
-        blames: list[Blame] = self.fstr2sha2blames[fstr_root][sha]
-        return self._get_blame_rows(blames)
-
-    # For DYNAMIC blame history
+    # For dynamic blame history
     def generate_fr_sha_blame_rows(self, fstr_root: FileStr, sha: SHA):
         blames: list[Blame] = self.generate_fr_blame_history(fstr_root, sha)
         return self._get_blame_rows(blames)
@@ -32,50 +26,67 @@ class RepoBlameRows(RepoStatRows):
         # Create row for each blame line.
         for b in blames:
             author = self.persons_db[b.author].author
-            for line, is_comment in zip(b.lines, b.is_comment_lines):
+            for d in b.line_datas:
+                line = d.line
+                is_comment = d.is_comment
                 exclude_comment = is_comment and not self.args.comments
                 exclude_empty = line.strip() == "" and not self.args.empty_lines
                 exclude_author = author in self.args.ex_authors
+                exclude_nr = b.commit_nr not in self.sha_since_until_nrs
                 if self.args.blame_exclusions == REMOVE and (
-                    exclude_comment or exclude_empty or exclude_author
+                    exclude_comment or exclude_empty or exclude_author or exclude_nr
                 ):
                     line_nr += 1
                 else:
-                    row: Row = [
-                        (
-                            0
-                            if exclude_comment or exclude_empty
-                            else self.author2nr[author]
-                        ),
-                        author,
-                        b.date.strftime("%Y-%m-%d"),
-                        b.message,
-                        b.sha[:7],
-                        b.commit_nr,
-                        line_nr,
-                        line,
-                    ]
+                    origin = (
+                        get_relative_fstr(d.fstr, self.args.subfolder)
+                        + " "
+                        + str(d.line_nr)
+                    )
+                    row: Row = (
+                        [
+                            (
+                                0
+                                if exclude_comment or exclude_empty or exclude_nr
+                                else self.author2nr[author]
+                            ),
+                            author,
+                            b.date.strftime("%Y-%m-%d"),
+                            b.message,
+                            b.sha,
+                            b.commit_nr,
+                        ]
+                        + ([origin] if self.args.view == DYNAMIC_BLAME_HISTORY else [])
+                        + [
+                            line_nr,
+                            line,
+                        ]
+                    )
                     rows.append(row)
                     is_comments.append(is_comment)
                     line_nr += 1
         return rows, is_comments
 
     @staticmethod
-    def header_blames() -> list[str]:
-        return [
-            "ID",
-            "Author",
-            "Date",
-            "Message",
-            "SHA",
-            "Commit number",
-            "Line",
-            "Code",
-        ]
+    def header_blames(args: Args) -> list[str]:
+        return (
+            [
+                "ID",
+                "Author",
+                "Date",
+                "Message",
+                "SHA",
+                "Commit number",
+            ]
+            + (["Origin"] if args.view == DYNAMIC_BLAME_HISTORY else [])
+            + [
+                "Line",
+                "Code",
+            ]
+        )
 
     @staticmethod
     def string2truncated(orgs: list[str], max_length: int) -> dict[str, str]:
-
         def get_trunc2digits(org2trunc: dict[str, str]) -> dict[str, int]:
             count: Counter[str] = Counter(org2trunc.values())
 

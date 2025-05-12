@@ -2,8 +2,8 @@ from logging import getLogger
 from pathlib import Path
 from typing import TypeVar
 
-from gigui.data import CommitGroup, FileStat, IniRepo, Person, PersonsDB, PersonStat
-from gigui.keys import Keys
+from gigui.data import CommitGroup, FileStat, IniRepo, Person, PersonStat
+from gigui.person_data import PersonsDB
 from gigui.repo_blame import RepoBlameHistory
 from gigui.typedefs import SHA, Author, FileStr
 from gigui.utils import divide_to_percentage
@@ -20,14 +20,9 @@ class RepoData(RepoBlameHistory):
 
         self.stat_tables = StatTables()
 
-        self.author2fstr2fstat: dict[str, dict[str, FileStat]] = {}
-        self.fstr2fstat: dict[str, FileStat] = {}
-        self.fstr2author2fstat: dict[str, dict[str, FileStat]] = {}
-        self.author2pstat: dict[str, PersonStat] = {}
-
-        # Valid only after self._run_no_history has been called, which calculates the
-        # sorted versions of self.fstrs and self.star_fstrs.
-        self.star_fstrs: list[str] = []
+        self.author2fstr2fstat: dict[Author, dict[FileStr, FileStat]] = {}
+        self.fstr2author2fstat: dict[FileStr, dict[Author, FileStat]] = {}
+        self.author2pstat: dict[Author, PersonStat] = {}
 
         # Sorted list of non-excluded authors, valid only after self.run has been called.
         self.authors_included: list[Author] = []
@@ -52,7 +47,7 @@ class RepoData(RepoBlameHistory):
         """
 
         try:
-            if self.args.dry_run == 2:
+            if self.args.dryrun == 2:
                 return True
             self.init_git_repo()
             self.run_base()
@@ -60,20 +55,14 @@ class RepoData(RepoBlameHistory):
             success = self._run_no_history()
             if not success:
                 return False
-
             self._set_final_data()
-            if (
-                Keys.html_blame_history in self.args.file_formats
-                and not self.args.blame_skip
-            ):
-                super().run_blame_history_static()
             return True
         finally:
-            if self.args.dry_run <= 1:
+            if self.args.dryrun <= 1:
                 self.git_repo.close()
 
     def _run_no_history(self) -> bool:
-        if self.args.dry_run == 2:
+        if self.args.dryrun == 2:
             return True
 
         # Set stats.author2fstr2fstat, the basis of all other stat tables
@@ -92,16 +81,6 @@ class RepoData(RepoBlameHistory):
             self.author2fstr2fstat, self.fstr2commit_groups
         )
 
-        # Set self.fstrs and self.star_fstrs and sort by line count
-        fstrs = self.fstr2fstat.keys()
-        self.star_fstrs = sorted(
-            fstrs, key=lambda x: self.fstr2fstat[x].stat.line_count, reverse=True
-        )
-        if self.star_fstrs and self.star_fstrs[0] == "*":
-            self.fstrs = self.star_fstrs[1:]  # remove "*"
-        else:
-            self.fstrs = self.star_fstrs
-
         if list(self.fstr2fstat.keys()) == ["*"]:
             return False
 
@@ -114,7 +93,7 @@ class RepoData(RepoBlameHistory):
         )
 
         total_insertions = self.author2pstat["*"].stat.insertions
-        total_lines = self.author2pstat["*"].stat.line_count
+        total_lines = self.author2pstat["*"].stat.blame_line_count
 
         self.stat_tables.calculate_percentages(
             self.fstr2fstat, total_insertions, total_lines
@@ -133,7 +112,6 @@ class RepoData(RepoBlameHistory):
         return True
 
     def _set_final_data(self) -> None:
-
         # update self.sha2author with new author definitions in person database
         sha2author: dict[SHA, Author] = {}
         for sha, author in self.sha2author.items():
@@ -141,13 +119,18 @@ class RepoData(RepoBlameHistory):
             sha2author[sha] = new_author
         self.sha2author = sha2author
 
-        self.fr2f2a2shas = self.fr2f2a2sha_set_to_list(self.fr2f2a2sha_set)
-
-        self.fr2f2shas = self.fr2f2sha_set_to_list(
-            self.get_fr2f2sha_set(self.fr2f2a2sha_set)
-        )
-
         for fstr in self.fstrs:
+            # When no commit lines are found in _process_commit_lines_for(fstr. lines),
+            # self.fr2f2shas will not have an entry for fstr.
+            # In such as case, we must ensure that there is at least one entry for fstr
+            # in self.fr2f2shas. This entry will be used to calculate blame history when
+            # the first commit in the list of commits from the top down, is a rename
+            # without any changes in the file. Such renames are not shown in the output
+            # for git log --follow --numstat.
+            if fstr not in self.fr2f2shas:
+                self.fr2f2shas[fstr] = {}
+                self.fr2f2shas[fstr][fstr] = []
+
             shas_fr = set()
             for shas in self.fr2f2shas[fstr].values():
                 shas_fr.update(shas)
@@ -158,7 +141,7 @@ class RepoData(RepoBlameHistory):
         authors_included: list[Author] = self.persons_db.authors_included
         self.authors_included = sorted(
             authors_included,
-            key=lambda x: self.author2pstat[x].stat.line_count,
+            key=lambda x: self.author2pstat[x].stat.blame_line_count,
             reverse=True,
         )
 
@@ -171,6 +154,17 @@ class RepoData(RepoBlameHistory):
 
         for sha, author in self.sha2author.items():
             self.sha2author_nr[sha] = self.author2nr[author]
+
+        authors_included_filtered: set = set()
+        for author2fstat in self.fstr2author2fstat.values():
+            authors = author2fstat.keys()
+            authors_included_filtered.update(authors)
+
+        self.authors_included = sorted(
+            authors_included_filtered,
+            key=lambda x: self.author2pstat[x].stat.blame_line_count,
+            reverse=True,
+        )
 
     @property
     def real_authors_included(self) -> list[Author]:
@@ -193,18 +187,6 @@ class RepoData(RepoBlameHistory):
                     target[fstr_root][fstr][person_author] = shas_sorted
         return target
 
-    def get_fr2f2sha_set(
-        self, source: dict[FileStr, dict[FileStr, dict[Author, set[SHA]]]]
-    ) -> dict[FileStr, dict[FileStr, set[SHA]]]:
-        target: dict[FileStr, dict[FileStr, set[SHA]]] = {}
-        for fstr_root, fstr_root_dict in source.items():
-            target[fstr_root] = {}
-            for fstr, fstr_dict in fstr_root_dict.items():
-                target[fstr_root][fstr] = set()
-                for shas in fstr_dict.values():
-                    target[fstr_root][fstr].update(shas)
-        return target
-
     def fr2f2sha_set_to_list(
         self, source: dict[FileStr, dict[FileStr, set[SHA]]]
     ) -> dict[FileStr, dict[FileStr, list[SHA]]]:
@@ -225,11 +207,9 @@ class StatTables:
         fstr2commit_groups: dict[FileStr, list[CommitGroup]],
         persons_db: PersonsDB,
     ) -> dict[Author, dict[FileStr, FileStat]]:
-        target: dict[Author, dict[FileStr, FileStat]] = {"*": {}}
-        target["*"]["*"] = FileStat("*")
+        target = {"*": {"*": FileStat("*")}}
         for author in persons_db.authors_included:
-            target[author] = {}
-            target[author]["*"] = FileStat("*")
+            target[author] = {"*": FileStat("*")}
         # Start with last commit and go back in time
         for fstr in fstrs:
             for commit_group in fstr2commit_groups[fstr]:
@@ -279,8 +259,7 @@ class StatTables:
                 if fstr == "*":
                     continue
                 if fstr not in target:
-                    target[fstr] = {}
-                    target[fstr]["*"] = FileStat(fstr)
+                    target[fstr] = {"*": FileStat(fstr)}
                 target[fstr][author] = fstat
                 target[fstr]["*"].stat.add(fstat.stat)
                 target[fstr]["*"].names = fstr2fstat[fstr].names
@@ -323,5 +302,5 @@ class StatTables:
                 af2pf_stat[af].stat.insertions, total_insertions
             )
             af2pf_stat[af].stat.percent_lines = divide_to_percentage(
-                af2pf_stat[af].stat.line_count, total_lines
+                af2pf_stat[af].stat.blame_line_count, total_lines
             )

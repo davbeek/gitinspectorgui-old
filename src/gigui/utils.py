@@ -5,6 +5,7 @@ import threading
 import time
 from cProfile import Profile
 from io import StringIO
+from multiprocessing.synchronize import Event as multiprocessingEvent
 from pathlib import Path
 from pstats import Stats
 
@@ -14,20 +15,6 @@ from gigui.typedefs import FileStr
 
 STDOUT = True
 DEFAULT_WRAP_WIDTH = 88
-
-
-def open_files(fstrs: list[str]):
-    if fstrs:
-        match platform.system():
-            case "Darwin":
-                subprocess.run(["open"] + fstrs, check=True)
-            case "Linux":
-                subprocess.run(["xdg-open"] + fstrs, check=True)
-            case "Windows":
-                for fstr in fstrs:
-                    subprocess.run(["start", "", fstr], check=True, shell=True)
-            case _:
-                raise RuntimeError(f"Unknown platform {platform.system()}")
 
 
 def open_file(fstr: FileStr):
@@ -48,7 +35,7 @@ def log_end_time(start_time: float):
     Output the amount of passed time since 'start_time'.
     """
     end_time = time.time()
-    log(f"Done in {end_time - start_time:.1f} s")
+    log(f"Analysis done in {end_time - start_time:.1f} s.")
 
 
 def get_outfile_name(fix: str, outfile_base: str, repo_name: str) -> FileStr:
@@ -209,27 +196,33 @@ def get_posix_dir_matches_for(pattern: FileStr) -> list[FileStr]:
 
     if platform.system() == "Windows":
         no_drive_pattern = pattern_path.as_posix().replace(pattern_path.drive, "", 1)
-        if pattern_path.is_absolute():
+        # Note that on Windows, Path("/").is_absolute() is False, but
+        # Path("C:/").is_absolute() is True.
+        if pattern_path.is_absolute() or pattern_path.as_posix().startswith("/"):
             rel_pattern = no_drive_pattern[1:]  # type: ignore
-            base_path = (
-                Path("/")
-                if pattern_path.drive == Path().drive
-                else Path(pattern_path.drive) / "/"
-            )
+            base_path = Path(pattern_path.drive) / "/"
         else:
             rel_pattern = no_drive_pattern
             base_path = (
-                Path()
-                if pattern_path.drive == Path().drive
-                else Path(pattern_path.drive)
+                Path.cwd()
+                if pattern_path.drive in {Path.cwd().drive, ""}
+                else Path(pattern_path.drive) / "/"
             )
-    else:
+        if rel_pattern == ".":
+            # Path("/").glob(".") crashes
+            # Path.cwd().glob(".") crashes
+            return [str(base_path)]
+    else:  # macOS or Linux
         if pattern_path.is_absolute():
             rel_pattern = pattern_path.relative_to(Path("/")).as_posix()
             base_path = Path("/")
         else:
             rel_pattern = pattern
-            base_path = Path()
+            base_path = Path.cwd()
+        if rel_pattern == ".":
+            # Path("/").glob(".") crashes
+            # Path.cwd().glob(".") crashes
+            return [str(base_path)]
 
     if not rel_pattern:
         return []
@@ -242,6 +235,16 @@ def get_posix_dir_matches_for(pattern: FileStr) -> list[FileStr]:
     return matches
 
 
+# If the input _fstrs are not absolute, resolve them to absolute posix file strings.
+# If an input_fstr item equals  `.`, it is replaced with the current working directory.
+def resolve_and_strip_input_fstrs(input_fstrs: list[FileStr]) -> list[FileStr]:
+    input_fstrs_posix: list[FileStr] = [
+        Path(strip_quotes(fstr)).resolve().as_posix()  # strip enclosing '' and ""
+        for fstr in input_fstrs
+    ]
+    return input_fstrs_posix
+
+
 def strip_quotes(s: str) -> str:  # Remove quotes from the string.
     return s.strip("'\"")  # Does nothing if the string is not quoted.
 
@@ -251,6 +254,33 @@ def print_threads(message: str):
     print(f"\n{message}:")
     for thread in threading.enumerate():
         print(
-            f"  Thread Name: {thread.name}, Thread State: {'Alive' if thread.is_alive() else 'Dead'}"
+            f"  Thread Name: {thread.name}, Thread State: "
+            f"{'Alive' if thread.is_alive() else 'Dead'}"
         )
     print()
+
+
+def sigint_handler(
+    signum, frame, sigint_event: multiprocessingEvent | threading.Event
+) -> None:
+    sigint_event.set()  # Only used for single core in this main process
+
+
+def setup_sigint_handler(sigint_event: multiprocessingEvent | threading.Event):
+    pass
+    # signal.signal(
+    #     signal.SIGINT,
+    #     lambda signum, frame: sigint_handler(
+    #         signum,
+    #         frame,
+    #         sigint_event,  # type: ignore
+    #     ),
+    # )
+    # signal.signal(
+    #     signal.SIGTERM,
+    #     lambda signum, frame: sigint_handler(
+    #         signum,
+    #         frame,
+    #         sigint_event,  # type: ignore
+    #     ),
+    # )

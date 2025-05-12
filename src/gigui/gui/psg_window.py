@@ -297,10 +297,6 @@ def output_formats_frame() -> sg.Frame:
                     keys.html,
                 ),
                 checkbox(
-                    "html blame history",
-                    keys.html_blame_history,
-                ),
-                checkbox(
                     keys.excel,
                     keys.excel,
                 ),
@@ -425,10 +421,10 @@ def output_formats_frame() -> sg.Frame:
                 ),
                 name_choice(
                     "Dry run",
-                    tooltip=tip.dry_run,
+                    tooltip=tip.dryrun,
                 ),
                 spinbox(
-                    keys.dry_run,
+                    keys.dryrun,
                     list(range(3)),
                     pad=((3, 13), 0),
                 ),

@@ -5,7 +5,12 @@ from pathlib import Path
 
 from gigui._logging import log, set_logging_level_from_verbosity
 from gigui.args_settings import Args
-from gigui.constants import DEFAULT_FILE_BASE, DEFAULT_VERBOSITY, MAX_BROWSER_TABS, NONE
+from gigui.constants import (
+    DEFAULT_FILE_BASE,
+    DEFAULT_VERBOSITY,
+    MAX_BROWSER_TABS,
+    NONE,
+)
 from gigui.data import IniRepo
 from gigui.gui.psg_base import is_git_repo
 from gigui.keys import Keys
@@ -36,7 +41,7 @@ class GiRunnerBase:
             not self.args.file_formats
             and not self.args.view == NONE
             and len_repos > 1
-            and self.args.dry_run == 0
+            and self.args.dryrun == 0
         ):
             if len_repos > MAX_BROWSER_TABS:
                 logger.warning(
@@ -54,18 +59,17 @@ class GiRunnerBase:
         if (
             self.args.view == NONE
             and not self.args.file_formats
-            and self.args.dry_run == 0
+            and self.args.dryrun == 0
         ):
             log(
                 "View option not set and no file formats selected.\n"
                 "Set the view option and/or an output format."
             )
             return False
-
         if non_hex := non_hex_chars_in_list(self.args.ex_revisions):
             log(
-                f"Non-hex characters {" ". join(non_hex)} not allowed in exclude "
-                f"revisions option {", ". join(self.args.ex_revisions)}."
+                f"Non-hex characters {' '.join(non_hex)} not allowed in exclude "
+                f"revisions option {', '.join(self.args.ex_revisions)}."
             )
             return False
         return True
@@ -74,7 +78,7 @@ class GiRunnerBase:
         if self.args.profile:
             profiler = Profile()
             profiler.enable()
-        if self.args.dry_run == 1:
+        if self.args.dryrun == 1:
             self.args.copy_move = 0
         self.args.include_files = (
             self.args.include_files if self.args.include_files else ["*"]

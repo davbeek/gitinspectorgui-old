@@ -116,7 +116,7 @@ def get_gui_handler() -> "GUIOutputHandler":
 # Executed by a new python interpreter in a worker process, which does not share memory
 # with the main process. The worker process is created by the multiprocessing module.
 def ini_worker_for_multiprocessing(
-    logging_queue: queue.Queue, verbosity: int = DEFAULT_VERBOSITY, gui: bool = False
+    logging_queue: queue.Queue, gui: bool = False
 ) -> None:
     global gui_multicore
     getLogger().addHandler(QueueHandler(logging_queue))
@@ -192,24 +192,13 @@ class GUIOutputHandler(Handler):
 
 
 def log(arg: Any, text_color: str | None = None, end: str = "\n", flush: bool = False):
-    if gui_multicore:
+    if gui_multicore:  # true for multiprocessing process started via GUI
         logger.log(ALWAYS_LOG_LEVEL, arg)
     elif shared.gui and not shared.gui_window_closed:
         shared.gui_window.write_event_value(  # type: ignore
             "log", (str(arg) + end, (text_color if text_color else "black"))
         )
+        if shared.cli:
+            print(arg, end=end, flush=flush)
     else:
         print(arg, end=end, flush=flush)
-
-
-def log_dots(
-    i: int, i_max: int, prefix: str = "", postfix: str = "\n", multicore: bool = False
-):
-    if gui_multicore:
-        return
-
-    # i from 1 to and including i_max
-    if not multicore:
-        if i == 1:
-            log(prefix, end="")
-        log("." if i < i_max else "." + postfix, end="", flush=True)

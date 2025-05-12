@@ -16,6 +16,7 @@ from gigui.constants import (
     BLAME_EXCLUSION_CHOICES,
     BLAME_EXCLUSIONS_DEFAULT,
     DEFAULT_COPY_MOVE,
+    DEFAULT_EXTENSIONS,
     DEFAULT_FILE_BASE,
     DEFAULT_N_FILES,
     FILE_FORMATS,
@@ -42,7 +43,7 @@ class Args:
     fix: str = PREFIX
     depth: int = SUBDIR_NESTING_DEPTH
     view: str = AUTO
-    file_formats: list[str] = field(default_factory=lambda: [])
+    file_formats: list[str] = field(default_factory=lambda: ["html"])
     scaled_percentages: bool = False
     blame_exclusions: str = BLAME_EXCLUSIONS_DEFAULT
     blame_skip: bool = False
@@ -57,7 +58,7 @@ class Args:
     comments: bool = False
     copy_move: int = DEFAULT_COPY_MOVE
     verbosity: int = 0
-    dry_run: int = 0
+    dryrun: int = 0
     multithread: bool = True
     multicore: bool = False
     since: str = ""
@@ -98,7 +99,9 @@ class Args:
                 setattr(self, key, clean_list)  # type: ignore
             elif value["type"] == "string":
                 setattr(
-                    self, key, getattr(self, key).strip()  # pylint: disable=no-member
+                    self,
+                    key,
+                    getattr(self, key).strip(),  # pylint: disable=no-member
                 )
 
 
@@ -116,6 +119,14 @@ class Settings(Args):
             raise ValueError("n_files must be a non-negative integer")
         if not self.depth >= 0:
             raise ValueError("depth must be a non-negative integer")
+        # Always silently change empty extensions to the default value. This is done
+        # when initializing, but also when settings are loaded from a a settings file.
+        # Fixing empty extensions to the default value is much easier than checking if
+        # the user has set it to an empty list. A side effect of this is that an empty
+        # value of the extensions field in the settings file has the exact same effect
+        # as the extensions field set to the default value.
+        if not self.extensions:
+            self.extensions = DEFAULT_EXTENSIONS
         self.normalize()
 
     @classmethod
@@ -344,7 +355,7 @@ class SettingsFile:
             "comments": {"type": "boolean"},
             "copy_move": {"type": "integer"},
             "verbosity": {"type": "integer"},
-            "dry_run": {"type": "integer"},
+            "dryrun": {"type": "integer"},
             "multithread": {"type": "boolean"},
             "multicore": {"type": "boolean"},
             "since": {"type": "string"},
@@ -454,18 +465,6 @@ class SettingsFile:
         cls.create_location_file_for(cls.DEFAULT_LOCATION_SETTINGS)
         settings = cls.load_safe()
         return settings
-
-    @classmethod
-    def get_settings_file(cls) -> str:
-        try:
-            return cls.get_location_path().as_posix()
-        except (
-            FileNotFoundError,
-            json.decoder.JSONDecodeError,
-            jsonschema.ValidationError,
-        ):
-            cls.create_location_file_for(cls.DEFAULT_LOCATION_SETTINGS)
-            return cls.get_location_path().as_posix()
 
     @classmethod
     def set_location(cls, location: PathLike):

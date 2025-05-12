@@ -10,66 +10,134 @@ from pathlib import Path
 from git import Commit as GitCommit
 from git import Repo as GitRepo
 
-from gigui._logging import log, log_dots
+from gigui._logging import log
 from gigui.args_settings import Args
 from gigui.constants import GIT_LOG_CHUNK_SIZE, MAX_THREAD_WORKERS
-from gigui.data import CommitGroup, IniRepo, PersonsDB, RepoStats
+from gigui.data import CommitGroup, FileStat, IniRepo
 from gigui.keys import Keys
+from gigui.person_data import PersonsDB
 from gigui.typedefs import OID, SHA, Author, FileStr, Rev
 
 logger = getLogger(__name__)
 
 
-# SHAShortDate object is used to order and number commits by date, starting at 1 for the
+# SHADateNr object is used to order and number commits by date, starting at 1 for the
 # initial commit.
 @dataclass
-class SHADate:
+class SHADateNr:
     sha: SHA
     date: int
+    nr: int
 
 
 class RepoBase:
+    """
+    Represents a base repository and provides functionality to interact with and analyze
+    a Git repository.
+
+    Attributes
+    ----------
+    name : str
+        Name of the repository.
+    location : Path
+        File system location of the repository.
+    args : Args
+        Command-line arguments or configuration options for the repository.
+    persons_db : PersonsDB
+        Database of persons (authors) associated with the repository.
+    git_repo : GitRepo
+        The Git repository object.
+
+    _fstrs : list[FileStr]
+        A private list of file names representing the top-level files in the repository
+        that are not explicitly excluded. This list serves as a fallback for the `fstrs`
+        property when no analysis or blame run has been executed.
+
+    fstrs : list[FileStr]
+        A public property that provides a filtered and sorted list of file strings.
+        Initially, the list equals the private list _fstrs and may still include files
+        from authors that are excluded later after the blame run. This occurs when the
+        blame run finds an new excluded author that is merged with a previously included
+        author. When all authors of a file are excluded, the file is excluded.
+
+    fstr2fstat : dict[FileStr, FileStat]
+        Includes only files that are not excluded defined in subclass RepoData
+
+    ex_revisions : set[Rev]
+        Set of the values of the --ex-revision option.
+    ex_shas : set[SHA]
+        Set of shas of commits in the repo that are excluded by the --ex-revision
+        parameter or the --ex-message parameter.
+
+    sha_since_until_datas : list[SHADateNr]
+        - List of SHADateNr dataclass objects, which represent shas (commits) from date
+          since to date until, sorted on commit date.
+        - Merge commits are included.
+        - The list starts with the commit with the smallest date, which is the oldest
+          date, and which equals the since date or the first commit date. The newest
+          date is the until date or the head commit, and it is at the end of the list.
+        - Rename commits that do not change the file are not present in the output of
+          `git log --follow --numstat` and are therefore not present in sha_date_nrs.
+    sha_since_until_nrs : list[int]
+        List of sha nrs from since to until date, analogous to sha_since_until_datas.
+
+    fr2sha2f : dict[FileStr, dict[SHA, FileStr]]
+        Maps root_file to dict of the first sha where the root_file or one of its
+        previous names was introduced, to this (previous) file name. This sha can either
+        be the initial sha or the sha where the file was renamed. The dict maps the sha
+        to the first introduction of the file name.
+    fr2sha_nr2f : dict[FileStr, dict[int, FileStr]]
+        Similar to fr2sha2f, but uses sha numbers instead of SHAs.
+    fr2sha_nrs : dict[FileStr, list[int]]
+        Maps root_file to reverse sorted list of all sha nrs where the file was renamed
+        or first added.
+    fstr2line_count : dict[FileStr, int]
+        Maps file names to the number of lines in the file.
+    fstr2commit_groups : dict[FileStr, list[CommitGroup]]
+        Maps file names to their associated commit groups.
+
+    sha2author: dict[SHA, Author] = {}
+        Maps sha to the author of the commit. Used for blame history to get the color of
+        a radio button for the sha.
+    sha2oid: dict[SHA, OID]
+        Maps sha to the oid (the long sha format).
+    oid2sha: dict[OID, SHA]
+        Maps oid to sha.
+    sha2nr:  dict[SHA, int]
+        Maps sha to its number.
+    nr2sha:  dict[int, SHA]
+        Maps number to sha.
+    head_commit: GitCommit
+        Top-level Git commit object, at the date given by args.until.
+    head_oid: OID
+        Top-level commit oid.
+    head_sha: SHA
+        Top-level commit sha.
+    """
+
     def __init__(self, ini_repo: IniRepo):
         self.name: str = ini_repo.name
         self.location: Path = ini_repo.location
         self.args: Args = ini_repo.args
-
-        # Here the values of the --ex-revision option are stored as a set.
-        self.ex_revisions: set[Rev] = set(self.args.ex_revisions)
-
         self.persons_db: PersonsDB = PersonsDB()
         self.git_repo: GitRepo
 
-        # self.fstrs is a list of files from the top commit of the repo.
+        self._fstrs: list[FileStr]
 
-        # Initially, the list is unfiltered and may still include files from authors
-        # that are excluded later, because the blame run may find new authors that match
-        # an excluded author and thus must be excluded later.
+        self.fstr2fstat: dict[FileStr, FileStat] = {}
 
-        # In self._run_no_history from RepoData, self.fstrs is sorted and all excluded
-        # files are removed.
-        self.fstrs: list[FileStr] = []
-
-        # self.all_fstrs is the unfiltered list of files, may still include files that
-        # belong completely to an excluded author.
-        self.all_fstrs: list[FileStr]
-
-        # List of the shas of the repo commits starting at the until date parameter (if set),
-        # or else at the first commit of the repo. The list includes merge commits and
-        # is sorted by commit date.
-        self.shas_dated: list[SHADate]
-
-        self.fr2f2a2sha_set: dict[FileStr, dict[FileStr, dict[Author, set[SHA]]]] = {}
-
-        # Set of short SHAs of commits in the repo that are excluded by the
-        # --ex-revision parameter together with the --ex-message parameter.
+        self.ex_revisions: set[Rev] = set(self.args.ex_revisions)
         self.ex_shas: set[SHA] = set()
 
-        # Dict of file names to their sizes:
-        self.fstr2line_count: dict[FileStr, int] = {}
+        self.sha_since_until_date_nrs: list[SHADateNr]
+        self.sha_since_until_nrs: list[int] = []
 
+        self.fr2sha2f: dict[FileStr, dict[SHA, FileStr]] = {}
+        self.fr2sha_nr2f: dict[FileStr, dict[int, FileStr]] = {}  # same for sha nrs
+        self.fr2sha_nrs: dict[FileStr, list[int]] = {}
+
+        self.fstr2line_count: dict[FileStr, int] = {}
         self.fstr2commit_groups: dict[FileStr, list[CommitGroup]] = {}
-        self.stats = RepoStats()
 
         self.sha2author: dict[SHA, Author] = {}
 
@@ -85,6 +153,24 @@ class RepoBase:
         self.head_commit: GitCommit
         self.head_oid: OID
         self.head_sha: SHA
+
+    @property
+    def fstrs(self) -> list[FileStr]:
+        if not self.fstr2fstat:  # analysis and blame run not yet executed
+            return list(self._fstrs)
+        else:  # after analysis and blame run
+            # fstrs2fstat.keys() can be a subset of self.fstrs, because some files may
+            # have been excluded due to author exclusion as a result of the blame run.
+            fstrs = [fstr for fstr in self.fstr2fstat.keys() if fstr != "*"]
+            return sorted(
+                fstrs,
+                key=lambda x: self.fstr2fstat[x].stat.blame_line_count,
+                reverse=True,
+            )
+
+    @property
+    def star_fstrs(self) -> list[FileStr]:
+        return ["*"] + self.fstrs
 
     def init_git_repo(self) -> None:
         # Init the git repo.
@@ -125,24 +211,28 @@ class RepoBase:
         self.head_sha = self.oid2sha[self.head_oid]
 
     def run_base(self) -> None:
+        # Set list of top level fstrs (based on until par and allowed file extensions)
+        self._fstrs = self._get_worktree_files()
 
-        # Set list top level fstrs (based on until par and allowed file extensions)
-        self.fstrs = self._get_worktree_files()
-
-        self._set_fstr2line_count()
+        self._set_fdata_line_count()
         self._get_commits_first_pass()
 
         self._set_fstr2commits()
-        self.all_fstrs = copy.deepcopy(self.fstrs)
+
+        self._set_fr2sha2f()
+        self._set_fr2sha_nr2f()
+        self._set_fr2sha_nrs()
 
     def _convert_to_timestamp(self, date_str: str) -> int:
         dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
         return int(dt.timestamp())
 
-    # Get list of top level files (based on the until parameter) that satisfy the
-    # required extensions and do not match the exclude file patterns.
-    # To get all files use --include-files="*" as pattern
-    # include_files takes priority over n_files
+    # Get list of top level files (based on the until parameter) that:
+    # - satisfy the required extensions
+    # - do not match the exclude file patterns
+    # - are in the args.subfolder
+    # To get all files use --include-files="*" as pattern.
+    # Include_files takes priority over n_files.
     def _get_worktree_files(self) -> list[FileStr]:
         sorted_files: list[FileStr] = self._get_sorted_worktree_files()
         files_set: set[FileStr] = set(sorted_files)
@@ -185,11 +275,10 @@ class RepoBase:
     # - match the required file extensions
     # - are not excluded
     # - are in args.subfolder
+    # This function is called by _get_worktree_files()
     def _get_sorted_worktree_files(self) -> list[FileStr]:
-
         # Get the files with their file sizes
         def _get_worktree_files_sizes() -> list[tuple[FileStr, int]]:
-
             # Get the blobs that are in subfolder
             def _get_subfolder_blobs() -> list:
                 return [
@@ -197,7 +286,10 @@ class RepoBase:
                     for blob in self.head_commit.tree.traverse()
                     if (
                         (blob.type == "blob")  # type: ignore
-                        and fnmatchcase(blob.path.lower(), f"{self.args.subfolder}*".lower())  # type: ignore
+                        and fnmatchcase(
+                            blob.path.lower(),  # type: ignore
+                            f"{self.args.subfolder}*".lower(),  # type: ignore
+                        )  # type: ignore
                     )
                 ]
 
@@ -233,7 +325,7 @@ class RepoBase:
     def _get_biggest_files_from(self, matches: list[FileStr]) -> list[FileStr]:
         return matches
 
-    def _set_fstr2line_count(self) -> None:
+    def _set_fdata_line_count(self) -> None:
         self.fstr2line_count["*"] = 0
         for blob in self.head_commit.tree.traverse():
             if (
@@ -249,7 +341,7 @@ class RepoBase:
                 self.fstr2line_count["*"] += line_count
 
     def _get_commits_first_pass(self) -> None:
-        shas_dated: list[SHADate] = []
+        sha_date_nrs: list[SHADateNr] = []
         ex_shas: set[SHA] = set()  # set of excluded shas
         sha: SHA
         oid: OID
@@ -297,12 +389,13 @@ class RepoBase:
             email = lines[i := i + 1]
             self.persons_db.add_person(author, email)
             self.sha2author[sha] = author
-            sha_date = SHADate(sha, timestamp)
-            shas_dated.append(sha_date)
+            sha_date_nr = SHADateNr(sha, timestamp, self.sha2nr[sha])
+            sha_date_nrs.append(sha_date_nr)
             i += 1
 
-        shas_dated.sort(key=lambda x: x.date)
-        self.shas_dated = shas_dated
+        sha_date_nrs.sort(key=lambda x: x.date)
+        self.sha_since_until_date_nrs = sha_date_nrs
+        self.sha_since_until_nrs = [sha_date_nr.nr for sha_date_nr in sha_date_nrs]
         self.ex_shas = ex_shas
 
     def _get_since_until_args(self) -> list[str]:
@@ -346,6 +439,7 @@ class RepoBase:
             prefix + f"Git log: {self.name}: {i_max} files"
         )  # Log message sent to QueueHandler
         if self.args.multithread:
+            self.log_space(8)
             with ThreadPoolExecutor(max_workers=MAX_THREAD_WORKERS) as thread_executor:
                 for chunk_start in range(0, i_max, chunk_size):
                     chunk_end = min(chunk_start + chunk_size, i_max)
@@ -358,7 +452,7 @@ class RepoBase:
                         lines_str, fstr = future.result()
                         i += 1
                         if self.args.verbosity == 0:
-                            log_dots(i, i_max, prefix, " " * 4, self.args.multicore)
+                            self.log_dot()
                         else:
                             logger.info(
                                 prefix
@@ -373,19 +467,23 @@ class RepoBase:
                             lines_str, fstr
                         )
         else:  # single thread
+            self.log_space(8)
             for fstr in self.fstrs:
                 lines_str, fstr = self._get_commit_lines_for(fstr)
                 i += 1
                 if self.args.verbosity == 0 and not self.args.multicore:
-                    log_dots(i, i_max, prefix, " " * 4)
+                    self.log_dot()
                 else:
                     logger.info(prefix + f"{i} of {i_max}: {self.name} {fstr}")
                 self.fstr2commit_groups[fstr] = self._process_commit_lines_for(
                     lines_str, fstr
                 )
+        self.log_space(2)
         reduce_commits()
 
     def _get_commit_lines_for(self, fstr: FileStr) -> tuple[str, FileStr]:
+        # Note  that a rename commit that does not change the file is not shown in the
+        # output of git log --follow --numstat.
         def git_log_args() -> list[str]:
             args = self._get_since_until_args()
             if not self.args.whitespace:
@@ -449,7 +547,9 @@ class RepoBase:
             timestamp = int(lines[i := i + 1])
             author = lines[i := i + 1]
             person = self.persons_db[author]
-            if not i < len(lines):
+            if not i + 1 < len(lines):
+                # No stat line. This can happen eg when the only changes were in
+                # whitespace
                 break
             stat_line = lines[i := i + 1]
             if not stat_line:
@@ -478,25 +578,6 @@ class RepoBase:
                     fstr = match.group(2)
                 else:
                     fstr = file_name
-
-            target = self.fr2f2a2sha_set
-            if fstr_root not in target:
-                target[fstr_root] = {}
-                # Ensure that there is at least one entry for fstr_root in the target
-                # when static or dynamic blame history is used. This is necessary
-                # for when the first commit in the list of commits from the top down, is
-                # a rename without any changes in the file. Such renames are not show in
-                # the output for git log --follow --numstat.
-                target[fstr_root][fstr_root] = {}
-                target[fstr_root][fstr_root][author] = set()
-                target[fstr_root][fstr_root][author].add(sha)
-
-            if fstr not in target[fstr_root]:
-                target[fstr_root][fstr] = {}
-            if author not in target[fstr_root][fstr]:
-                target[fstr_root][fstr][author] = set()
-            target[fstr_root][fstr][author].add(sha)
-
             if (
                 len(commit_groups) > 1
                 and fstr == commit_groups[-1].fstr
@@ -521,3 +602,75 @@ class RepoBase:
 
     def dynamic_blame_history_selected(self) -> bool:
         return self.args.view == Keys.dynamic_blame_history
+
+    def _set_fr2sha2f(self) -> None:
+        for fstr in self.fstrs:
+            self.fr2sha2f[fstr] = self._get_sha2f_for_fstr(fstr)
+
+    def _set_fr2sha_nr2f(self) -> None:
+        for fstr in self.fstrs:
+            if fstr not in self.fr2sha_nr2f:
+                self.fr2sha_nr2f[fstr] = {}
+            for sha, new_fstr in self.fr2sha2f[fstr].items():
+                sha_nr = self.sha2nr[sha]
+                self.fr2sha_nr2f[fstr][sha_nr] = new_fstr
+
+    def _set_fr2sha_nrs(self) -> None:
+        nrs: list[int]
+        for fstr in self.fstrs:
+            nrs = sorted(self.fr2sha_nr2f[fstr].keys(), reverse=True)
+            self.fr2sha_nrs[fstr] = nrs
+
+    def _get_sha2f_for_fstr(self, root_fstr: FileStr) -> dict[SHA, FileStr]:
+        sha2f: dict[SHA, FileStr] = {}
+        sha: SHA
+        new_fstr: FileStr
+        line: str
+        i: int = 0
+
+        lines: list[str] = self.git_repo.git.log(
+            "--pretty=format:%h", "--follow", "--name-status", "--", root_fstr
+        ).splitlines()
+
+        while i < len(lines):
+            line = lines[i]
+            if not line:
+                i += 1
+                continue
+            if i == len(lines) - 2:
+                # get the last element, which is the addition of the file
+                sha = line.strip()
+                _, new_fstr = lines[i + 1].split("\t")
+                sha2f[sha] = new_fstr.strip()
+                break
+            if "\t" not in line and lines[i + 1].startswith("R"):
+                # get rename commit
+                sha = line.strip()
+                _, _, new_fstr = lines[i + 1].split("\t")
+                sha2f[sha] = new_fstr.strip()
+                i += 2
+            else:
+                i += 2
+        return sha2f
+
+    def get_fstr_for_sha(self, root_fstr: FileStr, sha: SHA) -> FileStr:  # type: ignore
+        sha_nr: int = self.sha2nr[sha]
+        nrs: list[int]
+        nr: int
+
+        nrs = sorted(self.fr2sha_nr2f[root_fstr].keys(), reverse=True)
+        if not nrs:
+            raise ValueError(f"No entries found for {root_fstr}.")
+        for nr in nrs:
+            if nr <= sha_nr:
+                return self.fr2sha_nr2f[root_fstr][nr]
+        # sha_nr smaller than the smallest sha nr in the list.
+        return ""
+
+    def log_dot(self):
+        if not self.args.multicore and self.args.verbosity == 0:
+            log(".", end="", flush=True)
+
+    def log_space(self, i: int):
+        if not self.args.multicore and self.args.verbosity == 0:
+            log(" " * i, end="", flush=True)

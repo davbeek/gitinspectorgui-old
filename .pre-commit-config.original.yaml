@@ -16,25 +16,12 @@ repos:
           - id: check-added-large-files
             exclude: '.*\.(png|icns)$'
             # stages: [manual]
-    - repo: https://github.com/psf/black
-      rev: 24.10.0
+    - repo: https://github.com/charliermarsh/ruff-pre-commit
+      rev: v0.9.7
       hooks:
-          - id: black
+          - id: ruff
             language_version: python3.12
             types: [python]
-            # stages: [manual]
-    - repo: https://github.com/PyCQA/flake8
-      rev: 7.1.1
-      hooks:
-          - id: flake8
-            language_version: python3.12
-            types: [python]
-            # stages: [manual]
-    - repo: https://github.com/pycqa/isort
-      rev: 5.13.2
-      hooks:
-          - id: isort
-            args: ["--profile", "black"]
             # stages: [manual]
     - repo: local
       hooks:

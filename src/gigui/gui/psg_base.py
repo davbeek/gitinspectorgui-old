@@ -1,16 +1,20 @@
 import webbrowser
 from copy import copy
 from dataclasses import asdict
+from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import PySimpleGUI as sg  # type: ignore
 from git import InvalidGitRepositoryError, NoSuchPathError
 from git import Repo as GitRepo
 
-from gigui.args_settings import Settings, SettingsFile
+from gigui.args_settings import Args, Settings, SettingsFile
 from gigui.constants import (
+    AUTO,
     DEFAULT_FILE_BASE,
     DISABLED_COLOR,
+    DYNAMIC_BLAME_HISTORY,
     ENABLED_COLOR,
     FILE_FORMATS,
     INVALID_INPUT_COLOR,
@@ -30,6 +34,7 @@ keys = Keys()
 class PSGBase:
     def __init__(self, settings: Settings):
         self.settings: Settings = settings
+        self.args: Args
         self.window: sg.Window
 
         # All file strings are in POSIX format, containing only forward slashes as path
@@ -120,8 +125,7 @@ class PSGBase:
         self.window[keys.settings_file].update(value=settings_fstr)  # type: ignore
 
     def update_outfile_str(self) -> None:
-        def get_outfile_str() -> str:
-
+        def get_outfile_path() -> Path:
             def get_rename_file() -> str:
                 if self.input_repo_path:
                     repo_name = self.input_repo_path.stem
@@ -136,15 +140,15 @@ class PSGBase:
                     return self.outfile_base
 
             if not self.input_fstrs or not self.input_fstr_matches:
-                return ""
+                return Path("")
 
             out_name = get_rename_file()
             if self.input_repo_path:
-                return str(self.input_repo_path.parent) + "/" + out_name
+                return self.input_repo_path.parent / out_name
             else:
-                return PARENT_HINT + out_name
+                return Path(PARENT_HINT) / out_name
 
-        self.window[keys.outfile_path].update(value=get_outfile_str())  # type: ignore
+        self.window[keys.outfile_path].update(value=str(get_outfile_path()))  # type: ignore
 
     def update_settings_file_str(
         self,
@@ -176,7 +180,10 @@ class PSGBase:
             self.update_outfile_str()
             return
 
-        matches: list[FileStr] = self.get_posix_dir_matches(self.input_fstrs, self.window[keys.input_fstrs])  # type: ignore
+        matches: list[FileStr] = self.get_posix_dir_matches(
+            self.input_fstrs,
+            self.window[keys.input_fstrs],  # type: ignore
+        )  # type: ignore
         self.input_fstr_matches = matches
 
         if len(matches) == 1 and is_git_repo(Path(matches[0])):
@@ -266,16 +273,73 @@ class PSGBase:
             case keys.dynamic_blame_history:
                 self.window[keys.auto].update(value=False)  # type: ignore
                 self.window[keys.html].update(value=False)  # type: ignore
-                self.window[keys.html_blame_history].update(value=False)  # type: ignore
                 self.window[keys.excel].update(value=False)  # type: ignore
             case keys.html:
-                self.window[keys.html_blame_history].update(value=False)  # type: ignore
-                self.window[keys.dynamic_blame_history].update(value=False)  # type: ignore
-            case keys.html_blame_history:
-                self.window[keys.html].update(value=False)  # type: ignore
                 self.window[keys.dynamic_blame_history].update(value=False)  # type: ignore
             case keys.excel:
                 self.window[keys.dynamic_blame_history].update(value=False)  # type: ignore
+
+    def set_args(self, values: dict) -> None:
+        self.args = Args()
+        settings_schema: dict[str, Any] = SettingsFile.SETTINGS_SCHEMA["properties"]
+        for schema_key, schema_value in settings_schema.items():
+            if schema_key not in {
+                keys.profile,
+                keys.fix,
+                keys.n_files,
+                keys.view,
+                keys.file_formats,
+                keys.since,
+                keys.until,
+                keys.multithread,
+                keys.gui_settings_full_path,
+            }:
+                if schema_value["type"] == "array":
+                    setattr(self.args, schema_key, values[schema_key].split(","))  # type: ignore
+                else:
+                    setattr(self.args, schema_key, values[schema_key])
+
+        self.args.multithread = self.multithread
+
+        if values[keys.prefix]:
+            self.args.fix = keys.prefix
+        elif values[keys.postfix]:
+            self.args.fix = keys.postfix
+        else:
+            self.args.fix = keys.nofix
+
+        if values[keys.auto]:
+            self.args.view = AUTO
+        elif values[keys.dynamic_blame_history]:
+            self.args.view = DYNAMIC_BLAME_HISTORY
+        else:
+            self.args.view = NONE
+
+        self.args.n_files = 0 if not values[keys.n_files] else int(values[keys.n_files])
+
+        file_formats = []
+        for schema_key in FILE_FORMATS:
+            if values[schema_key]:
+                file_formats.append(schema_key)
+        self.args.file_formats = file_formats
+
+        for schema_key in keys.since, keys.until:
+            val = values[schema_key]
+            if not val or val == "":
+                continue
+            try:
+                val = datetime.strptime(values[schema_key], "%Y-%m-%d").strftime(
+                    "%Y-%m-%d"
+                )
+            except (TypeError, ValueError):
+                popup(
+                    "Reminder",
+                    "Invalid date format. Correct format is YYYY-MM-DD. Please try again.",
+                )
+                return
+            setattr(self.args, schema_key, str(val))
+
+        self.args.normalize()
 
     def disable_buttons(self) -> None:
         for button in self.buttons:
@@ -382,12 +446,11 @@ def use_single_repo(input_paths: list[Path]) -> bool:
 
 def is_git_repo(path: Path) -> bool:
     try:
-        git_path = path / ".git"
-        if git_path.is_symlink():
-            git_path = git_path.resolve()
-            if not git_path.is_dir():
-                return False
-        elif not git_path.is_dir():
+        if path.stem == ".resolve":
+            # path.resolve() crashes on macOS for path.stem == ".resolve"
+            return False
+        git_path = (path / ".git").resolve()
+        if not git_path.is_dir():
             return False
     except (PermissionError, TimeoutError):  # git_path.is_symlink() may time out
         return False

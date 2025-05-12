@@ -5,9 +5,9 @@ from pathlib import Path
 from bs4 import BeautifulSoup, Tag
 
 from gigui._logging import log
+from gigui.args_settings import Args
 from gigui.constants import HIDE, SHOW
 from gigui.data import IniRepo
-from gigui.keys import Keys
 from gigui.output.repo_blame_rows import RepoBlameRows
 from gigui.typedefs import SHA, Author, FileStr, HtmlStr, Row
 from gigui.utils import get_relative_fstr
@@ -33,6 +33,7 @@ HEADER_CLASS_DICT: dict[str, str] = {
     "Date": "date-col",
     "Message": "message-col",
     "SHA": "sha-col number-col",
+    "Origin": "origin-col",
     "Commit number": "commit-number-col number-col",
     "Line": "line-col number-col",
     "Code": "code-col",
@@ -62,18 +63,7 @@ blame_exclusions_hide: bool  # noqa: F821
 logger = getLogger(__name__)
 
 
-class RepoColor(RepoBlameRows):
-    def _get_color_for_author(self, author: Author) -> str:
-        author_nr = self.author_star2nr[author]
-        return BG_AUTHOR_COLORS[author_nr % len(BG_AUTHOR_COLORS)]
-
-    def _get_color_for_sha_nr(self, sha_nr: int) -> str:
-        sha = self.nr2sha[sha_nr]
-        author = self.sha2author[sha]
-        return self._get_color_for_author(author)
-
-
-class TableSoup(RepoColor):
+class TableSoup(RepoBlameRows):
     def __init__(self, ini_repo: IniRepo) -> None:
         super().__init__(ini_repo)
 
@@ -184,6 +174,10 @@ class RepoStatTableSoup(TableSoup):
         table.append(tbody)
         return table
 
+    def _get_color_for_author(self, author: Author) -> str:
+        author_nr = self.author_star2nr[author]
+        return BG_AUTHOR_COLORS[author_nr % len(BG_AUTHOR_COLORS)]
+
     def get_files_soup(self) -> Tag:
         rows = self.get_files_rows()
         return self._get_colored_rows_table_soup(
@@ -229,25 +223,6 @@ class RepoBlameTableSoup(RepoStatTableSoup):
         table = self._get_blame_table_from_rows(rows, iscomments)
         return table
 
-    def get_blame_history_static_tables_soup(
-        self,
-        fstr_root: FileStr,
-        sha2nr: dict[SHA, int],
-        blame_tab_index: int,
-    ) -> list[Tag]:
-        tables: list[Tag] = []
-        if fstr_root not in self.fstr2shas:
-            return []
-        for sha in self.fstr2shas[fstr_root]:
-            rows, iscomments = self.get_fr_sha_blame_rows(fstr_root, sha)
-            if not rows:
-                continue
-            nr = sha2nr[sha]
-            table = self._get_blame_table_from_rows(rows, iscomments)
-            table["id"] = f"file-{blame_tab_index}-sha-{nr}"
-            tables.append(table)
-        return tables
-
     def _get_blame_table_from_rows(
         self,
         rows: list[Row],
@@ -262,7 +237,7 @@ class RepoBlameTableSoup(RepoStatTableSoup):
         if self.dynamic_blame_history_selected():
             table["id"] = f"file-{fstr_nr}-sha-{sha_nr}"
 
-        header_row = self.header_blames()
+        header_row = self.header_blames(self.args)
         self._add_header_row(header_row, table)
 
         bg_colors_cnt = len(BG_AUTHOR_COLORS)
@@ -284,12 +259,13 @@ class RepoBlameTableSoup(RepoStatTableSoup):
                             .replace(">", "&gt;")
                             .replace('"', "&quot;")
                         )
+                        if is_comment:
+                            td["class"] = "comment-col"
+                        else:
+                            td["class"] = HEADER_CLASS_DICT[head]
                     else:
                         # empty line of code
                         data = "&nbsp;"
-                    if is_comment:
-                        td["class"] = "comment-col"
-                    else:
                         td["class"] = HEADER_CLASS_DICT[head]
                 td.string = str(data)
                 tr.append(td)
@@ -305,7 +281,6 @@ class RepoBlameTablesSoup(RepoBlameTableSoup):
 
     def add_blame_tables_soup(self) -> None:
         table: Tag | None
-        tables: list[Tag]
         fstr2table: dict[FileStr, Tag] = {}
         fstr2tables: dict[FileStr, list[Tag]] = {}
         fstrs: list[FileStr] = []
@@ -315,20 +290,10 @@ class RepoBlameTablesSoup(RepoBlameTableSoup):
 
         blame_tab_index = 0
         for fstr in self.fstrs:
-            if Keys.html_blame_history in self.args.file_formats:
-                tables = self.get_blame_history_static_tables_soup(
-                    fstr, sha2nr, blame_tab_index
-                )
-                if tables:
-                    fstr2tables[fstr] = tables
-                    fstrs.append(fstr)
-            elif self.dynamic_blame_history_selected():
+            if self.dynamic_blame_history_selected():
                 fstr2tables[fstr] = []
                 fstrs.append(fstr)
-            elif (
-                Keys.html_blame_history not in self.args.file_formats
-                and not self.dynamic_blame_history_selected()
-            ):
+            else:
                 table = self.get_blame_table_soup(fstr)
                 if table:
                     fstr2table[fstr] = table
@@ -359,12 +324,9 @@ class RepoBlameTablesSoup(RepoBlameTableSoup):
                 "div", attrs={"class": "table-container"}
             )
 
-            if (
-                Keys.html_blame_history in self.args.file_formats
-                or self.dynamic_blame_history_selected()
-            ):
+            if self.dynamic_blame_history_selected():
                 self._add_radio_buttons(
-                    self.fstr2shas[fstr],
+                    self.get_blame_shas_for_fstr(fstr),
                     sha2nr,
                     blame_container,
                     blame_tab_index,
@@ -446,69 +408,23 @@ class RepoBlameTablesSoup(RepoBlameTableSoup):
             container.append(label)
         parent.append(container)
 
+    def _get_color_for_sha_nr(self, sha_nr: int) -> str:
+        sha = self.nr2sha[sha_nr]
+        author = self.sha2author[sha]
+        return self._get_color_for_author(author)
 
-# pylint: disable=too-many-locals
-class RepoHTML(RepoBlameTablesSoup):
-    """
-    Generate html with complete analysis results of the provided repository.
-    """
 
-    blame_skip: bool
-
-    def get_html(self) -> HtmlStr:
-
-        # Load the template file.
-        module_dir = Path(__file__).resolve().parent
-        html_path = module_dir / "static" / "template.html"
-        with open(html_path, "r", encoding="utf-8") as f:
-            html_template = f.read()
-
-        if (
-            Keys.html in self.args.file_formats
-            or Keys.html_blame_history in self.args.file_formats
-        ):
-            # If blame_history_dynamic, create_html_document is called in repo_html_server.py
-            html_template = self.create_html_document(html_template, self.load_css())
-
-        self.global_soup = BeautifulSoup(html_template, "html.parser")
-        soup = self.global_soup
-
-        title_tag: Tag = soup.find(name="title")  # type: ignore
-        title_tag.string = f"{self.name} viewer"
-
-        authors_tag: Tag = soup.find(id="authors")  # type: ignore
-        authors_tag.append(self.get_authors_soup())
-
-        authors_files_tag: Tag = soup.find(id="authors-files")  # type: ignore
-        authors_files_tag.append(self.get_authors_files_soup())
-
-        files_authors_tag: Tag = soup.find(id="files-authors")  # type: ignore
-        files_authors_tag.append(self.get_files_authors_soup())
-
-        files_tag: Tag = soup.find(id="files")  # type: ignore
-        files_tag.append(self.get_files_soup())
-
-        # Add blame output if not skipped.
-        if not self.args.blame_skip:
-            self.add_blame_tables_soup()
-
-        html: HtmlStr = str(soup)
-        html = html.replace("&amp;nbsp;", "&nbsp;")
-        html = html.replace("&amp;lt;", "&lt;")
-        html = html.replace("&amp;gt;", "&gt;")
-        html = html.replace("&amp;quot;", "&quot;")
-        return html
-
-    # Is called by gitinspector module
-    def load_css(self) -> str:
+class RepoHTML:
+    @staticmethod
+    def load_css() -> str:
         css_file = Path(__file__).parent / "static" / "styles.css"
         with open(css_file, "r", encoding="utf-8") as f:
             return f.read()
 
+    @staticmethod
     def create_html_document(
-        self, html_code: HtmlStr, css_code: str, browser_id: str | None = None
+        args: Args, html_code: HtmlStr, css_code: str, browser_id: str | None = None
     ) -> HtmlStr:
-
         # Insert CSS code
         html_code = html_code.replace(
             "</head>",
@@ -545,9 +461,7 @@ class RepoHTML(RepoBlameTablesSoup):
                     # Insert the value of --blame-exclusions=hide in the js code
                     js_code = js_code.replace(
                         '"<%= blame_exclusions_hide %>"',
-                        (
-                            "true" if self.args.blame_exclusions == HIDE else "false"
-                        ),  # noqa: F821
+                        ("true" if args.blame_exclusions == HIDE else "false"),  # noqa: F821
                     )
                 case "browser-id.js":
                     # Insert the browser ID option in the js code

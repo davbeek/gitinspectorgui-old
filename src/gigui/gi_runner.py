@@ -1,36 +1,38 @@
-import signal
+import platform
+import select
+import sys
 import threading
 import time
 from concurrent.futures import Future, ProcessPoolExecutor, as_completed
 from cProfile import Profile
-from dataclasses import dataclass
 from logging import getLogger
 from logging.handlers import QueueListener
+from multiprocessing.synchronize import Event as multiprocessingEvent
 from pathlib import Path
 from queue import Queue
 
 from gigui import _logging, shared
 from gigui._logging import log, start_logging_listener
 from gigui.args_settings import Args
-from gigui.constants import MAX_CORE_WORKERS, NONE
+from gigui.constants import AUTO, DYNAMIC_BLAME_HISTORY, MAX_CORE_WORKERS
 from gigui.data import IniRepo
 from gigui.gi_runner_base import GiRunnerBase
-from gigui.messages import CLOSE_OUTPUT_VIEWERS_CLI_MSG, CLOSE_OUTPUT_VIEWERS_MSG
-from gigui.queues_setup import RunnerQueues
+from gigui.messages import CLOSE_OUTPUT_VIEWERS_MSG
+from gigui.output.repo_html_server import HTMLServer, require_server
 from gigui.repo_runner import RepoRunner
+from gigui.runner_queues import RunnerQueues
 from gigui.typedefs import FileStr
-from gigui.utils import get_dir_matches, log_end_time, out_profile
+from gigui.utils import (
+    get_dir_matches,
+    log_end_time,
+    open_file,
+    out_profile,
+    setup_sigint_handler,
+)
 
 # pylint: disable=too-many-arguments disable=too-many-positional-arguments
 
 logger = getLogger(__name__)
-
-
-@dataclass
-class RepoTask:
-    ini_repo: IniRepo
-    server_started_event: threading.Event
-    worker_done_event: threading.Event
 
 
 class GIRunner(GiRunnerBase):
@@ -40,24 +42,33 @@ class GIRunner(GiRunnerBase):
         self,
         args: Args,
         start_time: float,
-        runner_queues: RunnerQueues,
+        queues: RunnerQueues,
+        logging_queue: Queue,
+        sigint_event: multiprocessingEvent | threading.Event,
+        html_server: HTMLServer | None = None,
     ) -> None:
-        super().__init__(args)
-        self.queues: RunnerQueues = runner_queues
+        GiRunnerBase.__init__(self, args)
+        self.queues: RunnerQueues = queues
+        self.logging_queue: Queue = logging_queue
+        self.sigint_event: multiprocessingEvent | threading.Event = sigint_event
+        self.html_server: HTMLServer | None = html_server
+        if self.html_server:
+            self.html_server.set_runner_queues(queues)
+
         self.start_time: float = start_time
-
         self.queue_listener: QueueListener | None = None
-
-        self.requires_server: bool = (
-            not self.args.file_formats and not self.args.view == NONE
-        )
         self.future_to_ini_repo: dict[Future, IniRepo] = {}
         self.nr_workers: int = 0
         self.nr_started_prev: int = -1
         self.nr_done_prev: int = -1
-        self.len_repos: int = 0
 
-    def run_repos(self) -> None:
+        if self.args.view == DYNAMIC_BLAME_HISTORY and self.args.multicore:
+            log(
+                "Dynamic blame history is not supported in multicore mode. "
+                "Executing in single core mode."
+            )
+            self.args.multicore = False
+
         profiler: Profile | None = None
         repo_lists: list[list[IniRepo]] = []
         dir_strs: list[FileStr]
@@ -70,6 +81,8 @@ class GIRunner(GiRunnerBase):
         for dir_str in dirs_sorted:
             repo_lists.extend(self.get_repos(Path(dir_str), self.args.depth))
         self.len_repos = self.total_len(repo_lists)
+        if self.html_server:
+            self.html_server.len_repos = self.len_repos
 
         if self.len_repos == 0:
             logger.warning("No repositories found, exiting.")
@@ -80,7 +93,7 @@ class GIRunner(GiRunnerBase):
 
         if self.args.multicore:
             self.queue_listener = start_logging_listener(
-                self.queues.logging, self.args.verbosity
+                self.logging_queue, self.args.verbosity
             )
             self.process_tasks_multicore(repo_lists)
             if self.queue_listener:
@@ -88,7 +101,7 @@ class GIRunner(GiRunnerBase):
         else:  # single core
             self.process_repos_singlecore(repo_lists)
 
-        if self.requires_server:
+        if require_server(self.args):
             log("Done")
         out_profile(profiler, self.args.profile)
 
@@ -96,7 +109,6 @@ class GIRunner(GiRunnerBase):
         self,
         repo_lists: list[list[IniRepo]],
     ) -> None:
-        nr_workers: int = 0
         futures: list[Future] = []
         max_workers: int = min(MAX_CORE_WORKERS, self.len_repos)
 
@@ -109,78 +121,96 @@ class GIRunner(GiRunnerBase):
         with ProcessPoolExecutor(
             max_workers=max_workers,
             initializer=_logging.ini_worker_for_multiprocessing,
-            initargs=(self.queues.logging, self.args.verbosity, shared.gui),
+            initargs=(self.logging_queue, shared.gui),
         ) as process_executor:
-            for i in range(max_workers):
+            for _ in range(self.len_repos):
                 future = process_executor.submit(
-                    multicore_worker, self.queues, self.args.verbosity, i
+                    multicore_worker,
+                    self.queues,
+                    self.args.verbosity,
                 )
                 futures.append(future)
-                nr_workers += 1
 
-            for _ in range(nr_workers):
-                self.queues.task.put(None)  # type: ignore
-
-            self.await_tasks()
-
-            for _ in range(max_workers):
-                # signal to stop worker by sending None
-                self.queues.task.put(None)  # type: ignore
+            if not self.args.dryrun:
+                self.await_tasks_process_output()
 
             for future in as_completed(futures):
-                future.result()
+                logger.debug("future done:", future.result())
 
-    def await_tasks(self) -> None:
-        task_done_nr: int = 0
+    def await_tasks_process_output(self) -> None:
+        i: int = 0
+        browser_output: bool = False
         repo_name: str = ""
-        repo_done_nr: int = 0
-
-        while task_done_nr < self.len_repos:
+        while i < self.len_repos:
             repo_name = self.queues.task_done.get()
-            task_done_nr += 1
+            i += 1
             if self.len_repos > 1:
-                logger.info(f"    {repo_name}: done {task_done_nr} of {self.len_repos}")
+                logger.info(f"    {repo_name}: analysis done {i} of {self.len_repos}")
         log_end_time(self.start_time)
 
-        if self.requires_server:
-            time.sleep(0.1)  # wait for the server to start
-            if shared.gui:
-                log(CLOSE_OUTPUT_VIEWERS_MSG)
-            else:
-                log(CLOSE_OUTPUT_VIEWERS_CLI_MSG)
-
-        repo_name = ""
-        while repo_done_nr < self.len_repos:
-            repo_name = self.queues.repo_done.get()
-            repo_done_nr += 1
-            if self.requires_server:
-                logger.info(
-                    f"    {repo_name}: server shutdown"
-                    + (
-                        f" {repo_done_nr} of {self.len_repos}"
-                        if self.len_repos > 1
-                        else ""
+        i = 0
+        if self.args.view == AUTO and self.args.file_formats:
+            while i < self.len_repos:
+                i += 1
+                repo_name, out_file_name = self.queues.open_file.get()
+                if out_file_name is None:
+                    logger.info(
+                        f"{repo_name}:    no output:"
+                        + (f" {i} of {self.len_repos}" if self.len_repos > 1 else "")
                     )
+                    continue
+                time.sleep(0.1)
+                open_file(out_file_name)
+                logger.info(
+                    f"{repo_name}:    {out_file_name}: output done "
+                    + (f" {i} of {self.len_repos}" if self.len_repos > 1 else "")
                 )
+        elif require_server(self.args) and shared.gui:
+            # GUI
+            assert self.html_server is not None
+            if not self.html_server.server:
+                self.html_server.start_server()
+            self.html_server.set_localhost_data()
+            self.html_server.gui_open_new_tabs()
+        elif require_server(self.args) and not shared.gui:
+            # CLI
+            assert self.html_server is not None
+            self.html_server.start_server()
+            self.html_server.set_localhost_data()
+            for i, (browser_id, data) in enumerate(
+                self.html_server.id2localhost_data.items()
+            ):
+                if data.html_doc:
+                    browser_output = True
+                    self.html_server.open_new_tab(
+                        data.name,
+                        browser_id,
+                        data.html_doc,
+                        i + 1,
+                    )
+            if browser_output:
+                if platform.system() == "Windows":
+                    log("Press Enter to continue")
+                    input()
+                    if not self.html_server.server_shutdown_request.is_set():
+                        self.html_server.send_shutdown_request()
+                else:  # macOS and Linux
+                    log(CLOSE_OUTPUT_VIEWERS_MSG)
+                    while not self.html_server.server_shutdown_request.wait(0.1):
+                        if select.select([sys.stdin], [], [], 1)[0]:
+                            input()
+                            break
+                    if not self.html_server.server_shutdown_request.is_set():
+                        self.html_server.send_shutdown_request()
+            self.html_server.server_shutdown_request.wait()
+            self.html_server.server.shutdown()  # type: ignore
+            self.html_server.server_thread.join()  # type: ignore
+            self.html_server.server.server_close()  # type: ignore
 
     def process_repos_singlecore(
         self,
         repo_lists: list[list[IniRepo]],
     ) -> None:
-        """Processes repositories on a single core.
-
-        Outputs repositories in batches, where each batch contains repositories
-        from a single folder.
-
-        Args:
-            args: Command-line arguments.
-            repo_lists: List of lists of repositories to process.
-            len_repos: Total number of repositories.
-            outfile_base: Base name for output files.
-            gui_window: GUI window instance, if any.
-            start_time: Start time of the process.
-            shared_data: Shared data dictionary for inter-process communication.
-        """
         repo_runners: list[RepoRunner] = []
         while repo_lists:
             # output a batch of repos from the same folder in a single run
@@ -197,104 +227,51 @@ class GIRunner(GiRunnerBase):
                 )
                 repo_runners.append(repo_runner)
                 repo_runner.process_repo()
-
-            self.await_tasks()
-
-        for repo_runner in repo_runners:
-            repo_runner.join_threads()
+        if not self.args.dryrun:
+            self.await_tasks_process_output()
 
     @staticmethod
     def total_len(repo_lists: list[list[IniRepo]]) -> int:
         return sum(len(repo_list) for repo_list in repo_lists)
 
 
-def shutdown_handler_main_multi_core(
-    signum, frame  # pylint: disable=unused-argument
-) -> None:
-    pass
-
-
-def shutdown_handler_main(
-    signum, frame, shutdown_all: Queue[None]  # pylint: disable=unused-argument
-) -> None:
-    shutdown_all.put(None)  # Only used for single core
-
-
 # Main function to run the analysis and create the output
 def start_gi_runner(
     args: Args,
     start_time: float,
-    runner_queues: RunnerQueues,
+    queues: RunnerQueues,
+    logging_queue: Queue,
+    sigint_event: multiprocessingEvent | threading.Event,
+    html_server: HTMLServer | None = None,
 ) -> None:
-    if args.multicore:
-        signal.signal(signal.SIGINT, shutdown_handler_main_multi_core)
-        signal.signal(signal.SIGTERM, shutdown_handler_main_multi_core)
-    else:  # single core
-        signal.signal(
-            signal.SIGINT,
-            lambda signum, frame: shutdown_handler_main(
-                signum,
-                frame,
-                runner_queues.shutdown_all,
-            ),
-        )
-        signal.signal(
-            signal.SIGTERM,
-            lambda signum, frame: shutdown_handler_main(
-                signum,
-                frame,
-                runner_queues.shutdown_all,
-            ),
-        )
-    GIRunner(args, start_time, runner_queues).run_repos()
-
-
-def shutdown_handler_worker(
-    signum, frame, shutdown_all: Queue[None], nr: int  # pylint: disable=unused-argument
-) -> None:
-    if nr == 0:
-        shutdown_all.put(None)  # Only used for multicore
+    setup_sigint_handler(sigint_event)
+    GIRunner(args, start_time, queues, logging_queue, sigint_event, html_server)
 
 
 # Runs on a separate core, receives tasks one by one and executes each task by a
 # repo_runner instance.
-def multicore_worker(runner_queues: RunnerQueues, verbosity: int, nr: int) -> None:
+def multicore_worker(
+    queues: RunnerQueues,
+    verbosity: int,
+) -> str:
     ini_repo: IniRepo
-    repo_runners: list[RepoRunner] = []
+    repo_name: str = "unknown"
 
     global logger
-    _logging.set_logging_level_from_verbosity(verbosity)
-    logger = getLogger(__name__)
+    try:
+        _logging.set_logging_level_from_verbosity(verbosity)
+        logger = getLogger(__name__)
 
-    signal.signal(
-        signal.SIGINT,
-        lambda signum, frame: shutdown_handler_worker(
-            signum,
-            frame,
-            runner_queues.shutdown_all,
-            nr,
-        ),
-    )
-    signal.signal(
-        signal.SIGTERM,
-        lambda signum, frame: shutdown_handler_worker(
-            signum,
-            frame,
-            runner_queues.shutdown_all,
-            nr,
-        ),
-    )
-
-    # Take into account that the SyncManager can be shut down in the main process,
-    # which will cause subsequent logging to fail.
-    while True:
-        ini_repo = runner_queues.task.get()
-        if ini_repo is None:
-            break
-        repo_runner = RepoRunner(ini_repo, runner_queues)
-        repo_runners.append(repo_runner)
-        repo_runner.process_repo()
-        runner_queues.task.task_done()
-
-    for repo_runner in repo_runners:
-        repo_runner.join_threads()
+        # Take into account that the SyncManager can be shut down in the main process,
+        # which will cause subsequent logging to fail.
+        while True:
+            ini_repo = queues.task.get()
+            repo_name = ini_repo.name
+            repo_runner = RepoRunner(ini_repo, queues)
+            repo_runner.process_repo()
+            queues.task.task_done()
+            return ini_repo.name
+    except Exception as e:
+        logger.error(f"Exception for repo {repo_name}:")
+        logger.exception(e)
+        return repo_name

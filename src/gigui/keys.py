@@ -27,7 +27,7 @@ class KeysArgs:
     comments: str = "comments"
     copy_move: str = "copy_move"
     verbosity: str = "verbosity"
-    dry_run: str = "dry_run"
+    dryrun: str = "dryrun"
     multithread: str = "multithread"
     multicore: str = "multicore"
     since: str = "since"
@@ -89,10 +89,7 @@ class Keys(KeysArgs):
     dynamic_blame_history: str = "dynamic-blame-history"
 
     # Radio buttons for file formats
-    # Note that hyphens are used in "html-blame-history" because it is used as option
-    # value in the CLI.
     html: str = "html"
-    html_blame_history: str = "html-blame-history"
     excel: str = "excel"
 
     # General configuration

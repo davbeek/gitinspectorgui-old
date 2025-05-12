@@ -4,33 +4,30 @@ import multiprocessing
 import sys
 import threading
 import time
-from datetime import datetime
 from logging import getLogger
 from multiprocessing.managers import SyncManager
+from multiprocessing.synchronize import Event as multiprocessingEvent
 from pathlib import Path
-from typing import Any
+from queue import Queue
 
 import PySimpleGUI as sg  # type: ignore
 
 from gigui import _logging, shared
-from gigui._logging import add_cli_handler, set_logging_level_from_verbosity
+from gigui._logging import set_logging_level_from_verbosity
 from gigui.args_settings import Args, Settings, SettingsFile
 from gigui.constants import (
-    AUTO,
     DEBUG_SHOW_MAIN_EVENT_LOOP,
-    DYNAMIC_BLAME_HISTORY,
-    FILE_FORMATS,
     MAX_COL_HEIGHT,
-    NONE,
     WINDOW_HEIGHT_CORR,
 )
 from gigui.gi_runner import GIRunner
 from gigui.gui.psg_base import PSGBase, help_window, log, popup
 from gigui.gui.psg_window import make_window
 from gigui.keys import Keys
-from gigui.queues_setup import RunnerQueues, get_runner_queues
+from gigui.output.repo_html_server import HTMLServer, require_server
+from gigui.runner_queues import RunnerQueues, get_runner_queues
 from gigui.tiphelp import Help, Tip
-from gigui.utils import to_posix_fstr
+from gigui.utils import resolve_and_strip_input_fstrs, to_posix_fstr
 
 logger = getLogger(__name__)
 
@@ -45,11 +42,13 @@ class PSGUI(PSGBase):
     ) -> None:
         super().__init__(settings)
 
-        self.queues: RunnerQueues  # defined when the event keys.run is triggered
-        self.manager: SyncManager | None = (
-            None  # defined when the event keys.run is triggered
-        )
+        # THe following 5 vars are defined when the event keys.run is triggered
+        self.queues: RunnerQueues
+        self.manager: SyncManager | None = None
+        self.logging_queue: Queue
         self.gi_runner_thread: threading.Thread | None = None
+        self.html_server: HTMLServer = HTMLServer()
+
         self.recreate_window: bool = True
 
         while self.recreate_window:
@@ -123,7 +122,7 @@ class PSGUI(PSGBase):
                 case keys.run:
                     # Update processing of input patterns because dir state may have changed
                     self.process_inputs()  # type: ignore
-                    self.queues, self.manager = get_runner_queues(
+                    self.queues, self.logging_queue, self.manager = get_runner_queues(
                         self.settings.multicore
                     )
                     self.run(values)
@@ -132,10 +131,6 @@ class PSGUI(PSGBase):
                 case keys.end:
                     if self.gi_runner_thread:
                         self.gi_runner_thread.join()
-                        # Cleanup resources
-                        if self.queues.host_port:
-                            # Need to remove the last port value to avoid a deadlock
-                            self.queues.host_port.get()
                         if self.manager:
                             self.manager.shutdown()
                     self.gi_runner_thread = None
@@ -152,21 +147,13 @@ class PSGUI(PSGBase):
 
                 # Exit button clicked
                 case keys.exit:
-                    break
+                    self.close()
+                    return False
 
-                # Window closed, or
+                # Window closed
                 case sg.WIN_CLOSED:
-                    if self.gi_runner_thread:
-                        shared.gui_window_closed = True
-                        self.queues.shutdown_all.put(None)
-                        self.gi_runner_thread.join()
-                        # Cleanup resources
-                        if self.queues.host_port:
-                            # Need to remove the last port value to avoid a deadlock
-                            self.queues.host_port.get()
-                        if self.manager:
-                            self.manager.shutdown()
-                    break
+                    self.close()
+                    return False
 
                 # IO configuration
                 ##################################
@@ -198,9 +185,6 @@ class PSGUI(PSGBase):
                 case keys.html:
                     self.process_view_format_radio_buttons(event)
 
-                case keys.html_blame_history:
-                    self.process_view_format_radio_buttons(event)
-
                 case keys.excel:
                     self.process_view_format_radio_buttons(event)
 
@@ -213,7 +197,7 @@ class PSGUI(PSGBase):
                     self.settings.from_values_dict(values)
                     self.settings.gui_settings_full_path = self.gui_settings_full_path
                     self.settings.save()
-                    log("Settings saved to " + SettingsFile.get_settings_file())
+                    log(f"Settings saved to {SettingsFile.get_location_path()}")
 
                 case keys.save_as:
                     self.settings.from_values_dict(values)
@@ -221,7 +205,7 @@ class PSGUI(PSGBase):
                     destination = values[keys.save_as]
                     self.settings.save_as(destination)
                     self.update_settings_file_str(self.gui_settings_full_path)
-                    log(f"Settings saved to {str(SettingsFile.get_location_path())}")
+                    log(f"Settings saved to {SettingsFile.get_location_path()}")
 
                 case keys.load:
                     settings_file = values[keys.load]
@@ -258,22 +242,18 @@ class PSGUI(PSGBase):
         self,
         values: dict,
     ) -> None:
-
         start_time = time.time()
         logger.debug(f"{values = }")  # type: ignore
 
         if self.input_fstrs and not self.input_fstr_matches:
             popup("Error", "Input folder path invalid")
             return
-
         if not self.input_fstrs:
             popup("Error", "Input folder path empty")
             return
-
         if not self.outfile_base:
             popup("Error", "Output file base empty")
             return
-
         if not self.subfolder_valid:
             popup(
                 "Error",
@@ -282,84 +262,71 @@ class PSGUI(PSGBase):
             )
             return
 
-        args = Args()
-        settings_schema: dict[str, Any] = SettingsFile.SETTINGS_SCHEMA["properties"]
-        for schema_key, schema_value in settings_schema.items():
-            if schema_key not in {
-                keys.profile,
-                keys.fix,
-                keys.n_files,
-                keys.view,
-                keys.file_formats,
-                keys.since,
-                keys.until,
-                keys.multithread,
-                keys.gui_settings_full_path,
-            }:
-                if schema_value["type"] == "array":
-                    setattr(args, schema_key, values[schema_key].split(","))  # type: ignore
-                else:
-                    setattr(args, schema_key, values[schema_key])
-
-        args.multithread = self.multithread
-
-        if values[keys.prefix]:
-            args.fix = keys.prefix
-        elif values[keys.postfix]:
-            args.fix = keys.postfix
-        else:
-            args.fix = keys.nofix
-
-        if values[keys.auto]:
-            args.view = AUTO
-        elif values[keys.dynamic_blame_history]:
-            args.view = DYNAMIC_BLAME_HISTORY
-        else:
-            args.view = NONE
-
-        args.n_files = 0 if not values[keys.n_files] else int(values[keys.n_files])
-
-        file_formats = []
-        for schema_key in FILE_FORMATS:
-            if values[schema_key]:
-                file_formats.append(schema_key)
-        args.file_formats = file_formats
-
+        self.set_args(values)
         self.disable_buttons()
+        self.queues, self.logging_queue, self.manager = get_runner_queues(
+            self.args.multicore
+        )
+        logger.debug(f"{self.args = }")  # type: ignore
 
-        for schema_key in keys.since, keys.until:
-            val = values[schema_key]
-            if not val or val == "":
-                continue
-            try:
-                val = datetime.strptime(values[schema_key], "%Y-%m-%d").strftime(
-                    "%Y-%m-%d"
-                )
-            except (TypeError, ValueError):
-                popup(
-                    "Reminder",
-                    "Invalid date format. Correct format is YYYY-MM-DD. Please try again.",
-                )
-                return
-            setattr(args, schema_key, str(val))
-
-        args.normalize()
-
-        logger.debug(f"{args = }")  # type: ignore
+        if require_server(self.args):
+            if not self.html_server:
+                self.html_server = HTMLServer()
+            self.html_server.set_args(self.args)
 
         self.gi_runner_thread = threading.Thread(
             target=self.start_gi_runner,
-            args=(args, start_time, self.queues),
+            args=(
+                self.args,
+                start_time,
+                self.queues,
+                self.logging_queue,
+                multiprocessing.Event() if self.args.multicore else threading.Event(),
+                self.html_server,
+            ),
             name="GI Runner",
         )
         self.gi_runner_thread.start()
 
     def start_gi_runner(
-        self, args: Args, start_time: float, queues: RunnerQueues
+        self,
+        args: Args,
+        start_time: float,
+        queues: RunnerQueues,
+        logging_queue: Queue,
+        sync_event: multiprocessingEvent | threading.Event,
+        html_server: HTMLServer | None = None,
     ) -> None:
-        GIRunner(args, start_time, queues).run_repos()
+        GIRunner(
+            args,
+            start_time,
+            queues,
+            logging_queue,
+            sync_event,
+            html_server,
+        )
         if not shared.gui_window_closed:
             self.window.write_event_value(keys.end, None)
+
+    def shutdown_html_server(self) -> None:
+        if self.html_server.server:
+            self.html_server.send_general_shutdown_request()
+            self.html_server.server_shutdown_request.wait()
+            self.html_server.server.shutdown()
+            self.html_server.server.server_close()
+            if (
+                self.html_server.server_thread
+                and self.html_server.server_thread.is_alive()
+            ):
+                self.html_server.server_thread.join()
+
+    def close(self) -> None:
+        self.shutdown_html_server()
+        if self.gi_runner_thread:
+            shared.gui_window_closed = True
+            self.gi_runner_thread.join()
+            if self.manager:
+                self.manager.shutdown()
 
     def _update_column_height(
         self,
@@ -385,12 +352,16 @@ class PSGUI(PSGBase):
             )
 
 
-if __name__ == "__main__":
+def main():
     settings: Settings
-    error: str
-    settings, error = SettingsFile.load()
+    settings, _ = SettingsFile.load()
+    settings.input_fstrs = resolve_and_strip_input_fstrs(settings.input_fstrs)
+    _logging.ini_for_gui_base()
+    _logging.add_cli_handler()
+    PSGUI(settings)
+
+
+if __name__ == "__main__":
     # Required for pyinstaller to support the use of multiprocessing in gigui
     multiprocessing.freeze_support()
-    _logging.ini_for_gui_base()
-    add_cli_handler()
-    PSGUI(settings)
+    main()
