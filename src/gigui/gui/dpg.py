@@ -1,24 +1,33 @@
 from copy import copy
 from dataclasses import asdict
+from datetime import datetime
+from pathlib import Path
 from typing import Any, Union
 
 import dearpygui.dearpygui as dpg
+from git import InvalidGitRepositoryError, NoSuchPathError
+from git import Repo as GitRepo
 
-from gigui.args_settings import Settings
+from gigui.args_settings import Args, Settings, SettingsFile
 from gigui.constants import (
+    AUTO,
     BLAME_EXCLUSION_CHOICES,
+    DEFAULT_FILE_BASE,
+    DISABLED_COLOR,
+    DYNAMIC_BLAME_HISTORY,
+    ENABLED_COLOR,
     FILE_FORMATS,
-    INIT_COL_PERCENT,
-    MAX_COL_HEIGHT,
+    INVALID_INPUT_RGBA_COLOR,
     NONE,
+    PARENT_HINT,
     PREPOSTFIX_OPTIONS,
-    SHOW,
-    WINDOW_HEIGHT_CORR,
-    WINDOW_SIZE_X,
-    WINDOW_SIZE_Y,
+    REPO_HINT,
+    VALID_INPUT_RGBA_COLOR,
 )
 from gigui.keys import Keys
 from gigui.tiphelp import Help
+from gigui.typedefs import FilePattern, FileStr
+from gigui.utils import get_posix_dir_matches_for, to_posix_fstrs
 
 keys = Keys()
 
@@ -34,12 +43,39 @@ def _on_demo_close(sender, app_data, user_data):
 
 def gui_handle(sender, app_data, user_data):
     print(f"sender: {sender}, \t app_data: {app_data}, \t user_data: {user_data}")
-
-
+    
 class DPGui:
     def __init__(self, settings: Settings) -> None:
         print(settings)
-        self.settings = settings
+        self.settings: Settings = settings
+        self.args: Args
+
+        # All file strings are in POSIX format, containing only forward slashes as path
+        # separators, apart from outfile_base which is not supposed to contain path
+        # separators.
+        self.col_percent: int = self.settings.col_percent
+        self.gui_settings_full_path: bool = self.settings.gui_settings_full_path
+        self.multithread: bool = self.settings.multithread
+        self.input_fstrs: list[FilePattern] = []  # as entered by user
+        self.input_fstr_matches: list[FileStr] = []
+        self.input_repo_path: Path | None = None
+        self.fix: str = keys.prefix
+        self.outfile_base: FileStr = DEFAULT_FILE_BASE
+        self.subfolder: FileStr = ""
+        self.subfolder_valid: bool = True
+        self.buttons: list[str] = [
+            keys.run,
+            keys.clear,
+            keys.save,
+            keys.save_as,
+            keys.load,
+            keys.reset,
+            keys.help,
+            keys.about,
+            keys.exit,
+            keys.browse_input_fstr,
+        ]
+
         self.window: dict[str, Union[int, str]] = {}
         self.make_window()
         self.window_state_from_settings()
@@ -88,16 +124,285 @@ class DPGui:
             for key in set(FILE_FORMATS):
                 self.update_window_value(key, value=key in settings.file_formats)
 
+        self.update_input_fstrs(", ".join(settings.input_fstrs))
+        self.update_window_value(keys.outfile_base, settings.outfile_base)
+        self.update_window_value(
+            keys.include_files, ", ".join(settings.include_files)
+        )
+        self.update_window_value(keys.subfolder, settings.subfolder)
+        self.update_window_value(keys.verbosity, settings.verbosity)
+
+        # First set column height too big, then set it to the correct value to ensure
+        # correct displaying of the column height
+        self.update_window_value(
+            keys.col_percent, min(settings.col_percent + 5, 100)
+        )
+        self.update_window_value(keys.col_percent, settings.col_percent)
+        if settings.gui_settings_full_path:
+            settings_fstr = str(SettingsFile.get_location_path())
+        else:
+            settings_fstr = SettingsFile.get_location_path().stem
+        self.update_window_value(keys.settings_file, settings_fstr)  # type: ignore
+
+    def update_outfile_str(self) -> None:
+        def get_outfile_path() -> Path:
+            def get_rename_file() -> str:
+                if self.input_repo_path:
+                    repo_name = self.input_repo_path.stem
+                else:
+                    repo_name = REPO_HINT
+
+                if self.fix == keys.postfix:
+                    return f"{self.outfile_base}-{repo_name}"
+                elif self.fix == keys.prefix:
+                    return f"{repo_name}-{self.outfile_base}"
+                else:  # fix == keys.nofix
+                    return self.outfile_base
+
+            if not self.input_fstrs or not self.input_fstr_matches:
+                return Path("")
+
+            out_name = get_rename_file()
+            if self.input_repo_path:
+                return self.input_repo_path.parent / out_name
+            else:
+                return Path(PARENT_HINT) / out_name
+
+        self.update_window_value(keys.outfile_path, str(get_outfile_path()))  # type: ignore
+
+    def update_settings_file_str(
+        self,
+        full_path: bool,
+    ) -> None:
+        if full_path:
+            file_string = str(SettingsFile.get_location_path())
+        else:
+            file_string = SettingsFile.get_location_path().stem
+        self.window[keys.settings_file].update(value=file_string)  # type: ignore
+
+    def process_input_fstrs(self, input_fstr_patterns: str) -> None:
+        try:
+            input_fstrs: list[FileStr] = input_fstr_patterns.split(",")
+        except ValueError:
+            self.update_input_backgroundcolor(keys.input_fstrs, INVALID_INPUT_RGBA_COLOR)  # type: ignore
+            return
+        self.input_fstrs = to_posix_fstrs(input_fstrs)
+        self.process_inputs()
+
+    def process_inputs(self) -> None:
+        if not self.input_fstrs:
+            self.input_fstr_matches = []
+            self.input_repo_path = None
+            self.show_nofix_option()
+            enable_element(keys.depth)  # type: ignore
+            self.update_outfile_str()
+            return
+
+        matches: list[FileStr] = self.get_posix_dir_matches(self.input_fstrs, keys.input_fstrs)  # type: ignore
+        self.input_fstr_matches = matches
+
+        if len(matches) == 1 and is_git_repo(Path(matches[0])):
+            self.input_repo_path = Path(matches[0])
+            self.show_nofix_option()
+            disable_element(keys.depth)  # type: ignore
+            self.update_outfile_str()
+            self.check_subfolder()
+        else:
+            self.input_repo_path = None
+            self.hide_nofix_option()
+            enable_element(keys.depth)  # type: ignore
+            self.update_outfile_str()
+
+    def get_posix_dir_matches(
+        self, patterns: list[FilePattern], input_key: str, colored: bool = True
+    ) -> list[FileStr]:
+        all_matches: list[FileStr] = []
+        for pattern in patterns:
+            matches: list[FileStr] = get_posix_dir_matches_for(pattern)
+            if not matches:
+                if colored:
+                    self.update_input_backgroundcolor(input_key, INVALID_INPUT_RGBA_COLOR)
+                return []
+            else:
+                all_matches.extend(matches)
+
+        self.update_input_backgroundcolor(input_key, VALID_INPUT_RGBA_COLOR)
+        unique_matches = []
+        for match in all_matches:
+            if match not in unique_matches:
+                unique_matches.append(match)
+        return unique_matches
+
+    def check_subfolder(self) -> None:
+        # check_subfolder() is called by process_inputs() when state.input_repo_path
+        # is valid
+        if not self.subfolder:
+            self.subfolder_valid = True
+            self.update_input_backgroundcolor(keys.subfolder, VALID_INPUT_RGBA_COLOR)  # type: ignore
+            return
+
+        subfolder_exists: bool
+        repo = GitRepo(self.input_repo_path)  # type: ignore
+        tree = repo.head.commit.tree
+
+        subfolder_path = self.subfolder.split("/")
+        if not subfolder_path[0]:
+            subfolder_path = subfolder_path[1:]
+        if not subfolder_path[-1]:
+            subfolder_path = subfolder_path[:-1]
+        subfolder_exists = True
+        for part in subfolder_path:
+            try:
+                # Note that "if part in tree" does not work properly:
+                # - It works for the first part, but not for the second part.
+                # - For the second part, it always returns False, even if the
+                #   part (subfolder) exists.
+                tree_or_blob = tree[part]  # type: ignore
+                if not tree_or_blob.type == "tree":  # Check if the part is a directory
+                    subfolder_exists = False
+                    break
+                tree = tree_or_blob
+            except KeyError:
+                subfolder_exists = False
+                break
+
+        if subfolder_exists:
+            self.subfolder_valid = True
+            self.update_input_backgroundcolor(keys.subfolder, VALID_INPUT_RGBA_COLOR)  # type: ignore
+        else:
+            self.subfolder_valid = False
+            self.update_input_backgroundcolor(keys.subfolder, INVALID_INPUT_RGBA_COLOR)  # type: ignore
+
+    def process_n_files(self, n_files_str: str, key: str) -> None:
+        # Filter out any initial zero and all non-digit characters
+        filtered_str = "".join(filter(str.isdigit, n_files_str)).lstrip("0")
+        self.update_window_value(key, filtered_str)
+
+    def process_view_format_radio_buttons(self, html_key: str) -> None:
+        match html_key:
+            case keys.auto:
+                self.update_window_value(keys.dynamic_blame_history, False)  # type: ignore
+            case keys.dynamic_blame_history:
+                self.update_window_value(keys.auto, False)  # type: ignore
+                self.update_window_value(keys.html, False)  # type: ignore
+                self.update_window_value(keys.excel, False)  # type: ignore
+            case keys.html:
+                self.update_window_value(keys.dynamic_blame_history, value=False)  # type: ignore
+            case keys.excel:
+                self.update_window_value(keys.dynamic_blame_history, False)  # type: ignore
+
+    def set_args(self, values: dict) -> None:
+        self.args = Args()
+        settings_schema: dict[str, Any] = SettingsFile.SETTINGS_SCHEMA["properties"]
+        for schema_key, schema_value in settings_schema.items():
+            if schema_key not in {
+                keys.profile,
+                keys.fix,
+                keys.n_files,
+                keys.view,
+                keys.file_formats,
+                keys.since,
+                keys.until,
+                keys.multithread,
+                keys.gui_settings_full_path,
+            }:
+                if schema_value["type"] == "array":
+                    setattr(self.args, schema_key, values[schema_key].split(","))  # type: ignore
+                else:
+                    setattr(self.args, schema_key, values[schema_key])
+
+        self.args.multithread = self.multithread
+
+        if values[keys.prefix]:
+            self.args.fix = keys.prefix
+        elif values[keys.postfix]:
+            self.args.fix = keys.postfix
+        else:
+            self.args.fix = keys.nofix
+
+        if values[keys.auto]:
+            self.args.view = AUTO
+        elif values[keys.dynamic_blame_history]:
+            self.args.view = DYNAMIC_BLAME_HISTORY
+        else:
+            self.args.view = NONE
+
+        self.args.n_files = 0 if not values[keys.n_files] else int(values[keys.n_files])
+
+        file_formats = []
+        for schema_key in FILE_FORMATS:
+            if values[schema_key]:
+                file_formats.append(schema_key)
+        self.args.file_formats = file_formats
+
+        for schema_key in keys.since, keys.until:
+            val = values[schema_key]
+            if not val or val == "":
+                continue
+            try:
+                val = datetime.strptime(values[schema_key], "%Y-%m-%d").strftime(
+                    "%Y-%m-%d"
+                )
+            except (TypeError, ValueError):
+                # popup(
+                #     "Reminder",
+                #     "Invalid date format. Correct format is YYYY-MM-DD. Please try again.",
+                # )
+                return
+            setattr(self.args, schema_key, str(val))
+
+        self.args.normalize()
+
+    def disable_buttons(self) -> None:
+        for button in self.buttons:
+            self.update_button_state(button, disabled=True)
+
+    def enable_buttons(self) -> None:
+        for button in self.buttons:
+            self.update_button_state(button, disabled=False)
+
+    def update_button_state(self, button: str, disabled: bool) -> None:
+        if disabled:
+            color = DISABLED_COLOR
+        else:
+            color = ENABLED_COLOR
+        self.window[button].update(disabled=disabled, button_color=color)  # type: ignore
+
     def add_dg_checkbox(self, label: str, key: str) -> None:
         cb = dpg.add_checkbox(label=label, tag=key, callback=gui_handle)
         self.window[key] = cb
 
-    def add_dg_input_text(self, tag: str, width: int = -1) -> None:
-        it = dpg.add_input_text(tag=tag, width=width, callback=gui_handle)
+    def add_dg_input_text(self, tag: str, width: int = -1, default_value: str = '') -> None:
+        # with dpg.theme() as theme:
+        #     with dpg.theme_component(dpg.mvInputText):
+        #         dpg.add_theme_color(dpg.mvThemeCol_FrameBg, VALID_INPUT_RGBA_COLOR, tag=tag+"theme")
+
+        it = dpg.add_input_text(tag=tag, default_value= default_value, width=width, callback=gui_handle)
+        # dpg.bind_item_theme(it, theme)
+        self.window[tag] = it
+
+    def add_multiline(self, tag:str) -> None:
+        it = dpg.add_input_text(tag=tag, width=-1, height=-1, multiline=True, readonly=True)
         self.window[tag] = it
 
     def update_window_value(self, key: str, value: Any) -> None:
         dpg.set_value(self.window[key], value)
+
+    def update_input_fstrs(self, value: str) -> None:
+        self.update_window_value(keys.input_fstrs, value)
+        self.process_input_fstrs(value)
+
+    def update_input_backgroundcolor(self, key: str, color: tuple[int, int, int, int]) -> None:
+        # dpg.set_value(key + "theme", color)
+        print("background")
+
+    def hide_nofix_option(self) -> None:
+        options = tuple(PREPOSTFIX_OPTIONS.values())[:-1]
+        dpg.configure_item(keys.fix, items=options)
+
+    def show_nofix_option(self) -> None:
+        dpg.configure_item(keys.fix, items=tuple(PREPOSTFIX_OPTIONS.values()))
+
 
     def make_window(self):
         dpg.create_context()
@@ -130,6 +435,7 @@ class DPGui:
                     self.add_dg_input_text(keys.input_fstrs, 567)
 
                     with dpg.file_dialog(
+                        directory_selector=True,
                         width=300,
                         height=400,
                         show=False,
@@ -159,10 +465,9 @@ class DPGui:
                 with dpg.group(horizontal=True):
                     with dpg.group(width=LABEL_WIDTH):
                         dpg.add_text("Output file path")
-                    dpg.add_input_text(
-                        default_value=self.get_outfile_str(),
-                        callback=gui_handle,
-                        width=-1,
+                    self.add_dg_input_text(
+                        tag=keys.outfile_path,
+                        default_value=self.get_outfile_str()
                     )
 
                 with dpg.group(horizontal=True):
@@ -293,8 +598,8 @@ class DPGui:
 
             with dpg.child_window(height=60):
                 with dpg.group(horizontal=True):
-                    dpg.add_text("Settings file")
-                    self.add_dg_input_text("")
+                    dpg.add_text("Settings")
+                    self.add_dg_input_text(tag=keys.settings_file)
 
                 with dpg.group(horizontal=True):
                     dpg.add_button(label="Save", tag=keys.save, callback=gui_handle)
@@ -339,7 +644,7 @@ class DPGui:
                     with dpg.table_row():
                         with dpg.group(horizontal=True):
                             dpg.add_text("File/Folder")
-                            self.add_dg_input_text(keys.ex_files, 400)
+                            self.add_dg_input_text(keys.ex_files, width=400)
                         with dpg.group(horizontal=True):
                             dpg.add_text("Revision hash")
                             self.add_dg_input_text(keys.ex_revisions)
@@ -348,9 +653,7 @@ class DPGui:
                     dpg.add_text("Commit message")
                     self.add_dg_input_text(keys.ex_messages)
 
-            dpg.add_input_text(
-                tag=keys.multiline, width=-1, height=-1, multiline=True, readonly=True
-            )
+            self.add_multiline(keys.multiline)
 
     def show_gui(self):
         dpg.create_viewport(title="GitinspectorGUI", width=800, height=WINDOW_HEIGHT)
@@ -359,15 +662,32 @@ class DPGui:
         dpg.start_dearpygui()
         dpg.destroy_context()
 
-    def process_view_format_radio_buttons(self, html_key: str) -> None:
-        match html_key:
-            case keys.auto:
-                self.update_window_value(keys.dynamic_blame_history, False)
-            case keys.dynamic_blame_history:
-                self.update_window_value(keys.auto, False)
-                self.update_window_value(keys.html, False)
-                self.update_window_value(keys.excel, False)
-            case keys.html:
-                self.update_window_value(keys.dynamic_blame_history, value=False)
-            case keys.excel:
-                self.update_window_value(keys.dynamic_blame_history, False)
+
+def use_single_repo(input_paths: list[Path]) -> bool:
+    return len(input_paths) == 1 and is_git_repo(input_paths[0])
+
+
+def is_git_repo(path: Path) -> bool:
+    try:
+        if path.stem == ".resolve":
+            # path.resolve() crashes on macOS for path.stem == ".resolve"
+            return False
+        git_path = (path / ".git").resolve()
+        if not git_path.is_dir():
+            return False
+    except (PermissionError, TimeoutError):  # git_path.is_symlink() may time out
+        return False
+
+    try:
+        # The default True value of expand_vars leads to confusing warnings from
+        # GitPython for many paths from system folders.
+        repo = GitRepo(path, expand_vars=False)
+        return not repo.bare
+    except (InvalidGitRepositoryError, NoSuchPathError):
+        return False
+
+def enable_element(key: str) -> None:
+    dpg.configure_item(key, enabled=True)
+
+def disable_element(key: str) -> None:
+    dpg.configure_item(key, enabled=False)
