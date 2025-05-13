@@ -428,5 +428,7 @@ def disable_element(key: str) -> None:
     dpg.configure_item(key, enabled=False)
 
 
-def popup(title, message) -> None:
-    sg.popup(title, message, keep_on_top=True, text_color="black")
+def popup(title: str, message: str):
+    with dpg.window(label=title, modal=True, tag="popup_window"):
+        dpg.add_text(message)
+        dpg.add_button(label="Ok", callback=lambda: dpg.delete_item("popup_window"))

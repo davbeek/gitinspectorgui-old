@@ -38,7 +38,3 @@ def spinner(label: str, width: int, min_value: int, max_value: int, step: int, k
         callback=callback,
     )
 
-def popup(title: str, message: str):
-    with dpg.window(label=title, modal=True, tag="popup_window"):
-        dpg.add_text(message)
-        dpg.add_button(label="Ok", callback=lambda: dpg.delete_item("popup_window"))
