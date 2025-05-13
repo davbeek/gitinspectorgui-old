@@ -75,6 +75,7 @@ class Keys(KeysArgs):
 
     # IO configuration
     browse_input_fstr: str = "browse_input_fstr"
+    file_dialog: str = "file_dialog"
     outfile_path: str = "outfile_path"
 
     # Radio buttons for prefix, postfix and no prefix or postfix
