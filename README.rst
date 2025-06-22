@@ -4,7 +4,7 @@ GitInspectorGUI
 
 Features
 --------
-The Python ``gitinspectorgui`` tool facilitates detailed quantitative analysis
+The Python ``gitinspectorgui-old`` tool facilitates detailed quantitative analysis
 of the contribution of each author to selected repositories.
 
 - Html and Excel backends provide detailed Git statistics:
@@ -27,7 +27,7 @@ of the contribution of each author to selected repositories.
 Installation of GitinspectorGUI for Windows
 -------------------------------------------
 Download one of the two stand-alone executables for Windows from the `releases
-page <https://github.com/davbeek/gitinspectorgui/releases>`_. The two versions
+page <https://github.com/davbeek/gitinspectorgui-old/releases>`_. The two versions
 are as follows, where ``x.x.x`` is the version number:
 
 - ``win-gitinspectorgui-setup-x.x.x-Arm.exe``
@@ -138,7 +138,7 @@ Installation of the CLI via existing versions of Python and pip
 If you already have a working Python installation with ``pip``, you can install
 the GitinspectorGUI CLI from PyPI via:
 
-``pip install gitinspectorgui``
+``pip install gitinspectorgui-old``
 
 You can then display the gitinspectorgui help info by executing:
 
@@ -157,18 +157,18 @@ instructions <https://docs.astral.sh/uv/getting-started/installation/>`_.
 
 Once you have installed ``uv``, you can run the GitinspectorGUI CLI via:
 
-``uvx gitinspectorgui``
+``uvx gitinspectorgui-old``
 
 UV will automatically install Python if it is not already available on your
 system. It will also automatically download and cache
 the latest ``gitinspectorgui`` version and execute it. When a new version of
 ``gitinspectorgui`` is released, all you need to do is execute:
 
-``uvx gitinspectorgui@latest``
+``uvx gitinspectorgui-old@latest``
 
 This will download, cache and execute the latest ``gitinspectorgui`` version.
-Subsequent invocations of ``uvx gitinspectorgui`` will then use this new
-``gitinspectorgui`` version.
+Subsequent invocations of ``uvx gitinspectorgui-old`` will then use this new
+``gitinspectorgui-old`` version.
 
 Using the GitinspectorGUI CLI via UV
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -181,13 +181,13 @@ Using the GitinspectorGUI CLI via UV
 
    * - Command
      - Description
-   * - ``uvx gitinspectorgui``
+   * - ``uvx gitinspectorgui-old``
      - Show the help info.
-   * - ``uvx gitinspectorgui -h``
+   * - ``uvx gitinspectorgui-old -h``
      - Show the help info.
-   * - ``uvx gitinspectorgui -g``
+   * - ``uvx gitinspectorgui-old -g``
      - Open the GUI.
-   * - ``uvx gitinspectorgui -r repodir``
+   * - ``uvx gitinspectorgui-old -r repodir``
      - Run the program on the ``repodir`` repository and show the result in the
        default system browser.
 

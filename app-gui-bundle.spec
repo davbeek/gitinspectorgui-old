@@ -27,7 +27,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="gitinspectorgui",
+    name="gitinspectorgui-old",
     debug=False,
     strip=False,
     upx=False,
@@ -48,6 +48,6 @@ coll = COLLECT(
 
 app = BUNDLE(
     coll,
-    name="GitinspectorGUI.app",
+    name="GitinspectorGUIOld.app",
     icon="src/gigui/gui/images/icon.icns",  # Optionally set the path to your .icns icon file
 )

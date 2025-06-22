@@ -1,5 +1,5 @@
 [project]
-name = "gitinspectorgui"
+name = "gitinspectorgui-old"
 version = "0.4.5"
 description = "A CLI and GUI tool for numerical and blame analysis of git repositories."
 authors = [{ name = "Bert van Beek", email = "d.a.v.beek@tue.nl" }]
@@ -50,11 +50,11 @@ dependencies = [
 
 [project.urls]
 homepage = "https://gitinspectorgui.readthedocs.io/en/latest/index.html"
-repository = "https://github.com/davbeek/gitinspectorgui"
+repository = "https://github.com/davbeek/gitinspectorgui-old"
 
 [project.scripts]
 gigui = "gigui.cli:main"
-gitinspectorgui = "gigui.cli:main"
+gitinspectorgui-old = "gigui.cli:main"
 
 [dependency-groups]
 dev = [

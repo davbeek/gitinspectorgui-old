@@ -25,9 +25,9 @@ class GITool(GIBump):
 
         self.github_api_url = "https://api.github.com"
         self.repo_owner = "davbeek"
-        self.repo_name = "gitinspectorgui"
+        self.repo_name = "gitinspectorgui-old"
         self.github_token = os.getenv("GITHUB_TOKEN")
-        self.app_name = "GitinspectorGUI.app"
+        self.app_name = "GitinspectorGUIOld.app"
         self.app_path = self.root_dpath / "app" / self.app_name
 
         if self.is_win:
@@ -46,10 +46,10 @@ class GITool(GIBump):
             "app-gui-bundle.spec" if app_type == "gui" else "app-cli-bundle.spec"
         )
         if app_type == "gui":
-            app_name = "gitinspectorgui.exe" if self.is_win else "GitinspectorGUI.app"
+            app_name = "gitinspectorgui-old.exe" if self.is_win else "GitinspectorGUIOld.app"
         else:  # cli
             app_name = (
-                "gitinspectorcli.exe" if self.is_win else "gitinspectorcli executable"
+                "gitinspectorcli-old.exe" if self.is_win else "gitinspectorcli-old executable"
             )
         destination = (
             self.root_dpath / "app"
@@ -92,7 +92,7 @@ class GITool(GIBump):
 class GIMacTool(GITool):
     def __init__(self):
         super().__init__()
-        dmg_name_version = f"GitinspectorGUI-{self.version}-{self.processor_type}.dmg"
+        dmg_name_version = f"GitinspectorGUIOld-{self.version}-{self.processor_type}.dmg"
         self.dmg_path = self.root_dpath / "app" / dmg_name_version
 
     def create_dmg(self):
@@ -103,7 +103,7 @@ class GIMacTool(GITool):
 
         dmgbuild.build_dmg(  # type: ignore
             filename=str(self.dmg_path),
-            volume_name="GitinspectorGUI",
+            volume_name="GitinspectorGUIOld",
             settings={
                 "files": [str(self.app_path)],
                 "symlinks": {"Applications": "/Applications"},
@@ -131,7 +131,7 @@ class GIWinTool(GITool):
         self.arm_iss_path = self.iss_dpath / "win-setup-arm.iss"
         self.intel_iss_path = self.iss_dpath / "win-setup.iss"
         setup_name_version = (
-            f"win-gitinspectorgui-setup-{self.version}-{self.processor_type}.exe"
+            f"win-gitinspectorgui-old-setup-{self.version}-{self.processor_type}.exe"
         )
         self.win_setup_path = self.win_setup_dpath / setup_name_version
 
@@ -176,7 +176,7 @@ class GIWinTool(GITool):
 class GitHub(GIMacTool, GIWinTool):
     def __init__(self):
         super().__init__()
-        self.release_name = f"GitinspectorGUI-{self.version}"
+        self.release_name = f"GitinspectorGUIOld-{self.version}"
 
     def check_release_absence(self):
         """Check if a GitHub release for the current version already exists."""

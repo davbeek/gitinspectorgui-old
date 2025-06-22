@@ -33,7 +33,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='gitinspectorgui',
+    name='gitinspectorgui-old',
     debug=False,    # Set to True to debug the GUI when started via app/mac/gitinspectorgui
     bootloader_ignore_signals=False,
     strip=False,
@@ -49,7 +49,7 @@ exe = EXE(
 
 app = BUNDLE(
     exe,
-    name='GitinspectorGUI.app',
+    name='GitinspectorGUIOld.app',
     icon=None,
     bundle_identifier=None
  )

@@ -6,7 +6,7 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = "GitinspectorGUI"
+project = "GitinspectorGUIOld"
 # author = "GitinspectorGUI Team"
 # copyright = "GitinspectorGUI Team"
 # version = "0.4.1"
